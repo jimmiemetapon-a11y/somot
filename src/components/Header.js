@@ -1,66 +1,266 @@
-const BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
-
-export function renderHeader(title, subtitle, onToggleDark) {
+export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'All Branches', dateRange = null, user = null, onSignOut = null) {
   const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const today    = now.toISOString().split('T')[0];
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  const finalDateRange = dateRange || [yesterdayStr, yesterdayStr];
+
+  // Process User Info
+  const displayName = user?.displayName || 'Admin User';
+  const email = user?.email || 'admin@somot.com';
+  const photoUrl = user?.photoURL || null;
+  const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AD';
 
   const header = document.createElement('header');
-  header.className = 'sticky top-0 z-50 w-full backdrop-blur-md bg-white/75 dark:bg-slate-900/75 border-b border-slate-200/60 dark:border-slate-800/60 px-8 py-3 flex items-center justify-between transition-all duration-300';
+  header.className = 'topbar fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-3 bg-white/60 dark:bg-[#020617]/60 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800/60 shadow-sm dark:shadow-2xl h-[64px] transition-all duration-300';
+
+  const isDashboard = title === 'Dashboard';
+
+  // Define options based on user permissions
+  const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const allowedBranches = user?.permissions?.allowedBranches || DEFAULT_BRANCHES;
+
   header.innerHTML = `
-    <!-- Left: Filters (Moved from Dashboard) -->
+    <!-- Left: Logo + Filters -->
     <div class="flex items-center gap-4">
-      <div class="flex flex-col">
-        <h1 class="text-sm font-extrabold text-slate-800 dark:text-white tracking-tight">${title}</h1>
-        <p class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">${subtitle}</p>
+      <!-- JOINT LOGO S -->
+      <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-lg shadow-lg shadow-purple-500/30"
+           style="background: linear-gradient(135deg, #96588a 0%, #7a4671 100%);">
+        S
       </div>
-      
-      <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
-      
-      <div class="flex items-center gap-2">
-        <select id="db-branch" class="pl-3 pr-8 py-1.5 rounded-lg text-xs font-bold bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 outline-none cursor-pointer hover:border-emerald-500 transition-colors appearance-none" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 0.75rem center;">
-          ${BRANCHES.map(b => `<option value="${b}">${b}</option>`).join('')}
-        </select>
-        
-        <div class="flex items-center bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden group hover:border-emerald-500 transition-colors">
-          <input type="date" id="db-from" value="${firstDay}" class="pl-3 pr-1 py-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-transparent outline-none cursor-pointer"/>
-          <span class="text-slate-300 px-0.5">→</span>
-          <input type="date" id="db-to" value="${today}" class="pl-1 pr-3 py-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-transparent outline-none cursor-pointer"/>
-        </div>
-        
-        <button id="db-refresh" class="p-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all active:scale-95">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
-        </button>
+
+      <div class="flex items-center gap-3">
+        ${(isDashboard || !logoUrl) ? `
+          <h1 class="text-base font-black text-slate-800 dark:text-white tracking-tight ml-2">${title}</h1>
+        ` : `
+          <!-- BIG PARTNER LOGO (Replacing title) -->
+          <div class="h-7 min-w-[100px] flex items-center border-l border-slate-200 dark:border-slate-800/60 pl-4 ml-1">
+             <img src="/src/assets/${logoUrl}" class="h-full w-auto object-contain dark:brightness-0 dark:invert" alt="${title} Logo" />
+          </div>
+        `}
       </div>
     </div>
 
     <!-- Right: Profile & Theme -->
-    <div class="flex items-center gap-4">
-      <button id="dark-btn" class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-        <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
+    <div class="flex items-center gap-3">
+<!-- Pill 1: Branch Custom UI -->
+<div class="relative h-10 group" id="branch-dropdown-wrapper">
+    <!-- Hidden input để giữ giá trị cho Logic cũ -->
+    <input type="hidden" id="db-branch" value="${branch}">
+    
+        <!-- Button hiển thị thay cho select cũ -->
+        <div id="branch-display" class="h-full pl-4 pr-10 rounded-full text-[11px] font-black bg-[#96588a] text-white flex items-center cursor-pointer hover:bg-[#7a4671] transition-all shadow-md relative">
+            <span id="current-branch-text">${branch}</span>
+            <!-- Icon mũi tên -->
+            <div class="absolute right-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+        </div>
+
+          <!-- Danh sách chi nhánh hiệu ứng Kính Mờ -->
+          <div id="branch-options" class="absolute top-full left-0 mt-2 w-48 bg-white/70 dark:bg-slate-900/70 border border-white/20 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[70] overflow-hidden backdrop-blur-md">
+              <div class="py-2">
+                  ${allowedBranches.map(b => `
+                      <div class="branch-item px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-white/40 hover:text-[#96588a] transition-all cursor-pointer" 
+                          onclick="document.getElementById('db-branch').value='${b}'; document.getElementById('current-branch-text').innerText='${b}'; document.getElementById('db-branch').dispatchEvent(new Event('change'));">
+                          ${b}
+                      </div>
+                  `).join('')}
+              </div>
+          </div>
+      </div>
+      
+      <!-- Pill 2: Date Selector (Custom Dropdown + Flatpickr) -->
+      <div class="flex items-center h-10 bg-white dark:bg-slate-800 border-2 border-[#96588a]/40 rounded-full px-4 hover:border-[#96588a] transition-all shadow-sm group relative cursor-pointer" id="custom-preset-container">
+         <i data-lucide="calendar" class="w-4 h-4 text-[#96588a] mr-2"></i>
+         
+         <!-- Hidden Input for Flatpickr logic -->
+         <input type="text" id="db-date-range" class="absolute inset-0 opacity-0 pointer-events-none" value="${dateRange || ''}">
+         
+         <!-- Custom Dropdown Trigger -->
+         <div class="flex items-center gap-2">
+            <span id="preset-label" class="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight">Yesterday</span>
+            <i data-lucide="chevron-down" id="preset-chevron" class="w-3 h-3 text-slate-400 transition-transform duration-300"></i>
+         </div>
+
+         <!-- Custom Dropdown Menu -->
+         <div id="preset-menu" class="absolute top-full left-0 mt-2 w-48 bg-white/80 dark:bg-slate-900/80 border border-white/20 dark:border-slate-800/50 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 transition-all duration-300 z-[60] overflow-hidden backdrop-blur-xl">
+            <div class="py-2">
+               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="yesterday">Yesterday</div>
+               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="last7">Last 7 Days</div>
+               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="thisMonth">This Month</div>
+               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="lastMonth">Last Month</div>
+               <div class="border-t border-slate-50 dark:border-slate-800 my-1"></div>
+               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all flex items-center justify-between" data-value="custom">
+                  Custom Range
+                  <i data-lucide="edit-3" class="w-3 h-3 opacity-40"></i>
+               </div>
+            </div>
+         </div>
+      </div>
+      
+      <!-- Pill 3: Refresh -->
+      <button id="db-refresh" class="w-10 h-10 flex items-center justify-center rounded-full bg-[#96588a] hover:bg-[#7a4671] text-white shadow-lg shadow-purple-200 dark:shadow-none transition-all active:scale-90 group">
+        <i data-lucide="rotate-cw" class="w-4 h-4 group-hover:rotate-180 transition-transform duration-500"></i>
       </button>
 
       <div class="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
 
-      <div class="flex items-center gap-3 cursor-pointer group p-1 pr-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-emerald-500 to-emerald-400 flex items-center justify-center text-white text-xs font-black shadow-sm">
-          AD
+      <button id="dark-btn" class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+        <i data-lucide="moon" id="icon-moon" class="w-5 h-5"></i>
+      </button>
+
+      <!-- User Profile (Click to Logout) -->
+      <div id="user-profile-btn" class="flex items-center gap-3 cursor-pointer group pl-1 pr-4 py-1 rounded-full bg-white dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:border-rose-200 dark:hover:border-rose-800/50 transition-all shadow-sm relative overflow-hidden" title="Click to Sign Out">
+        ${photoUrl ? `
+          <img src="${photoUrl}" alt="Profile" class="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 object-cover shadow-sm group-hover:opacity-50 transition-opacity">
+        ` : `
+          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-[#96588a] to-[#7a4671] flex items-center justify-center text-white text-[10px] font-black shadow-sm border-2 border-white dark:border-slate-900 group-hover:opacity-50 transition-opacity">
+            ${initials}
+          </div>
+        `}
+        
+        <div class="hidden lg:block text-left group-hover:opacity-10 transition-opacity">
+          <p class="text-[11px] font-black text-slate-700 dark:text-white leading-tight">${displayName}</p>
+          <p class="text-[9px] text-slate-400 font-medium leading-tight">${email}</p>
         </div>
-        <div class="hidden sm:block">
-          <p class="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 leading-none">Admin User</p>
-          <p class="text-[9px] text-slate-400 mt-1 uppercase font-bold tracking-tighter">Manager</p>
+        
+        <!-- Hover Sign Out Text -->
+        <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+           <span class="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest flex items-center gap-1">
+              <i data-lucide="log-out" class="w-3 h-3"></i> Sign Out
+           </span>
         </div>
       </div>
     </div>
   `;
 
   setTimeout(() => {
+    if (window.lucide) window.lucide.createIcons();
+
+    const rangeInput = document.getElementById('db-date-range');
+    const container = document.getElementById('custom-preset-container');
+    const menu = document.getElementById('preset-menu');
+    const label = document.getElementById('preset-label');
+    const chevron = document.getElementById('preset-chevron');
+
+    // Toggle Menu
+    container.onclick = (e) => {
+      e.stopPropagation();
+      const isOpen = !menu.classList.contains('invisible');
+      if (isOpen) {
+        menu.classList.add('opacity-0', 'invisible', 'translate-y-2');
+        chevron.classList.remove('rotate-180');
+      } else {
+        menu.classList.remove('opacity-0', 'invisible', 'translate-y-2');
+        chevron.classList.add('rotate-180');
+      }
+    };
+
+    // Close on click outside
+    document.addEventListener('click', () => {
+      menu.classList.add('opacity-0', 'invisible', 'translate-y-2');
+      chevron.classList.remove('rotate-180');
+    });
+
+    // Date Helpers
+    const getRange = (type) => {
+      const d = new Date();
+      const fmt = (date) => date.toISOString().split('T')[0];
+
+      switch (type) {
+        case 'yesterday':
+          const yest = new Date();
+          yest.setDate(yest.getDate() - 1);
+          return `${fmt(yest)} to ${fmt(yest)}`;
+        case 'last7':
+          const start7 = new Date();
+          start7.setDate(start7.getDate() - 7);
+          return `${fmt(start7)} to ${fmt(d)}`;
+        case 'thisMonth':
+          const startM = new Date(d.getFullYear(), d.getMonth(), 1);
+          return `${fmt(startM)} to ${fmt(d)}`;
+        case 'lastMonth':
+          const lmS = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+          const lmE = new Date(d.getFullYear(), d.getMonth(), 0);
+          return `${fmt(lmS)} to ${fmt(lmE)}`;
+        default: return '';
+      }
+    };
+
+    if (window.flatpickr) {
+      const fp = window.flatpickr(rangeInput, {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        onClose: (selectedDates) => {
+          if (selectedDates.length === 2) {
+            const start = fp.formatDate(selectedDates[0], "Y-m-d");
+            const end = fp.formatDate(selectedDates[1], "Y-m-d");
+            const rangeStr = `${start} to ${end}`;
+            label.textContent = rangeStr;
+            rangeInput.value = rangeStr;
+            rangeInput.dispatchEvent(new Event('change'));
+          }
+        }
+      });
+
+      container.querySelectorAll('.preset-option').forEach(opt => {
+        opt.onclick = (e) => {
+          e.stopPropagation();
+          const val = opt.dataset.value;
+
+          if (val === 'custom') {
+            fp.open();
+          } else {
+            const range = getRange(val);
+            label.textContent = opt.textContent;
+            rangeInput.value = range;
+            rangeInput.dispatchEvent(new Event('change'));
+          }
+
+          menu.classList.add('opacity-0', 'invisible', 'translate-y-2');
+          chevron.classList.remove('rotate-180');
+        };
+      });
+
+      // Default / Sync state
+      if (dateRange) {
+        const yesterdayStr = getRange('yesterday');
+        const last7Str = getRange('last7');
+        const thisMonthStr = getRange('thisMonth');
+        const lastMonthStr = getRange('lastMonth');
+
+        rangeInput.value = dateRange; // Ensure input has the value
+
+        if (dateRange === yesterdayStr) label.textContent = 'Yesterday';
+        else if (dateRange === last7Str) label.textContent = 'Last 7 Days';
+        else if (dateRange === thisMonthStr) label.textContent = 'This Month';
+        else if (dateRange === lastMonthStr) label.textContent = 'Last Month';
+        else if (typeof dateRange === 'string' && dateRange.includes(' to ')) {
+          label.textContent = dateRange;
+        } else {
+          const opt = container.querySelector(`.preset-option[data-value="${dateRange}"]`);
+          if (opt) label.textContent = opt.textContent;
+          else label.textContent = dateRange;
+        }
+      } else {
+        label.textContent = 'Yesterday';
+        rangeInput.value = getRange('yesterday');
+      }
+    }
+
     document.getElementById('dark-btn')?.addEventListener('click', () => {
       onToggleDark();
     });
-  }, 0);
+
+    const profileBtn = document.getElementById('user-profile-btn');
+    if (profileBtn && onSignOut) {
+      profileBtn.addEventListener('click', onSignOut);
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+  }, 100);
 
   return header;
 }

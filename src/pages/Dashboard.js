@@ -38,15 +38,51 @@ function animateValue(el, end, formatter, duration = 800) {
   requestAnimationFrame(tick);
 }
 
-export function renderDashboard() {
+function formatAbbreviated(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(3) + 'M';
+  return n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function renderDashboard(user) {
   const page = document.createElement('div');
   page.className = 'p-5 space-y-5 page-enter relative min-h-full';
+
+  function getGreetingInfo() {
+    const hour = new Date().getHours();
+    if (hour < 12) return { text: 'Good Morning', icon: 'sun' };
+    if (hour < 18) return { text: 'Good Afternoon', icon: 'cloud-sun' };
+    return { text: 'Good Evening', icon: 'moon' };
+  }
+
+  const userName = user?.displayName?.split(' ')[0] || 'Admin';
+  const { text: greeting, icon: weatherIcon } = getGreetingInfo();
+  const dateStr = new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  }).format(new Date());
 
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
   const today = now.toISOString().split('T')[0];
 
   page.innerHTML = `
+    <!-- Greeting Banner -->
+    <div class="relative overflow-hidden rounded-3xl mb-6 p-7 bg-gradient-to-br from-[#96588a] via-[#8a507e] to-[#7a4671] text-white shadow-xl border border-white/10">
+      <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+        <div>
+          <div class="flex items-center gap-4 mb-4">
+            <i data-lucide="${weatherIcon}" class="w-8 h-8 text-yellow-300 drop-shadow-[0_0_10px_rgba(253,224,71,0.4)]"></i>
+            <span class="text-white/70 text-[11px] font-black uppercase tracking-[0.25em]">${dateStr}</span>
+          </div>
+          <h1 class="text-3xl md:text-4xl font-black tracking-tight font-nunito mb-2">
+            ${greeting}, <span class="text-purple-200">${userName}</span>!
+          </h1>
+          <p class="text-white/60 text-sm font-medium">
+            Your revenue center is looking strong today.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Loading State -->
     <div id="db-loading" class="hidden absolute inset-0 bg-white/50 dark:bg-slate-950/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
       <div class="flex items-center gap-3 bg-white dark:bg-slate-900 px-6 py-3 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800">
@@ -105,7 +141,7 @@ export function renderDashboard() {
           <p class="text-slate-400 text-[11px] font-extrabold tracking-tight">Total Deduction</p>
         </div>
         <div class="flex flex-col items-start text-left">
-          <h2 id="hero-ded" class="text-[22px] font-bold text-slate-800 dark:text-white tracking-tight mb-0.5">₱0.00</h2>
+          <h2 id="hero-ded" class="text-[22px] font-bold text-rose-500 tracking-tight mb-0.5">₱0.00</h2>
           <p class="text-[10px] text-slate-400 font-medium">Platform fees applied</p>
         </div>
       </div>
@@ -119,7 +155,7 @@ export function renderDashboard() {
           <p class="text-slate-400 text-[11px] font-extrabold tracking-tight">Total Expenses</p>
         </div>
         <div class="flex flex-col items-start text-left">
-          <h2 id="hero-expenses" class="text-[22px] font-bold text-slate-800 dark:text-white tracking-tight mb-0.5">₱0.00</h2>
+          <h2 id="hero-expenses" class="text-[22px] font-bold text-rose-500 tracking-tight mb-0.5">₱0.00</h2>
           <p class="text-[10px] text-slate-400 font-medium">Fixed & Variable costs</p>
         </div>
       </div>
@@ -220,22 +256,32 @@ export function renderDashboard() {
   `;
 
   setTimeout(() => {
-    const getVal = (id) => document.getElementById(id);
-    const branch = getVal('db-branch');
-    const from = getVal('db-from');
-    const to = getVal('db-to');
-    const refresh = getVal('db-refresh');
+    const branchSelect = document.getElementById('db-branch');
+    const rangeInput = document.getElementById('db-date-range');
+    const refreshBtn = document.getElementById('db-refresh');
 
-    if (refresh && branch && from && to) {
-      loadAndRender(page, branch.value, from.value, to.value);
-      refresh.onclick = () => {
-        loadAndRender(page, branch.value, from.value, to.value);
-      };
-    } else {
-      // Fallback if header not ready (though it should be)
-      loadAndRender(page, 'All Branches', firstDay, today);
-    }
+    const handleUpdate = () => {
+      const branch = branchSelect?.value || 'All Branches';
+      const rangeVal = rangeInput?.value || '';
+      
+      let from = firstDay, to = today;
+      if (rangeVal.includes(' to ')) {
+        [from, to] = rangeVal.split(' to ');
+      } else if (rangeVal) {
+        from = to = rangeVal;
+      }
+      
+      loadAndRender(page, branch, from, to);
+    };
 
+    // Initial load
+    handleUpdate();
+
+    // We don't necessarily need local listeners because main.js 
+    // re-renders the whole page on filter change. 
+    // But adding them here ensures it works if main.js logic changes.
+    if (refreshBtn) refreshBtn.onclick = (e) => { e.preventDefault(); handleUpdate(); };
+    
     if (window.lucide) window.lucide.createIcons();
   }, 0);
 
@@ -285,6 +331,7 @@ function getDed(d) { return d.financials ? d.financials.totalDeductions : (d.tot
 
 function updateCards(page, docs, prevDocs) {
   const fmt = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtAbbr = n => '₱' + formatAbbreviated(n);
   const fmtNum = n => n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   let totalNet = 0, totalGross = 0, totalDed = 0;
@@ -298,7 +345,7 @@ function updateCards(page, docs, prevDocs) {
   });
 
   // Update Card 1: Total Net
-  animateValue(page.querySelector('#hero-net'), totalNet, fmt);
+  animateValue(page.querySelector('#hero-net'), totalNet, fmtAbbr);
 
   const prevTotalNet = prevDocs ? prevDocs.reduce((sum, d) => sum + getNet(d), 0) : 0;
   const netTrendPct = prevTotalNet > 0 ? ((totalNet - prevTotalNet) / prevTotalNet) * 100 : (totalNet > 0 ? 100 : 0);
@@ -310,7 +357,7 @@ function updateCards(page, docs, prevDocs) {
   }
 
   // Update Card 2: Gross
-  animateValue(page.querySelector('#hero-gross'), totalGross, fmt);
+  animateValue(page.querySelector('#hero-gross'), totalGross, fmtAbbr);
   const prevTotalGross = prevDocs ? prevDocs.reduce((sum, d) => sum + getGross(d), 0) : 0;
   const grossTrend = prevTotalGross > 0 ? ((totalGross - prevTotalGross) / prevTotalGross) * 100 : 0;
   const grossTrendEl = page.querySelector('#hero-gross-trend');
@@ -321,16 +368,16 @@ function updateCards(page, docs, prevDocs) {
   }
 
   // Update Card 3: Deduction
-  animateValue(page.querySelector('#hero-ded'), totalDed, fmt);
+  animateValue(page.querySelector('#hero-ded'), totalDed, (n) => '-₱' + formatAbbreviated(n));
 
   // Update Card 4: Expenses (Mocked to 15% for now)
   const totalExpenses = totalGross * 0.15;
-  animateValue(page.querySelector('#hero-expenses'), totalExpenses, fmt);
+  animateValue(page.querySelector('#hero-expenses'), totalExpenses, (n) => '-₱' + formatAbbreviated(n));
 
   // Update Card 5: Profit
   const profit = totalNet - totalExpenses;
   const profitEl = page.querySelector('#hero-profit');
-  animateValue(profitEl, profit, fmt);
+  animateValue(profitEl, profit, (n) => (n < 0 ? '-' : '') + '₱' + formatAbbreviated(Math.abs(n)));
   if (profitEl) profitEl.className = `text-[22px] font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
 
   // Update Margin Pill
@@ -347,13 +394,13 @@ function updateCards(page, docs, prevDocs) {
   const heroBar = page.querySelector('#hero-net-bar');
   const heroPct = page.querySelector('#hero-net-pct');
   if (heroBar) heroBar.style.width = Math.min(kpiPct, 100) + '%';
-  if (heroPct) heroPct.textContent = Math.round(kpiPct) + '% OF KPI';
+  if (heroPct) heroPct.textContent = Math.round(kpiPct) + '% OF KPI (₱' + formatAbbreviated(totalKpi) + ')';
 
   // Animate Channels
   Object.entries(CHANNELS).forEach(([id, cfg]) => {
     const data = ch[id];
-    animateValue(page.querySelector(`#card-${id}-net`), data.net, fmt);
-    animateValue(page.querySelector(`#card-${id}-gross`), data.gross, fmt);
+    animateValue(page.querySelector(`#card-${id}-net`), data.net, fmtAbbr);
+    animateValue(page.querySelector(`#card-${id}-gross`), data.gross, fmtAbbr);
     page.querySelector(`#card-${id}-ded`).textContent = '-' + fmt(data.ded);
 
     const pct = cfg.kpi > 0 ? (data.net / cfg.kpi) * 100 : 0;

@@ -14,6 +14,12 @@ export default {
         oswald: ['Oswald', 'sans-serif'],
       },
       colors: {
+        woo: {
+          DEFAULT: '#96588a',
+          dark: '#7a4671',
+          light: '#b17da5',
+          soft: '#fbf7fb',
+        },
         brand: {
           50:  '#eef2ff',
           100: '#e0e7ff',
