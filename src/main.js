@@ -97,7 +97,7 @@ function buildShell() {
   if (!contentArea) {
     contentArea = document.createElement('div');
     contentArea.id = 'page-content';
-    contentArea.className = 'flex-1 overflow-auto bg-slate-50 dark:bg-slate-950 pt-[64px]';
+    contentArea.className = 'flex-1 overflow-auto';
     mainContentContainer.appendChild(contentArea);
   }
 
@@ -109,8 +109,21 @@ async function renderPage(tabId) {
   const contentArea = document.getElementById('page-content');
   if (!contentArea) return;
   
-  // Show loading spinner
-  contentArea.innerHTML = '<div class="flex items-center justify-center h-full"><div class="w-12 h-12 border-4 border-[#96588a]/20 border-t-[#96588a] rounded-full animate-spin"></div></div>';
+  // Show skeleton loader instead of spinner
+  contentArea.innerHTML = `
+    <div class="p-8 space-y-6 animate-pulse">
+      <div class="flex justify-between items-center mb-10">
+        <div class="h-8 bg-slate-200 dark:bg-slate-800 rounded-lg w-48"></div>
+        <div class="h-10 bg-slate-200 dark:bg-slate-800 rounded-full w-32"></div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div class="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div class="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+      </div>
+      <div class="h-64 bg-slate-200 dark:bg-slate-800 rounded-2xl w-full"></div>
+    </div>
+  `;
   
   const renderFn = PAGE_MAP[tabId];
   if (renderFn) {

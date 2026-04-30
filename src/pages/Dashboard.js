@@ -66,7 +66,7 @@ export function renderDashboard(user) {
 
   page.innerHTML = `
     <!-- Greeting Banner -->
-    <div class="relative overflow-hidden rounded-3xl mb-6 p-7 bg-gradient-to-br from-[#96588a] via-[#8a507e] to-[#7a4671] text-white shadow-xl border border-white/10">
+    <div class="card-stagger relative overflow-hidden rounded-3xl mb-6 p-7 bg-gradient-to-br from-[#96588a] via-[#8a507e] to-[#7a4671] text-white shadow-xl border border-white/10" style="animation-delay: 0.1s">
       <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
         <div>
           <div class="flex items-center gap-4 mb-4">
@@ -95,7 +95,7 @@ export function renderDashboard(user) {
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
       
       <!-- Card 1: Total Net Revenue -->
-      <div class="relative bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 text-white shadow-lg h-40 flex flex-col space-y-3 group">
+      <div class="card-stagger relative bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 text-white shadow-lg h-40 flex flex-col space-y-3 group" style="animation-delay: 0.2s">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
             <i data-lucide="wallet" class="w-4 h-4"></i>
@@ -117,7 +117,7 @@ export function renderDashboard(user) {
       </div>
 
       <!-- Card 2: Total Gross Sale -->
-      <div class="relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group">
+      <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group" style="animation-delay: 0.25s">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
             <i data-lucide="trending-up" class="w-4 h-4"></i>
@@ -133,7 +133,7 @@ export function renderDashboard(user) {
       </div>
 
       <!-- Card 3: Total Deduction -->
-      <div class="relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group">
+      <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group" style="animation-delay: 0.3s">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
             <i data-lucide="scissors" class="w-4 h-4"></i>
@@ -147,7 +147,7 @@ export function renderDashboard(user) {
       </div>
 
       <!-- Card 4: Total Expenses -->
-      <div class="relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group">
+      <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group" style="animation-delay: 0.35s">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
             <i data-lucide="receipt" class="w-4 h-4"></i>
@@ -161,7 +161,7 @@ export function renderDashboard(user) {
       </div>
 
       <!-- Card 5: Net Profit -->
-      <div class="relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group">
+      <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group" style="animation-delay: 0.4s">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
             <i data-lucide="dollar-sign" class="w-4 h-4"></i>
@@ -181,7 +181,8 @@ export function renderDashboard(user) {
     <!-- Channel Cards Grid (Integrated Header Style - Top Aligned) -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       ${Object.entries(CHANNELS).map(([id, ch]) => `
-        <div class="relative bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border-2 border-transparent h-52 flex flex-col group transition-all cursor-pointer"
+        <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border-2 border-transparent h-52 flex flex-col group transition-all cursor-pointer"
+             style="animation-delay: ${0.5 + (Object.keys(CHANNELS).indexOf(id) * 0.1)}s"
              onmouseover="this.style.borderColor='${ch.color}44'" 
              onmouseout="this.style.borderColor='transparent'">
           
@@ -227,7 +228,7 @@ export function renderDashboard(user) {
     </div>
 
     <!-- Charts Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+    <div class="card-stagger grid grid-cols-1 lg:grid-cols-3 gap-3" style="animation-delay: 0.9s">
       <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 lg:col-span-2">
         <div class="mb-5">
           <p class="font-bold text-slate-800 dark:text-white text-sm font-nunito">Net Revenue Trend</p>

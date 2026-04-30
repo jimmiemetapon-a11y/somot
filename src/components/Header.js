@@ -81,11 +81,11 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
          <!-- Custom Dropdown Trigger -->
          <div class="flex items-center gap-2">
             <span id="preset-label" class="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight">Yesterday</span>
-            <i data-lucide="chevron-down" id="preset-chevron" class="w-3 h-3 text-slate-400 transition-transform duration-300"></i>
+            <i data-lucide="chevron-down" id="preset-chevron" class="w-3 h-3 text-slate-400 transition-transform duration-300 group-hover:rotate-180"></i>
          </div>
 
          <!-- Custom Dropdown Menu -->
-         <div id="preset-menu" class="absolute top-full left-0 mt-2 w-48 bg-white/80 dark:bg-slate-900/80 border border-white/20 dark:border-slate-800/50 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 transition-all duration-300 z-[60] overflow-hidden backdrop-blur-xl">
+         <div id="preset-menu" class="absolute top-full left-0 mt-2 w-48 bg-white/80 dark:bg-slate-900/80 border border-white/20 dark:border-slate-800/50 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[60] overflow-hidden backdrop-blur-xl">
             <div class="py-2">
                <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="yesterday">Yesterday</div>
                <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="last7">Last 7 Days</div>
@@ -145,24 +145,8 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
     const label = document.getElementById('preset-label');
     const chevron = document.getElementById('preset-chevron');
 
-    // Toggle Menu
-    container.onclick = (e) => {
-      e.stopPropagation();
-      const isOpen = !menu.classList.contains('invisible');
-      if (isOpen) {
-        menu.classList.add('opacity-0', 'invisible', 'translate-y-2');
-        chevron.classList.remove('rotate-180');
-      } else {
-        menu.classList.remove('opacity-0', 'invisible', 'translate-y-2');
-        chevron.classList.add('rotate-180');
-      }
-    };
-
-    // Close on click outside
-    document.addEventListener('click', () => {
-      menu.classList.add('opacity-0', 'invisible', 'translate-y-2');
-      chevron.classList.remove('rotate-180');
-    });
+    // Toggle Menu (REMOVED: Now handled by group-hover in CSS)
+    // Close on click outside (REMOVED: Now handled by group-hover in CSS)
 
     // Date Helpers
     const getRange = (type) => {

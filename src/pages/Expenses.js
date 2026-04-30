@@ -71,7 +71,22 @@ export async function renderExpensesPage() {
    async function loadTabContent(tabName) {
       const content = container.querySelector('#expense-content');
       if (!content) return;
-      content.innerHTML = `<div class="flex items-center justify-center h-64"><div class="w-8 h-8 border-4 border-[#96588a]/20 border-t-[#96588a] rounded-full animate-spin"></div></div>`;
+      // Show skeleton loader for tab transition
+      content.innerHTML = `
+        <div class="space-y-6 animate-pulse p-2">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
+            <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
+            <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
+            <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
+          </div>
+          <div class="space-y-3">
+            ${Array(6).fill(0).map(() => `
+               <div class="h-16 bg-slate-100 dark:bg-slate-800/40 rounded-2xl w-full"></div>
+            `).join('')}
+          </div>
+        </div>
+      `;
 
       try {
          await loadMasterData();
@@ -576,26 +591,26 @@ export async function renderExpensesPage() {
 
       const overlay = document.createElement('div');
       overlay.id = 'liquidation-detail-overlay';
-      overlay.className = 'fixed inset-0 z-[10000] bg-transparent animate-fade-in flex items-center justify-center p-4';
+      overlay.className = 'fixed inset-0 z-[9999] bg-slate-900/30 animate-fade-in flex items-center justify-center p-4';
 
       // Identify Context
       const isAuditMode = reqData.status === 'pending' && container.querySelector('.expense-tab.active')?.dataset.tab === 'audit';
       const isEditMode = reqData.status === 'rejected' || reqData.status === 'partially_rejected';
 
       overlay.innerHTML = `
-         <div class="bg-white/95 dark:bg-slate-950/95 w-full max-w-md max-h-[85vh] flex flex-col shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] rounded-[2.5rem] border-2 border-slate-200/90 dark:border-slate-700/80 animate-scale-up overflow-hidden">
+         <div class="bg-white/80 dark:bg-slate-950/95 backdrop-blur-3xl w-full max-w-md max-h-[85vh] flex flex-col shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] rounded-[3rem] border-2 border-white/50 dark:border-slate-700/50 animate-scale-up overflow-hidden">
             <!-- Modal Header -->
-            <div class="px-8 pt-8 pb-4 flex items-center justify-between flex-shrink-0">
+            <div class="px-8 pt-8 pb-4 flex items-center justify-between flex-shrink-0 relative z-20">
                <div>
                   <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none">${reqData.branchId}</h3>
                   <p class="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Financial Breakdown</p>
                </div>
-               <button id="detail-close" class="w-8 h-8 rounded-full bg-white/50 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-rose-500 hover:text-white transition-all text-xl font-light">&times;</button>
+               <button id="detail-close" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-rose-500 hover:text-white transition-all text-xl font-light">&times;</button>
             </div>
 
-            <!-- Summary Grid (Glass Style) -->
-            <div class="px-8 pb-4 grid grid-cols-2 gap-3 flex-shrink-0">
-               <div class="p-4 bg-white/80 dark:bg-slate-900/80 rounded-[1.5rem] border border-white dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <!-- Summary Grid -->
+            <div class="px-8 pb-4 grid grid-cols-2 gap-3 flex-shrink-0 relative z-20">
+               <div class="p-4 bg-white/50 dark:bg-slate-900/50 rounded-[1.5rem] border border-white dark:border-slate-800 shadow-sm flex items-center justify-between">
                   <div>
                      <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Requested</p>
                      <h2 class="text-xl font-black text-slate-800 dark:text-white tracking-tighter">₱${reqData.totalAmount?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</h2>
@@ -605,40 +620,47 @@ export async function renderExpensesPage() {
                <div class="p-4 bg-[#96588a] rounded-[1.5rem] text-white shadow-lg shadow-[#96588a]/20 flex flex-col justify-center">
                   <p class="text-[8px] font-black opacity-60 uppercase tracking-widest mb-0.5">Status</p>
                   <div class="flex items-center gap-2">
-                     <div class="w-1.5 h-1.5 rounded-full bg-white animate-[pulse_2s_ease-in-out_2]"></div>
+                     <div class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
                      <h3 class="text-xs font-black uppercase tracking-widest">${reqData.status}</h3>
                   </div>
                </div>
             </div>
 
-            <div class="px-8 py-2 flex-shrink-0 flex items-center justify-between">
+            <div class="px-8 py-2 flex-shrink-0 flex items-center justify-between relative z-20">
                <p class="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-[0.2em] pl-2 border-l-2 border-purple-500">Expenses List</p>
                <p class="text-[9px] text-slate-500 font-black uppercase tracking-widest italic">ID: ${reqData.id.substring(0, 8).toUpperCase()}</p>
             </div>
 
-            <!-- Items List Area -->
-            <div id="detail-body" class="flex-1 overflow-y-auto px-6 py-2 space-y-1 custom-scrollbar">
-               <div class="flex flex-col items-center justify-center py-10 gap-3">
-                  <div class="w-6 h-6 border-3 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
+            <!-- Items List Area (Scrollable) -->
+            <div id="detail-body" class="flex-1 overflow-y-auto px-6 py-2 space-y-1 custom-scrollbar min-h-[200px] relative z-10">
+               <div class="space-y-1 animate-pulse">
+                  ${Array(5).fill(0).map(() => `
+                     <div class="flex items-center gap-3 px-4 py-2.5 rounded-xl border-b border-white/5">
+                        <div class="w-6 h-6 bg-slate-100 dark:bg-slate-800 rounded-lg"></div>
+                        <div class="w-8 h-2.5 bg-slate-100 dark:bg-slate-800 rounded"></div>
+                        <div class="flex-1 h-3 bg-slate-100 dark:bg-slate-800 rounded-md mx-2"></div>
+                        <div class="w-12 h-3 bg-slate-100 dark:bg-slate-800 rounded"></div>
+                     </div>
+                  `).join('')}
                </div>
             </div>
 
-            <!-- Action Footer -->
-            <div class="px-8 pb-8 pt-4 flex-shrink-0">
+            <!-- Action Footer (Fixed at bottom) -->
+            <div class="px-8 pb-8 pt-4 flex-shrink-0 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-t border-slate-100 dark:border-slate-800/50 relative z-20">
                <div class="flex gap-2">
                   ${(reqData.status === 'pending' && container.querySelector('.expense-tab.active')?.dataset.tab === 'audit') ? `
-                      <button id="detail-complete-review" class="w-full py-3.5 rounded-2xl bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl">Complete Review</button>
+                      <button id="detail-complete-review" class="w-full py-4 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl">Complete Review</button>
                   ` : (reqData.status === 'pending') ? `
-                      <button id="detail-cancel-request" class="w-full py-3.5 rounded-2xl bg-rose-500 text-white text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-xl">Cancel Request</button>
+                      <button id="detail-cancel-request" class="w-full py-4 rounded-2xl bg-rose-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-xl">Cancel Request</button>
                   ` : isEditMode ? `
-                     <button id="detail-resubmit" class="w-full py-4 rounded-2xl bg-purple-500 text-white text-[9px] font-black uppercase tracking-widest shadow-lg">Submit Corrections</button>
+                     <button id="detail-resubmit" class="w-full py-4 rounded-2xl bg-purple-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg">Submit Corrections</button>
                   ` : `
-                     <button id="detail-close-btn" class="w-full py-3.5 rounded-2xl bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest">Dismiss Detail</button>
+                     <button id="detail-close-btn" class="w-full py-4 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest">Dismiss Detail</button>
                   `}
                </div>
             </div>
          </div>
-      `;
+       `;
       document.body.appendChild(overlay);
       overlay.querySelector('#detail-close').onclick = () => overlay.remove();
       const closeBtn = overlay.querySelector('#detail-close-btn');
@@ -650,76 +672,110 @@ export async function renderExpensesPage() {
          const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
          const resubmitFiles = {}; // Store new files for resubmission
 
-         detailBody.innerHTML = items.map(item => `
-            <div class="item-row group flex items-center gap-3 px-4 py-1.5 rounded-xl transition-all hover:bg-white dark:hover:bg-slate-900 cursor-default border-b border-white/5" data-id="${item.id}">
-               ${isAuditMode ? `
-               <!-- Toggle: Approve/Reject -->
-               <div style="width: 28px;" class="flex-shrink-0">
-                  <button class="item-toggle w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black transition-all border-2 border-emerald-300 bg-emerald-50 text-emerald-600" data-id="${item.id}" data-status="approved" title="Click to reject">
-                     ✓
+         // Update header with Bulk Approve if in audit mode
+         const headerContainer = overlay.querySelector('.px-8.py-2');
+         if (isAuditMode && items.length > 0) {
+            headerContainer.innerHTML = `
+               <div class="flex items-center gap-4">
+                  <p class="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-[0.2em] pl-2 border-l-2 border-purple-500">Expenses List</p>
+                  <button id="bulk-approve-btn" class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded-lg text-[8px] font-black uppercase tracking-widest border border-emerald-100 dark:border-emerald-500/20 hover:bg-emerald-100 transition-all">
+                     <i data-lucide="check-circle" class="w-2.5 h-2.5"></i> Approve All
                   </button>
                </div>
-               ` : ''}
-               <!-- Column 1: Date -->
-               <div style="width: 45px;" class="flex-shrink-0">
-                  <p class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase leading-none">${item.date.split('-').slice(1).join('/')}</p>
-               </div>
-               
-               <!-- Column 2: Purpose -->
-               <div style="flex: 1; min-width: 0;" class="min-w-0">
-                  <div class="flex items-center gap-2">
-                     <p class="text-[11px] font-black text-black dark:text-white uppercase whitespace-nowrap overflow-hidden text-ellipsis">${item.purpose}</p>
-                     ${item.auditorNote ? '<i data-lucide="alert-circle" class="w-3 h-3 text-rose-500 flex-shrink-0"></i>' : ''}
-                  </div>
-               </div>
+               <p class="text-[9px] text-slate-500 font-black uppercase tracking-widest italic">ID: ${reqData.id.substring(0, 8).toUpperCase()}</p>
+            `;
+         }
 
-               <!-- Column 3: Amount -->
-               <div style="width: 90px;" class="text-right flex-shrink-0">
-                  <p class="text-[13px] font-black text-rose-500 tracking-tighter">₱${item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+         if (items.length === 0) {
+            detailBody.innerHTML = `
+               <div class="flex flex-col items-center justify-center py-16 opacity-40 animate-fade-in">
+                  <i data-lucide="package-search" class="w-10 h-10 mb-2"></i>
+                  <p class="text-[10px] font-black uppercase tracking-widest">No associated records</p>
                </div>
-
-               <!-- Column 4: Actions -->
-               <div style="width: 24px;" class="flex items-center justify-end">
-                  ${item.receiptUrl ? `
-                     <button class="receipt-eye-btn text-slate-400 hover:text-purple-600 transition-colors" data-url="${item.receiptUrl}">
-                        <i data-lucide="eye" class="w-4 h-4"></i>
-                     </button>
-                  ` : ''}
-               </div>
-            </div>
-
-            <!-- Reject reason input (hidden by default, shown when item toggled to reject) -->
-            ${isAuditMode ? `<div class="reject-reason-box hidden mx-4 mb-2 animate-fade-in" data-for="${item.id}">
-               <input type="text" class="reject-note w-full bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 text-[10px] font-bold text-rose-700 placeholder-rose-300" placeholder="Reason for rejection (required)">
-            </div>` : ''}
-            
-            ${isEditMode && item.auditorNote ? `
-               <div class="mx-4 mb-4 p-4 bg-white/80 rounded-2xl border border-rose-100 space-y-3 animate-fade-in shadow-sm">
-                  <p class="text-[9px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1.5">
-                     <i data-lucide="message-square" class="w-3 h-3"></i> Feedback: ${item.auditorNote}
-                  </p>
-                  <div class="grid grid-cols-2 gap-3">
-                     <div class="space-y-1">
-                        <label class="text-[8px] font-black text-slate-400 uppercase ml-1">Correct Amount</label>
-                        <input type="number" class="edit-amount w-full bg-slate-50 border-none rounded-xl px-3 py-2 text-[11px] font-black text-black" value="${item.amount}">
+            `;
+         } else {
+            detailBody.innerHTML = `
+               <div class="animate-fade-in space-y-1">
+                  ${items.map(item => `
+                     <div class="item-row group flex items-center gap-3 px-4 py-1.5 rounded-xl transition-all hover:bg-white dark:hover:bg-slate-900 cursor-default border-b border-white/5" data-id="${item.id}">
+                        ${isAuditMode ? `
+                        <div style="width: 28px;" class="flex-shrink-0">
+                           <button class="item-toggle w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black transition-all border-2 border-emerald-300 bg-emerald-50 text-emerald-600" data-id="${item.id}" data-status="approved" title="Click to reject">
+                              ✓
+                           </button>
+                        </div>
+                        ` : ''}
+                        <div style="width: 45px;" class="flex-shrink-0">
+                           <p class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase leading-none">${item.date.split('-').slice(1).join('/')}</p>
+                        </div>
+                        <div style="flex: 1; min-width: 0;" class="min-w-0">
+                           <div class="flex items-center gap-2">
+                              <p class="text-[11px] font-black text-black dark:text-white uppercase whitespace-nowrap overflow-hidden text-ellipsis">${item.purpose}</p>
+                              ${item.auditorNote ? '<i data-lucide="alert-circle" class="w-3 h-3 text-rose-500 flex-shrink-0"></i>' : ''}
+                           </div>
+                        </div>
+                        <div style="width: 90px;" class="text-right flex-shrink-0">
+                           <p class="text-[13px] font-black text-rose-500 tracking-tighter">₱${item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                         <div style="width: 48px;" class="flex items-center justify-end gap-1.5">
+                            ${isAuditMode ? `
+                               <button class="flag-comment-btn text-slate-400 hover:text-rose-500 transition-all" data-id="${item.id}" title="Toggle feedback">
+                                  <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+                               </button>
+                            ` : ''}
+                            ${item.receiptUrl ? `
+                               <button class="receipt-eye-btn text-slate-400 hover:text-purple-600 transition-all" data-url="${item.receiptUrl}">
+                                  <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                               </button>
+                            ` : ''}
+                         </div>
                      </div>
-                     <div class="space-y-1">
-                        <label class="text-[8px] font-black text-slate-400 uppercase ml-1">Correct Purpose</label>
-                        <input type="text" class="edit-purpose w-full bg-slate-50 border-none rounded-xl px-3 py-2 text-[11px] font-black text-black" value="${item.purpose}">
-                     </div>
-                  </div>
-                  <div class="pt-1">
-                     <input type="file" class="resubmit-file-input hidden" data-id="${item.id}" accept="image/*">
-                     <button class="resubmit-file-btn w-full py-2 border-2 border-dashed border-slate-200 rounded-xl text-[9px] font-black uppercase text-slate-400 hover:border-purple-300 hover:text-purple-500 transition-all flex items-center justify-center gap-2">
-                        <i data-lucide="camera" class="w-3 h-3"></i> Change Receipt
-                     </button>
-                     <p class="resubmit-file-name hidden text-[8px] text-purple-500 font-bold mt-1 text-center truncate"></p>
-                  </div>
+                     ${isAuditMode ? `<div class="reject-reason-box hidden mx-4 mb-2 animate-fade-in" data-for="${item.id}">
+                        <input type="text" class="reject-note w-full bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 text-[10px] font-bold text-rose-700 placeholder-rose-300" placeholder="Reason for rejection (required)">
+                     </div>` : ''}
+                     ${isEditMode && item.auditorNote ? `
+                        <div class="mx-4 mb-4 p-4 bg-white/80 rounded-2xl border border-rose-100 space-y-3 animate-fade-in shadow-sm">
+                           <p class="text-[9px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1.5">
+                              <i data-lucide="message-square" class="w-3 h-3"></i> Feedback: ${item.auditorNote}
+                           </p>
+                           <div class="grid grid-cols-2 gap-3">
+                              <div class="space-y-1">
+                                 <label class="text-[8px] font-black text-slate-400 uppercase ml-1">Correct Amount</label>
+                                 <input type="number" class="edit-amount w-full bg-slate-50 border-none rounded-xl px-3 py-2 text-[11px] font-black text-black" value="${item.amount}">
+                              </div>
+                              <div class="space-y-1">
+                                 <label class="text-[8px] font-black text-slate-400 uppercase ml-1">Correct Purpose</label>
+                                 <input type="text" class="edit-purpose w-full bg-slate-50 border-none rounded-xl px-3 py-2 text-[11px] font-black text-black" value="${item.purpose}">
+                              </div>
+                           </div>
+                           <div class="pt-1">
+                              <input type="file" class="resubmit-file-input hidden" data-id="${item.id}" accept="image/*">
+                              <button class="resubmit-file-btn w-full py-2 border-2 border-dashed border-slate-200 rounded-xl text-[9px] font-black uppercase text-slate-400 hover:border-purple-300 hover:text-purple-500 transition-all flex items-center justify-center gap-2">
+                                 <i data-lucide="camera" class="w-3 h-3"></i> Change Receipt
+                              </button>
+                           </div>
+                        </div>
+                     ` : ''}
+                  `).join('')}
                </div>
-            ` : ''}
-         `).join('');
+            `;
+         }
 
          if (window.lucide) window.lucide.createIcons();
+
+         // Bulk Approve Listener
+         const bulkBtn = overlay.querySelector('#bulk-approve-btn');
+         if (bulkBtn) {
+            bulkBtn.onclick = () => {
+               detailBody.querySelectorAll('.item-toggle').forEach(b => {
+                  b.dataset.status = 'approved';
+                  b.textContent = '✓';
+                  b.className = 'item-toggle w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black transition-all border-2 border-emerald-300 bg-emerald-50 text-emerald-600';
+               });
+               detailBody.querySelectorAll('.reject-reason-box').forEach(box => box.classList.add('hidden'));
+               window.showToast('All items approved', 'success');
+            };
+         }
 
          // Per-item toggle listeners (Audit Mode)
          detailBody.querySelectorAll('.item-toggle').forEach(btn => {
@@ -739,6 +795,13 @@ export async function renderExpensesPage() {
                   btn.title = 'Click to reject';
                   if (reasonBox) { reasonBox.classList.add('hidden'); reasonBox.querySelector('.reject-note').value = ''; }
                }
+            };
+         });
+
+         detailBody.querySelectorAll('.flag-comment-btn').forEach(btn => {
+            btn.onclick = () => {
+               const reasonBox = detailBody.querySelector(`.reject-reason-box[data-for="${btn.dataset.id}"]`);
+               if (reasonBox) reasonBox.classList.toggle('hidden');
             };
          });
 
