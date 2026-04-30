@@ -6,106 +6,118 @@ export function renderLoginPage() {
   page.className = 'fixed inset-0 z-[9999] bg-slate-50 dark:bg-[#020617] flex flex-col md:flex-row overflow-hidden animate-fade-in';
 
   page.innerHTML = `
-    <!-- Left Side: Branding / Visual (Hidden on small screens) -->
-    <div class="hidden md:flex flex-1 relative bg-gradient-to-br from-[#96588a] via-[#8a507e] to-[#603557] overflow-hidden items-center justify-center p-12">
-      <!-- Decorative Glass Circles -->
-      <div class="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-white/5 rounded-full blur-3xl"></div>
-      <div class="absolute bottom-[-10%] right-[-10%] w-[30rem] h-[30rem] bg-purple-500/20 rounded-full blur-3xl"></div>
-      
-      <div class="relative z-10 w-full max-w-lg text-white space-y-8 animate-slide-up">
-        <div class="w-24 h-24 bg-white/10 backdrop-blur-md rounded-3xl p-4 border border-white/20 shadow-2xl">
-          <img src="/src/assets/logo-so-mot-new-01.png" alt="So Mot Logo" class="w-full h-full object-contain filter brightness-0 invert opacity-90">
-        </div>
-        <div>
-          <h1 class="text-5xl font-black tracking-tighter leading-tight mb-4">
-            Revenue<br>
-            <span class="text-purple-200">Intelligence.</span>
-          </h1>
-          <p class="text-white/70 text-lg font-medium max-w-md">
-            The definitive operating system for modern restaurant financial management and analytics.
-          </p>
-        </div>
-        
-        <div class="grid grid-cols-2 gap-4 pt-8 border-t border-white/10">
-          <div class="space-y-1">
-            <h4 class="text-2xl font-black tabular-nums">100%</h4>
-            <p class="text-[10px] uppercase tracking-widest font-bold text-purple-300">Cloud Synced</p>
-          </div>
-          <div class="space-y-1">
-            <h4 class="text-2xl font-black tabular-nums">256-bit</h4>
-            <p class="text-[10px] uppercase tracking-widest font-bold text-purple-300">Secure Vault</p>
-          </div>
-        </div>
+    <!-- New Premium Background -->
+    <div class="fixed inset-0 bg-gradient-to-b from-[#068562] to-[#013F4A] z-[-1] overflow-hidden">
+      <!-- Animated Floating Elements -->
+      <div class="absolute top-[10%] left-[5%] w-[400px] h-[400px] bg-emerald-400/20 rounded-full blur-[100px] animate-blob"></div>
+      <div class="absolute bottom-[20%] right-[10%] w-[350px] h-[350px] bg-teal-400/10 rounded-full blur-[80px] animate-blob animation-delay-2000"></div>
+      <div class="absolute top-[40%] right-[30%] w-[250px] h-[250px] bg-white/5 rounded-full blur-[60px] animate-blob animation-delay-4000"></div>
+
+      <!-- Financial/Verify Floating Icons (Subtle) -->
+      <div class="absolute top-[15%] left-[10%] opacity-10 text-white animate-blob">
+        <i data-lucide="shield-check" class="w-16 h-16"></i>
+      </div>
+      <div class="absolute bottom-[25%] left-[20%] opacity-5 text-white animate-blob animation-delay-2000">
+        <i data-lucide="trending-up" class="w-24 h-24"></i>
+      </div>
+      <div class="absolute top-[45%] left-[45%] opacity-5 text-white animate-blob animation-delay-4000">
+        <i data-lucide="dollar-sign" class="w-20 h-20"></i>
+      </div>
+      <div class="absolute bottom-[10%] left-[40%] opacity-10 text-white animate-blob">
+        <i data-lucide="bar-chart-3" class="w-12 h-12"></i>
       </div>
     </div>
 
-    <!-- Right Side: Login Form -->
-    <div class="flex-1 flex items-center justify-center p-8 md:p-12 relative">
-      <!-- Theme Toggle (Optional, top right) -->
-      <button id="login-dark-btn" class="absolute top-8 right-8 p-3 rounded-2xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-        <i data-lucide="moon" class="w-5 h-5"></i>
-      </button>
-
-      <div class="w-full max-w-md space-y-8">
-        <!-- Mobile Logo -->
-        <div class="md:hidden flex justify-center mb-12">
-          <img src="/src/assets/logo-so-mot-new-01.png" alt="So Mot Logo" class="h-16 w-auto object-contain dark:brightness-0 dark:invert">
-        </div>
-
-        <div class="space-y-2 text-center md:text-left">
-          <h2 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight">Welcome Back</h2>
-          <p class="text-slate-500 dark:text-slate-400 text-sm font-medium">Please sign in to your admin account.</p>
-        </div>
-
-        <!-- Error Message Box -->
-        <div id="login-error" class="hidden p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold flex items-center gap-2 animate-shake">
-          <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-          <span id="login-error-text">Authentication failed.</span>
-        </div>
-
-        <!-- Google Login -->
-        <button id="btn-google-login" class="w-full py-4 px-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-center gap-3 text-sm font-bold text-slate-700 dark:text-white shadow-sm hover:shadow-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group">
-          <svg class="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-          Continue with Google
-        </button>
-
-        <div class="relative flex items-center py-2">
-          <div class="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
-          <span class="flex-shrink-0 mx-4 text-slate-400 text-[10px] font-black uppercase tracking-widest">Or email</span>
-          <div class="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
-        </div>
-
-        <!-- Email Form -->
-        <form id="login-form" class="space-y-5">
-          <div class="space-y-1.5">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
-            <div class="relative">
-              <i data-lucide="mail" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-              <input type="email" id="login-email" required placeholder="admin@somot.com" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl pl-11 pr-4 py-3.5 text-sm font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-[#96588a] focus:border-transparent transition-all outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600">
+    <!-- Content Container -->
+    <div class="flex-1 flex flex-col md:flex-row w-full h-full relative z-10 overflow-y-auto scrollbar-hide">
+      <!-- Left Side: Branding (Glass Overlay on Background) -->
+      <div class="hidden md:flex flex-1 items-center justify-center p-6">
+        <div class="w-full max-w-md space-y-6 animate-slide-up">
+          <div>
+            <h1 class="text-4xl font-black tracking-tighter leading-[0.9] text-white">
+              Revenue<br>
+              <span class="text-emerald-300/80">Intelligence.</span>
+            </h1>
+            <p class="text-white/60 text-base font-medium max-w-xs mt-4 leading-relaxed">
+              The definitive operating system for modern restaurant financial management and analytics.
+            </p>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-6 pt-8 border-t border-white/10">
+            <div class="space-y-1">
+              <h4 class="text-2xl font-black tabular-nums text-white">100%</h4>
+              <p class="text-[9px] uppercase tracking-[0.3em] font-bold text-emerald-400/70">Cloud Synced</p>
+            </div>
+            <div class="space-y-1">
+              <h4 class="text-2xl font-black tabular-nums text-white">256-bit</h4>
+              <p class="text-[9px] uppercase tracking-[0.3em] font-bold text-emerald-400/70">Secure Vault</p>
             </div>
           </div>
-
-          <div class="space-y-1.5">
-            <div class="flex items-center justify-between ml-1">
-              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Password</label>
-              <a href="#" class="text-[10px] font-bold text-[#96588a] hover:underline">Forgot?</a>
-            </div>
-            <div class="relative">
-              <i data-lucide="lock" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-              <input type="password" id="login-pass" required placeholder="••••••••" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl pl-11 pr-4 py-3.5 text-sm font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-[#96588a] focus:border-transparent transition-all outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600">
-            </div>
+        </div>
+      </div>
+      <!-- Right Side: The Glass Login Card -->
+      <div class="flex-1 flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-white/10 backdrop-blur-[40px] border border-white/20 rounded-[2rem] p-6 md:p-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] space-y-4 animate-scale-up">
+          <!-- Card Logo (Bold & Sharp) -->
+          <div class="flex justify-center mb-4">
+               <img src="/src/assets/logo-so-mot-new-01.png" alt="So Mot Logo" 
+                    class="w-28 h-auto object-contain filter drop-shadow-[1px_1px_0px_rgba(255,255,255,0.8)] drop-shadow-[-1px_-1px_0px_rgba(255,255,255,0.8)] drop-shadow-[1px_-1px_0px_rgba(255,255,255,0.8)] drop-shadow-[-1px_1px_0px_rgba(255,255,255,0.8)]">
           </div>
 
-          <button type="submit" id="btn-email-login" class="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 group">
-            Sign In <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition-transform"></i>
+          <div class="space-y-2 text-center">
+            <h2 class="text-2xl font-black text-white tracking-tight">Access Terminal</h2>
+            <p class="text-white/40 text-[10px] font-medium tracking-wide">Secure biometric or credential verification required.</p>
+          </div>
+
+          <!-- Error Message Box -->
+          <div id="login-error" class="hidden p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[10px] font-bold flex items-center gap-3 animate-shake">
+            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+            <span id="login-error-text">Authentication failed.</span>
+          </div>
+
+          <!-- Google Login -->
+          <button id="btn-google-login" class="w-full py-3.5 px-6 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center gap-3 text-xs font-bold text-white shadow-sm transition-all group">
+            <svg class="w-4 h-4 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Continue with Google
           </button>
-        </form>
 
+          <div class="relative flex items-center py-1">
+            <div class="flex-grow border-t border-white/10"></div>
+            <span class="flex-shrink-0 mx-4 text-white/20 text-[9px] font-black uppercase tracking-[0.4em]">Or Identity</span>
+            <div class="flex-grow border-t border-white/10"></div>
+          </div>
+
+          <!-- Email Form -->
+          <form id="login-form" class="space-y-5">
+            <div class="space-y-2">
+              <label class="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] ml-1">Admin Email</label>
+              <div class="relative group">
+                <i data-lucide="mail" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-emerald-400 transition-colors"></i>
+                <input type="email" id="login-email" required placeholder="admin@somot.com" class="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-xs font-bold text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all outline-none placeholder:text-white/20">
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex items-center justify-between ml-1">
+                <label class="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">Security Key</label>
+                <a href="#" class="text-[9px] font-bold text-emerald-400/60 hover:text-emerald-400 transition-colors">Recovery?</a>
+              </div>
+              <div class="relative group">
+                <i data-lucide="lock" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-emerald-400 transition-colors"></i>
+                <input type="password" id="login-pass" required placeholder="••••••••" class="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-xs font-bold text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all outline-none placeholder:text-white/20">
+              </div>
+            </div>
+
+            <button type="submit" id="btn-email-login" class="w-full py-4 bg-white text-[#013F4A] rounded-xl font-black uppercase tracking-[0.2em] text-[11px] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 group">
+              Access Terminal <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-2 transition-transform"></i>
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   `;
