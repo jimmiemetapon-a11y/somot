@@ -192,3 +192,70 @@ onAuthStateChanged(auth, (user) => {
 });
 
 initDarkMode();
+
+// --- Global Utilities (Toast & Modal) ---
+
+window.showToast = (message, type = 'info') => {
+  const container = document.getElementById('toast-container') || (() => {
+    const div = document.createElement('div');
+    div.id = 'toast-container';
+    div.className = 'fixed top-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none';
+    document.body.appendChild(div);
+    return div;
+  })();
+
+  const toast = document.createElement('div');
+  const bgMap = {
+    success: 'bg-emerald-500',
+    error: 'bg-rose-500',
+    info: 'bg-[#96588a]',
+    warning: 'bg-amber-500'
+  };
+  const iconMap = {
+    success: 'check-circle',
+    error: 'alert-circle',
+    info: 'info',
+    warning: 'alert-triangle'
+  };
+
+  toast.className = `flex items-center gap-3 px-6 py-4 rounded-2xl text-white shadow-2xl animate-toast-in pointer-events-auto backdrop-blur-md ${bgMap[type] || bgMap.info} border border-white/20`;
+  toast.innerHTML = `
+    <i data-lucide="${iconMap[type] || 'info'}" class="w-5 h-5"></i>
+    <p class="text-[11px] font-black uppercase tracking-widest">${message}</p>
+  `;
+
+  container.appendChild(toast);
+  if (window.lucide) window.lucide.createIcons();
+
+  setTimeout(() => {
+    toast.classList.replace('animate-toast-in', 'animate-toast-out');
+    setTimeout(() => toast.remove(), 500);
+  }, 4000);
+};
+
+window.showConfirmModal = (title, message, confirmText = 'Confirm') => {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-fade-in';
+    overlay.innerHTML = `
+      <div class="bg-white/90 dark:bg-slate-900/90 border border-white/20 p-8 rounded-[2.5rem] max-w-sm w-full shadow-2xl animate-scale-up text-center space-y-6 backdrop-blur-xl">
+        <div class="w-16 h-16 bg-rose-50 dark:bg-rose-500/10 rounded-full flex items-center justify-center mx-auto text-rose-500">
+           <i data-lucide="help-circle" class="w-8 h-8"></i>
+        </div>
+        <div class="space-y-2">
+           <h3 class="text-xl font-black uppercase tracking-tight dark:text-white">${title}</h3>
+           <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">${message}</p>
+        </div>
+        <div class="flex gap-3">
+           <button id="modal-cancel" class="flex-1 py-4 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all dark:text-slate-300">Cancel</button>
+           <button id="modal-confirm" class="flex-1 py-4 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl shadow-slate-900/20">${confirmText}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    if (window.lucide) window.lucide.createIcons();
+
+    overlay.querySelector('#modal-cancel').onclick = () => { overlay.remove(); resolve(false); };
+    overlay.querySelector('#modal-confirm').onclick = () => { overlay.remove(); resolve(true); };
+  });
+};

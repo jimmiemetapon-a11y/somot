@@ -495,6 +495,7 @@ export async function renderExpensesPage() {
             }, 1000);
          } catch (err) {
             console.error(err);
+            window.showToast("Failed to save: " + err.message, "error");
             btn.disabled = false;
             btn.innerHTML = originalText;
             btn.className = originalClassName;

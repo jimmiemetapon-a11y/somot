@@ -263,9 +263,9 @@ export function renderChannelPage(channelId) {
         // Switch to History tab and reload
         page.querySelector('#tab-history').click();
         fetchChannelHistory(channelId);
-      } catch (err) {
-        console.error(err);
-        window.showToast('Failed to save data', 'error');
+      } catch (error) {
+        console.error("Save Error:", error);
+        window.showToast("Failed to save data: " + error.message, "error");
         btnSave.disabled = false;
         btnSave.style.backgroundColor = '#96588a';
         btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> Confirm & Save to Database';
