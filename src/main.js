@@ -7,8 +7,9 @@ import { renderChannelPage } from './pages/ChannelPage.js';
 import { renderExpensesPage } from './pages/Expenses.js';
 import { renderSettings } from './pages/Settings.js';
 import { renderLoginPage } from './pages/Login.js';
-import { auth } from './firebase.js';
+import { auth, db } from './firebase.js';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 let currentUser = null;
 let isSidebarCollapsed = false;
@@ -186,7 +187,29 @@ async function handleSignOut() {
   } catch (err) { console.error(err); }
 }
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    try {
+      // Fetch permissions from Firestore using email as document ID
+      const permSnap = await getDoc(doc(db, 'user_permissions', user.email));
+      if (permSnap.exists()) {
+        user.permissions = permSnap.data();
+      } else {
+        // Fallback permissions if not specifically defined in DB
+        user.permissions = { 
+          allowedBranches: ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'] 
+        };
+      }
+
+      // Enforce permission on current filter state
+      if (user.permissions.allowedBranches && !user.permissions.allowedBranches.includes(filterState.branch)) {
+        filterState.branch = user.permissions.allowedBranches[0];
+      }
+    } catch (err) {
+      console.error("Error fetching user permissions:", err);
+    }
+  }
+  
   currentUser = user;
   buildShell();
 });
