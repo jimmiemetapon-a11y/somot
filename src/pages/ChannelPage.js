@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx';
-import ExcelJS from 'exceljs';
 import { db } from '../firebase';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, orderBy, limit, updateDoc, deleteDoc } from 'firebase/firestore';
 
@@ -113,26 +111,16 @@ function getExcelColumnName(n) {
   return s;
 }
 
-export function renderChannelPage(channelId) {
+export function renderChannelPage(channelId, activeTab = 'history') {
   const cfg = CHANNEL_CONFIG[channelId];
   const page = document.createElement('div');
   page.className = 'p-6 space-y-6 page-enter';
 
   page.innerHTML = `
-    <div class="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-800/50 pb-5">
-      <div class="flex flex-col">
-        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.25em]">Channel Management Hub</p>
-      </div>
-      
-      <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-full shadow-inner border border-slate-200/50 dark:border-slate-700/30">
-        <button id="tab-history" class="tab-btn active px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">History</button>
-        <button id="tab-import" class="tab-btn px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">Import Data</button>
-      </div>
-    </div>
-
-
     <!-- TAB: HISTORY -->
-    <div id="section-history" class="tab-content space-y-4 page-enter">
+    <div id="section-history" class="tab-content ${activeTab === 'history' ? '' : 'hidden'} space-y-4 page-enter">
+       <div id="channel-summary-container" class="channel-summary-grid"></div>
+
        <div class="flex items-center justify-between">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Historical Data</p>
           <div class="flex items-center gap-2">
@@ -185,7 +173,7 @@ export function renderChannelPage(channelId) {
     </div>
 
     <!-- TAB: IMPORT (Current upload interface) -->
-    <div id="section-import" class="tab-content hidden space-y-6 page-enter">
+    <div id="section-import" class="tab-content ${activeTab === 'import' ? '' : 'hidden'} space-y-6 page-enter">
         <div id="results-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
         <div id="breakdown-area" class="hidden animate-fade-in chart-card !p-0 overflow-hidden"></div>
         
@@ -221,18 +209,6 @@ export function renderChannelPage(channelId) {
     const btnSave = page.querySelector('#btn-save');
     const dropZone = page.querySelector('#drop-zone');
     const previewArea = page.querySelector('#preview-area');
-
-    const tabs = ['history', 'import'];
-    tabs.forEach(t => {
-      page.querySelector(`#tab-${t}`).onclick = () => {
-        // Switch buttons
-        page.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        page.querySelector(`#tab-${t}`).classList.add('active');
-        // Switch sections
-        page.querySelectorAll('.tab-content').forEach(s => s.classList.add('hidden'));
-        page.querySelector(`#section-${t}`).classList.remove('hidden');
-      };
-    });
 
     // Initial state refresh
     fetchChannelHistory(channelId);
@@ -330,6 +306,8 @@ export function renderChannelPage(channelId) {
 
         const arrayBuffer = await response.arrayBuffer();
 
+        const ExcelJSModule = await import('exceljs');
+        const ExcelJS = ExcelJSModule.default || ExcelJSModule;
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(arrayBuffer);
 
@@ -374,6 +352,14 @@ export function renderChannelPage(channelId) {
       e.preventDefault();
       refreshData();
     };
+
+    // Listen for global filter changes (from main.js) without full re-render
+    const globalFilterHandler = () => refreshData();
+    window.addEventListener('global-filter-changed', globalFilterHandler);
+    
+    // Clean up on page change (simplified for this structure)
+    // Note: Since we recreate the page element, we should be careful with listeners
+    // but in this app's architecture, old elements are GC'd.
 
     // Local history filters (date range + search)
     const localFrom = page.querySelector('#channel-from');
@@ -425,7 +411,8 @@ export function renderChannelPage(channelId) {
       }
     };
 
-    function readExcelFile(file) {
+    async function readExcelFile(file) {
+      const XLSX = await import('xlsx');
       return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -511,12 +498,14 @@ function groupDataByDate(data, channelId, cfg) {
 }
 
 async function saveToDatabase(channelId, branchId, results) {
+  const batchId = `BATCH_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  let totalRows = 0;
+  
   const promises = Object.entries(results).map(([date, res]) => {
-    // Định dạng ID: grabfood_PioneerCenter_2026-04-23
+    totalRows += (res.orders || 0);
     const safeBranchName = branchId.replace(/\s+/g, '');
     const docId = `${channelId}_${safeBranchName}_${date}`;
 
-    // Cấu trúc Data chuẩn mới (Raw Data Schema)
     const dataToSave = {
       channelId,
       branchId,
@@ -528,13 +517,25 @@ async function saveToDatabase(channelId, branchId, results) {
         totalDeductions: res.totalDed
       },
       breakdown: res.breakdown,
+      importBatchId: batchId, // Tracking ID
       updatedAt: serverTimestamp()
     };
 
-    // Xóa sạch cấu trúc cũ (không dùng merge: true) để đảm bảo DB gọn gàng
     return setDoc(doc(db, "daily_sales", docId), dataToSave);
   });
-  await Promise.all(promises);
+
+  // Create log entry
+  const logPromise = setDoc(doc(db, "import_logs", batchId), {
+    batchId,
+    timestamp: serverTimestamp(),
+    type: channelId,
+    branchId: branchId,
+    rowCount: totalRows,
+    collections: ["daily_sales"],
+    status: "active"
+  });
+
+  await Promise.all([...promises, logPromise]);
 }
 
 // Logic tính toán cho từng kênh (đã cập nhật cleanNumber)
@@ -970,6 +971,105 @@ function updateUI(page, dailyResults, channelId) {
 }
 
 
+const ACCENT_COLORS = {
+  dinein: '#96588a',
+  grabfood: '#00b14f',
+  foodpanda: '#d70f64',
+  online: '#5b21b6'
+};
+
+function updateSummary(items, channelId, page) {
+  const summaryContainer = page.querySelector('#channel-summary-container');
+  if (!summaryContainer) return;
+
+  const totalNet = items.reduce((sum, item) => sum + (item.financials?.net || 0), 0);
+  const totalOrders = items.reduce((sum, item) => sum + (item.orders || 0), 0);
+  const avgOrder = totalOrders > 0 ? totalNet / totalOrders : 0;
+  const accent = ACCENT_COLORS[channelId] || '#96588a';
+
+  // Generate Sparkline path (last 10 items, chronologically)
+  const sparklineData = items.slice(0, 10).reverse().map(i => i.financials?.net || 0);
+  let points = "0,30 300,30";
+  if (sparklineData.length > 1) {
+    const maxVal = Math.max(...sparklineData, 1);
+    const minVal = Math.min(...sparklineData, 0);
+    const range = maxVal - minVal || 1;
+    points = sparklineData.map((v, i) => {
+      const x = (i / (sparklineData.length - 1)) * 300;
+      const y = 60 - ((v - minVal) / range) * 50;
+      return `${x},${y}`;
+    }).join(' ');
+  }
+
+  const netVal = `₱${Math.round(totalNet).toLocaleString()}`;
+  const ordersVal = totalOrders.toLocaleString();
+  const avgVal = `₱${Math.round(avgOrder).toLocaleString()}`;
+
+  summaryContainer.innerHTML = `
+    <div class="channel-card-premium" style="--channel-accent: ${accent}">
+      <div class="channel-card-accent"></div>
+      <div class="relative z-10 flex flex-col h-full">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Revenue</p>
+            <h3 id="summary-net" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${netVal}</h3>
+          </div>
+          <div class="p-2 w-10 h-10 rounded-2xl bg-white/50 dark:bg-slate-800/50 flex items-center justify-center shadow-sm">
+            <i data-lucide="trending-up" class="w-5 h-5" style="color: ${accent}"></i>
+          </div>
+        </div>
+        
+        <div class="mt-auto pt-6 flex items-center gap-2">
+          <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 text-[9px] font-black tracking-tight">STABLE</span>
+          <span class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Live Performance</span>
+        </div>
+      </div>
+      
+      <div class="sparkline-container">
+        <svg viewBox="0 0 300 60" preserveAspectRatio="none" class="w-full h-full">
+          <path class="sparkline-path" d="M ${points}" style="--channel-accent: ${accent}"></path>
+        </svg>
+      </div>
+    </div>
+
+    <div class="channel-card-premium">
+       <div class="relative z-10">
+          <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Order Volume</p>
+          <h3 id="summary-orders" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${ordersVal}</h3>
+          <p class="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Total Orders Handled</p>
+       </div>
+    </div>
+
+    <div class="channel-card-premium">
+       <div class="relative z-10">
+          <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Average Order</p>
+          <h3 id="summary-avg" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${avgVal}</h3>
+          <p class="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Revenue Per Order</p>
+       </div>
+    </div>
+  `;
+
+  // Trigger Shimmer-Snap Animation
+  ['summary-net', 'summary-orders', 'summary-avg'].forEach((id, idx) => {
+    const el = summaryContainer.querySelector(`#${id}`);
+    if (el) {
+      // Step 1: Shimmer phase
+      el.classList.add('shimmer-text');
+      
+      setTimeout(() => {
+        // Step 2: Snap phase
+        el.classList.remove('shimmer-text');
+        el.classList.add('animate-snap');
+        
+        // Clean up animation class
+        setTimeout(() => el.classList.remove('animate-snap'), 500);
+      }, 200 + (idx * 50)); // Staggered snap for a more "flowing" feel
+    }
+  });
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
 async function fetchChannelHistory(channelId) {
   const branchId = document.getElementById('db-branch')?.value || 'Pioneer Center';
   const rangeStr = document.getElementById('db-date-range')?.value || '';
@@ -994,8 +1094,6 @@ async function fetchChannelHistory(channelId) {
   const kpiArea = document.getElementById('overview-kpis');
   const breakdownArea = document.getElementById('overview-breakdown-card');
   const fmt = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
-
-  if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-xs text-slate-400 italic">Updating data...</td></tr>`;
 
   try {
     let q;
@@ -1076,6 +1174,10 @@ async function fetchChannelHistory(channelId) {
     });
 
     if (tableBody) tableBody.innerHTML = listHtml || `<tr><td colspan="6" class="px-6 py-10 text-center text-xs text-slate-400 italic">No results match your filter.</td></tr>`;
+    if (window.lucide) window.lucide.createIcons();
+
+    // Update Summary Cards
+    updateSummary(historyItems, channelId, document.querySelector('.page-enter') || document.body);
 
     // Attach click listeners to rows
     const pageContainer = document.querySelector('.page-enter');
@@ -1160,8 +1262,8 @@ async function fetchChannelHistory(channelId) {
     }
 
   } catch (err) {
-    console.error("Fetch History Error:", err);
-    if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-rose-500 text-xs italic">Error loading database: ${err.message}</td></tr>`;
+    console.error(err);
+    if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-rose-500">Error: ${err.message}</td></tr>`;
   }
 }
 

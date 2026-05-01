@@ -26,16 +26,18 @@ const CHANNELS = {
 
 let chartMain = null, chartPie = null, chartMini = null;
 
-function animateValue(el, end, formatter, duration = 800) {
+function animateValue(el, end, formatter) {
   if (!el) return;
-  const start = performance.now();
-  const tick = (now) => {
-    const p = Math.min((now - start) / duration, 1);
-    const eased = 1 - Math.pow(1 - p, 3);
-    el.textContent = formatter(end * eased);
-    if (p < 1) requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
+  const newValue = formatter(end);
+  if (el.textContent === newValue) return;
+
+  el.classList.add('shimmer-text');
+  setTimeout(() => {
+    el.textContent = newValue;
+    el.classList.remove('shimmer-text');
+    el.classList.add('animate-snap');
+    setTimeout(() => el.classList.remove('animate-snap'), 500);
+  }, 250);
 }
 
 function formatAbbreviated(n) {
@@ -66,7 +68,7 @@ export function renderDashboard(user) {
 
   page.innerHTML = `
     <!-- Greeting Banner -->
-    <div class="card-stagger relative overflow-hidden rounded-3xl mb-6 p-7 bg-gradient-to-br from-[#96588a] via-[#8a507e] to-[#7a4671] text-white shadow-xl border border-white/10" style="animation-delay: 0.1s">
+    <div class="card-stagger relative overflow-hidden rounded-3xl mb-6 p-7 bg-gradient-to-br from-[#96588a] via-[#8a507e] to-[#7a4671] text-white shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-white/10" style="animation-delay: 0.1s">
       <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
         <div>
           <div class="flex items-center gap-4 mb-4">
@@ -83,105 +85,102 @@ export function renderDashboard(user) {
       </div>
     </div>
 
-    <!-- Loading State -->
-    <div id="db-loading" class="hidden absolute inset-0 bg-white/50 dark:bg-slate-950/50 backdrop-blur-[2px] z-20 flex items-center justify-center">
-      <div class="flex items-center gap-3 bg-white dark:bg-slate-900 px-6 py-3 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800">
-        <div class="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Syncing Data...</p>
+      <!-- Hero Stats Grid (Modern SaaS Style) -->
+  <!-- Grid cha: items-stretch giúp các phần tử con có chiều cao bằng nhau trong cùng 1 hàng -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-stretch">
+
+    <!-- Card 1: Total Net Revenue (Card chuẩn về chiều cao) -->
+    <div class="card-stagger relative bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 text-white shadow-[0_10px_40px_rgba(0,0,0,0.08)] flex flex-col justify-between space-y-3 group" style="animation-delay: 0.2s">
+      <div class="flex flex-col space-y-2">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
+            <i data-lucide="wallet" class="w-3.5 h-3.5"></i>
+          </div>
+          <p class="text-white/80 text-[10px] font-extrabold uppercase tracking-widest">Total Net Revenue</p>
+        </div>
+        <div class="flex flex-col items-start leading-tight">
+          <h2 id="hero-net" class="text-xl font-black tracking-tight">₱0.00</h2>
+          <div id="hero-net-trend-text" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 text-[9px] font-bold text-white">0% ↑</div>
+        </div>
+      </div>
+      <div class="w-full pt-1">
+        <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-1">
+          <div id="hero-net-bar" class="h-full bg-white transition-all duration-1000" style="width:0%"></div>
+        </div>
+        <p id="hero-net-pct" class="text-[9px] text-white/50 font-bold uppercase tracking-widest">0% of target</p>
       </div>
     </div>
 
-    <!-- Hero Stats Grid (Modern SaaS Style) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-      
-      <!-- Card 1: Total Net Revenue -->
-      <div class="card-stagger relative bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 text-white shadow-lg h-40 flex flex-col space-y-3 group" style="animation-delay: 0.2s">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
-            <i data-lucide="wallet" class="w-4 h-4"></i>
+    <!-- Card 2: Total Gross Sale -->
+    <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800/50 flex flex-col justify-between space-y-3 group" style="animation-delay: 0.25s">
+      <div class="flex flex-col space-y-2">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
           </div>
-          <p class="text-white/80 text-[11px] font-extrabold tracking-tight">Total Net Revenue</p>
+          <p class="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">Total Gross Sale</p>
         </div>
-        <div class="flex flex-col items-start text-left">
-          <h2 id="hero-net" class="text-[22px] font-bold tracking-tight mb-0.5">₱0.00</h2>
-          <div id="hero-net-trend-text" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-bold text-white">
-             0% ↑
-          </div>
-        </div>
-        <div class="w-full pt-1">
-          <div class="w-full h-1 bg-white/20 rounded-full overflow-hidden mb-1.5">
-            <div id="hero-net-bar" class="h-full bg-white transition-all duration-1000" style="width:0%"></div>
-          </div>
-          <p id="hero-net-pct" class="text-[9px] text-white/60 font-bold uppercase tracking-widest">0% of target</p>
+        <div class="flex flex-col items-start leading-tight">
+          <h2 id="hero-gross" class="text-xl font-black text-slate-800 dark:text-white tracking-tight">₱0.00</h2>
+          <div id="hero-gross-trend" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold">0% ↑</div>
         </div>
       </div>
-
-      <!-- Card 2: Total Gross Sale -->
-      <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group" style="animation-delay: 0.25s">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
-            <i data-lucide="trending-up" class="w-4 h-4"></i>
-          </div>
-          <p class="text-slate-400 text-[11px] font-extrabold tracking-tight">Total Gross Sale</p>
-        </div>
-        <div class="flex flex-col items-start text-left">
-          <h2 id="hero-gross" class="text-[22px] font-bold text-slate-800 dark:text-white tracking-tight mb-0.5">₱0.00</h2>
-          <div id="hero-gross-trend" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold">
-            +0% ↑
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 3: Total Deduction -->
-      <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group" style="animation-delay: 0.3s">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
-            <i data-lucide="scissors" class="w-4 h-4"></i>
-          </div>
-          <p class="text-slate-400 text-[11px] font-extrabold tracking-tight">Total Deduction</p>
-        </div>
-        <div class="flex flex-col items-start text-left">
-          <h2 id="hero-ded" class="text-[22px] font-bold text-rose-500 tracking-tight mb-0.5">₱0.00</h2>
-          <p class="text-[10px] text-slate-400 font-medium">Platform fees applied</p>
-        </div>
-      </div>
-
-      <!-- Card 4: Total Expenses -->
-      <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group" style="animation-delay: 0.35s">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
-            <i data-lucide="receipt" class="w-4 h-4"></i>
-          </div>
-          <p class="text-slate-400 text-[11px] font-extrabold tracking-tight">Total Expenses</p>
-        </div>
-        <div class="flex flex-col items-start text-left">
-          <h2 id="hero-expenses" class="text-[22px] font-bold text-rose-500 tracking-tight mb-0.5">₱0.00</h2>
-          <p class="text-[10px] text-slate-400 font-medium">Fixed & Variable costs</p>
-        </div>
-      </div>
-
-      <!-- Card 5: Net Profit -->
-      <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-50 dark:border-slate-800/50 h-40 flex flex-col space-y-3 group" style="animation-delay: 0.4s">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
-            <i data-lucide="dollar-sign" class="w-4 h-4"></i>
-          </div>
-          <p class="text-slate-400 text-[11px] font-extrabold tracking-tight">Net Profit / Loss</p>
-        </div>
-        <div class="flex flex-col items-start text-left">
-          <h2 id="hero-profit" class="text-[22px] font-bold text-slate-800 dark:text-white tracking-tight mb-0.5">₱0.00</h2>
-          <div id="hero-efficiency-text" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-bold">
-            0% Margin
-          </div>
-        </div>
-      </div>
-
     </div>
+
+    <!-- Card 3: Total Deduction -->
+    <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800/50 flex flex-col justify-between space-y-3 group" style="animation-delay: 0.3s">
+      <div class="flex flex-col space-y-2">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
+            <i data-lucide="scissors" class="w-3.5 h-3.5"></i>
+          </div>
+          <p class="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">Total Deduction</p>
+        </div>
+        <div class="flex flex-col items-start leading-tight">
+          <h2 id="hero-ded" class="text-xl font-black text-rose-500 tracking-tight">₱0.00</h2>
+          <p class="mt-1 text-[9px] text-slate-400 font-bold uppercase">Platform fees</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 4: Total Expenses -->
+    <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800/50 flex flex-col justify-between space-y-3 group" style="animation-delay: 0.35s">
+      <div class="flex flex-col space-y-2">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
+            <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+          </div>
+          <p class="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">Total Expenses</p>
+        </div>
+        <div class="flex flex-col items-start leading-tight">
+          <h2 id="hero-expenses" class="text-xl font-black text-rose-500 tracking-tight">₱0.00</h2>
+          <div id="hero-expenses-trend" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold">0% ↑</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 5: Net Profit -->
+    <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800/50 flex flex-col justify-between space-y-3 group" style="animation-delay: 0.4s">
+      <div class="flex flex-col space-y-2">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
+            <i data-lucide="dollar-sign" class="w-3.5 h-3.5"></i>
+          </div>
+          <p class="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">Net Profit / Loss</p>
+        </div>
+        <div class="flex flex-col items-start leading-tight">
+          <h2 id="hero-profit" class="text-xl font-black text-slate-800 dark:text-white tracking-tight">₱0.00</h2>
+          <div id="hero-efficiency-text" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[9px] font-bold">0% Margin</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
 
     <!-- Channel Cards Grid (Integrated Header Style - Top Aligned) -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       ${Object.entries(CHANNELS).map(([id, ch]) => `
-        <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm border-2 border-transparent h-52 flex flex-col group transition-all cursor-pointer"
+        <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.08)] border-2 border-transparent h-52 flex flex-col group transition-all cursor-pointer"
              style="animation-delay: ${0.5 + (Object.keys(CHANNELS).indexOf(id) * 0.1)}s"
              onmouseover="this.style.borderColor='${ch.color}44'" 
              onmouseout="this.style.borderColor='transparent'">
@@ -215,8 +214,10 @@ export function renderDashboard(user) {
             </div>
             
             <div class="mt-auto">
-              <div class="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                <div id="card-${id}-bar" class="h-full rounded-full transition-all duration-1000" style="width:0%; background:${ch.color};"></div>
+              <div class="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full relative">
+                <div id="card-${id}-bar" class="h-full rounded-full transition-all duration-1000 relative" style="width:0%; background:${ch.color};">
+                  <div class="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 rounded-full shadow-md translate-x-1/2 transition-all duration-300" style="border-color: ${ch.color}"></div>
+                </div>
               </div>
               <div class="flex justify-between items-center mt-1.5">
                 <span id="card-${id}-pct" class="text-[9px] font-bold text-gray-400 uppercase tracking-tight">0% achieved</span>
@@ -229,14 +230,14 @@ export function renderDashboard(user) {
 
     <!-- Charts Row -->
     <div class="card-stagger grid grid-cols-1 lg:grid-cols-3 gap-3" style="animation-delay: 0.9s">
-      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 lg:col-span-2">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-100 dark:border-slate-700 lg:col-span-2">
         <div class="mb-5">
           <p class="font-bold text-slate-800 dark:text-white text-sm font-nunito">Net Revenue Trend</p>
           <p class="text-xs text-slate-500 mt-0.5 font-nunito">Daily breakdown across all channels</p>
         </div>
         <div class="h-64"><canvas id="chart-main"></canvas></div>
       </div>
-      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-700">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-100 dark:border-slate-700">
         <div class="mb-4">
           <p class="font-bold text-slate-800 dark:text-white text-sm font-nunito">Channel Mix</p>
         </div>
@@ -264,25 +265,25 @@ export function renderDashboard(user) {
     const handleUpdate = () => {
       const branch = branchSelect?.value || 'All Branches';
       const rangeVal = rangeInput?.value || '';
-      
+
       let from = firstDay, to = today;
       if (rangeVal.includes(' to ')) {
         [from, to] = rangeVal.split(' to ');
       } else if (rangeVal) {
         from = to = rangeVal;
       }
-      
+
       loadAndRender(page, branch, from, to);
     };
 
     // Initial load
     handleUpdate();
 
-    // We don't necessarily need local listeners because main.js 
-    // re-renders the whole page on filter change. 
-    // But adding them here ensures it works if main.js logic changes.
+    // Listen for global filter changes (Sunsilk Smooth)
+    window.addEventListener('global-filter-changed', handleUpdate);
+
     if (refreshBtn) refreshBtn.onclick = (e) => { e.preventDefault(); handleUpdate(); };
-    
+
     if (window.lucide) window.lucide.createIcons();
   }, 0);
 
@@ -291,12 +292,8 @@ export function renderDashboard(user) {
 
 // ── Data Handling ────────────────────────────────────────────────────────────
 async function loadAndRender(page, branch, fromDate, toDate) {
-  const loading = page.querySelector('#db-loading');
-  loading.classList.remove('hidden');
   try {
-    const docs = await fetchSalesData(branch, fromDate, toDate);
-
-    // Fetch previous period data for trend comparison
+    // Calculate previous period for trend comparison
     const d1 = new Date(fromDate + 'T00:00:00');
     const d2 = new Date(toDate + 'T00:00:00');
     const days = Math.round((d2 - d1) / 86400000) + 1;
@@ -308,14 +305,18 @@ async function loadAndRender(page, branch, fromDate, toDate) {
 
     const prevTo = prevToDate.toISOString().split('T')[0];
     const prevFrom = prevFromDate.toISOString().split('T')[0];
-    const prevDocs = await fetchSalesData(branch, prevFrom, prevTo);
 
-    updateCards(page, docs, prevDocs);
-    updateCharts(docs);
+    const [salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs] = await Promise.all([
+      fetchSalesData(branch, fromDate, toDate),
+      fetchSalesData(branch, prevFrom, prevTo),
+      fetchExpenseData(branch, fromDate, toDate),
+      fetchExpenseData(branch, prevFrom, prevTo)
+    ]);
+
+    updateCards(page, salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs);
+    updateCharts(salesDocs);
   } catch (err) {
     console.error('Dashboard error:', err);
-  } finally {
-    loading.classList.add('hidden');
   }
 }
 
@@ -326,11 +327,18 @@ async function fetchSalesData(branch, fromDate, toDate) {
   return branch === 'All Branches' ? all : all.filter(d => d.branchId === branch);
 }
 
+async function fetchExpenseData(branch, fromDate, toDate) {
+  const q = query(collection(db, 'expenses'), where('date', '>=', fromDate), where('date', '<=', toDate));
+  const snap = await getDocs(q);
+  const all = snap.docs.map(d => d.data());
+  return branch === 'All Branches' ? all : all.filter(d => d.branchId === branch);
+}
+
 function getNet(d) { return d.financials ? d.financials.net : (d.net || 0); }
 function getGross(d) { return d.financials ? d.financials.gross : (d.gross || 0); }
 function getDed(d) { return d.financials ? d.financials.totalDeductions : (d.totalDeductions || 0); }
 
-function updateCards(page, docs, prevDocs) {
+function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = []) {
   const fmt = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtAbbr = n => '₱' + formatAbbreviated(n);
   const fmtNum = n => n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -344,6 +352,10 @@ function updateCards(page, docs, prevDocs) {
     totalNet += net; totalGross += gross; totalDed += ded;
     if (ch[d.channelId]) { ch[d.channelId].net += net; ch[d.channelId].gross += gross; ch[d.channelId].ded += ded; }
   });
+
+  // Calculate REAL total expenses
+  const totalExpenses = (expenseDocs || []).reduce((sum, e) => sum + (e.amount || 0), 0);
+  const prevTotalExpenses = (prevExpenseDocs || []).reduce((sum, e) => sum + (e.amount || 0), 0);
 
   // Update Card 1: Total Net
   animateValue(page.querySelector('#hero-net'), totalNet, fmtAbbr);
@@ -371,9 +383,16 @@ function updateCards(page, docs, prevDocs) {
   // Update Card 3: Deduction
   animateValue(page.querySelector('#hero-ded'), totalDed, (n) => '-₱' + formatAbbreviated(n));
 
-  // Update Card 4: Expenses (Mocked to 15% for now)
-  const totalExpenses = totalGross * 0.15;
+  // Update Card 4: REAL Expenses
   animateValue(page.querySelector('#hero-expenses'), totalExpenses, (n) => '-₱' + formatAbbreviated(n));
+  const expTrendPct = prevTotalExpenses > 0 ? ((totalExpenses - prevTotalExpenses) / prevTotalExpenses) * 100 : 0;
+  const expTrendEl = page.querySelector('#hero-expenses-trend');
+  if (expTrendEl) {
+    const isUp = expTrendPct >= 0;
+    // For expenses: UP is generally bad (Rose), DOWN is good (Emerald)
+    expTrendEl.innerHTML = `${isUp ? '+' : ''}${expTrendPct.toFixed(1)}% ${isUp ? '↑' : '↓'}`;
+    expTrendEl.className = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isUp ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600'}`;
+  }
 
   // Update Card 5: Profit
   const profit = totalNet - totalExpenses;

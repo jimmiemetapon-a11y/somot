@@ -1,4 +1,4 @@
-export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'All Branches', dateRange = null, user = null, onSignOut = null) {
+export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'All Branches', dateRange = null, user = null, onSignOut = null, subTabs = [], activeSubTab = null) {
   const now = new Date();
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -13,7 +13,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   const initials = displayName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AD';
 
   const header = document.createElement('header');
-  header.className = 'topbar fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-3 bg-white/60 dark:bg-[#020617]/60 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800/60 shadow-sm dark:shadow-2xl h-[64px] transition-all duration-300';
+  header.className = 'topbar transition-all duration-300';
 
   const isDashboard = title === 'Dashboard';
 
@@ -22,23 +22,32 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   const allowedBranches = user?.permissions?.allowedBranches || DEFAULT_BRANCHES;
 
   header.innerHTML = `
-    <!-- Left: Logo + Filters -->
+    <!-- Left: Title / Partner Logo + SubTabs -->
     <div class="flex items-center gap-4">
-      <!-- JOINT LOGO S -->
-      <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-lg shadow-lg shadow-purple-500/30"
-           style="background: linear-gradient(135deg, #96588a 0%, #7a4671 100%);">
-        S
-      </div>
-
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-1.5">
         ${(isDashboard || !logoUrl) ? `
-          <h1 class="text-base font-black text-slate-800 dark:text-white tracking-tight ml-2">${title}</h1>
+          <h1 class="text-sm font-black text-slate-400 uppercase tracking-widest ml-2">${title}</h1>
         ` : `
-          <!-- BIG PARTNER LOGO (Replacing title) -->
-          <div class="h-7 min-w-[100px] flex items-center border-l border-slate-200 dark:border-slate-800/60 pl-4 ml-1">
+          <div class="h-6 flex items-center border-r border-slate-200 dark:border-slate-800/60 pr-4 ml-1">
              <img src="/src/assets/${logoUrl}" class="h-full w-auto object-contain dark:brightness-0 dark:invert" alt="${title} Logo" />
           </div>
         `}
+        
+        <!-- Sub Tabs Breadcrumbs -->
+        ${subTabs.length > 0 ? `
+          <div class="flex items-center gap-3 ml-2">
+            <span class="text-slate-300 dark:text-slate-600 font-medium text-sm">/</span>
+            <div class="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 px-4 py-1.5 rounded-full border border-slate-100 dark:border-slate-800/50">
+              ${subTabs.map((tab, idx) => `
+                ${idx > 0 ? '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>' : ''}
+                <button class="sub-tab-link text-[10px] font-black uppercase tracking-[0.15em] transition-all ${activeSubTab === tab.id ? 'text-[#96588a]' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}" 
+                        data-tab-id="${tab.id}">
+                  ${tab.label}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
       </div>
     </div>
 
@@ -245,6 +254,13 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
 
     if (window.lucide) window.lucide.createIcons();
   }, 100);
+
+  header.querySelectorAll('.sub-tab-link').forEach(btn => {
+    btn.onclick = () => {
+      const tabId = btn.dataset.tabId;
+      window.dispatchEvent(new CustomEvent('switch-sub-tab', { detail: { tabId } }));
+    };
+  });
 
   return header;
 }

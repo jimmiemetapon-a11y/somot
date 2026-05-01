@@ -6,7 +6,7 @@
 
 :root {
   /* --- Core Brand Colors --- */
-  --brand-primary: #96588a;
+  --brand-primary: rgb(151, 89, 139);
   --brand-primary-rgb: 150, 88, 138;
   --brand-primary-light: #a46297;
   --brand-primary-dark: #7a4671;
@@ -94,90 +94,33 @@
 }
 
 @layer components {
+
+  /* --- Layout Root --- */
+  #app {
+    @apply flex h-screen overflow-hidden w-full;
+  }
+
   .sidebar {
-    @apply fixed w-[260px] bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-white/20 dark:border-slate-800/50 flex flex-col z-40 transition-all duration-500 ease-in-out overflow-y-auto scrollbar-hide shadow-2xl;
-    top: 80px;
-    left: 15px;
-    bottom: 15px;
-    height: auto;
-    border-radius: 40px;
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+    @apply relative w-[260px] h-full bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col z-40 transition-all duration-300 ease-in-out shadow-lg;
+    border-radius: 0;
+    /* Remove floating rounded corners */
   }
 
   .sidebar.collapsed {
     @apply w-[80px];
   }
 
-  .sidebar.collapsed .sidebar-header-text,
-  .sidebar.collapsed .nav-text,
-  .sidebar.collapsed .sidebar-footer {
-    display: none !important;
-  }
-
-  .sidebar.collapsed .nav-item {
-    @apply justify-center px-0;
-    width: 52px;
-    height: 52px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .sidebar.collapsed nav {
-    @apply px-0 flex flex-col items-center;
-  }
-
-  .sidebar.collapsed .icon-box {
-    @apply w-full h-full bg-transparent shadow-none;
-  }
-
-  .sidebar.collapsed .sidebar-header {
-    @apply px-0 justify-center w-full;
-  }
-
-  .sidebar.collapsed .sidebar-header .w-12.h-12 {
-    @apply m-0;
-  }
-
-  .sidebar.collapsed .nav-item {
-    @apply justify-center px-0;
-    width: 52px;
-    height: 52px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .sidebar.collapsed .icon-box {
-    @apply w-full h-full bg-transparent shadow-none;
-  }
-
-  .sidebar.collapsed .sidebar-header {
-    @apply px-0 justify-center w-full;
-  }
-
-  .sidebar.collapsed .sidebar-header .w-12.h-12 {
-    @apply m-0;
-  }
-
-  .sidebar::-webkit-scrollbar {
-    display: none;
-  }
-
   .main-content {
-    @apply ml-[95px] flex flex-col flex-1;
+    @apply flex-1 flex flex-col h-screen overflow-hidden relative;
     background-color: var(--app-bg);
-    padding-top: 64px;
-    /* 64px Header + 16px Gap */
-    min-height: 100vh;
+  }
+
+  .topbar {
+    @apply absolute top-0 left-0 right-0 flex items-center justify-between px-8 py-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 z-[100] shrink-0 h-[72px];
   }
 
   #page-content {
-    background-color: var(--app-bg);
-  }
-
-  /* No more .main-content.expanded needed because it's always at 80px */
-  .topbar {
-    @apply sticky top-0 z-50 flex items-center justify-between px-8 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800;
+    @apply flex-1 overflow-auto bg-slate-50 dark:bg-[#020617] pt-[72px];
   }
 
   /* ── Sidebar nav items ── */
@@ -209,9 +152,34 @@
     background: linear-gradient(135deg, var(--brand-primary-light) 0%, var(--brand-primary) 100%);
   }
 
-  /* ── Stat cards ── */
-  .stat-card {
-    @apply bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5;
+  /* ── Channel Summary Cards ── */
+  .channel-summary-grid {
+    @apply grid grid-cols-1 md:grid-cols-3 gap-6 mb-8;
+  }
+
+  .channel-card-premium {
+    @apply relative overflow-hidden bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-[2rem] p-6 border border-white/20 dark:border-white/5 shadow-xl transition-all duration-500 hover:shadow-2xl hover:-translate-y-1;
+  }
+
+  .channel-card-accent {
+    @apply absolute top-0 right-0 w-32 h-32 opacity-10 blur-3xl rounded-full -mr-16 -mt-16 transition-all duration-700;
+    background-color: var(--channel-accent, #96588a);
+  }
+
+  .channel-card-premium:hover .channel-card-accent {
+    @apply opacity-20 scale-150;
+  }
+
+  .sparkline-container {
+    @apply absolute bottom-0 left-0 right-0 h-16 opacity-30 pointer-events-none;
+  }
+
+  .sparkline-path {
+    fill: none;
+    stroke: var(--channel-accent, #96588a);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   /* ── Chart / content cards ── */
@@ -327,6 +295,7 @@
       opacity: 0;
       transform: translateY(30px) scale(0.96);
     }
+
     100% {
       opacity: 1;
       transform: translateY(0) scale(1);
@@ -524,6 +493,34 @@
     animation: scale-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
   }
 
+  @keyframes blur-fade-out {
+    0% {
+      transform: translateY(0);
+      filter: blur(0);
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateY(-10px);
+      filter: blur(8px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes blur-fade-in {
+    0% {
+      transform: translateY(10px);
+      filter: blur(8px);
+      opacity: 0;
+    }
+
+    100% {
+      transform: translateY(0);
+      filter: blur(0);
+      opacity: 1;
+    }
+  }
+
   @keyframes blob {
     0% {
       transform: translate(0px, 0px) scale(1);
@@ -542,8 +539,55 @@
     }
   }
 
+  .animate-blur-fade-out {
+    animation: blur-fade-out 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .animate-blur-fade-in {
+    animation: blur-fade-in 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
   .animate-blob {
     animation: blob 7s infinite;
+  }
+
+  @keyframes shimmer-snap {
+    0% {
+      background-position: -200% 0;
+      opacity: 0.5;
+    }
+
+    100% {
+      background-position: 200% 0;
+      opacity: 1;
+    }
+  }
+
+  @keyframes snap-bounce {
+    0% {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+
+    70% {
+      transform: scale(1.1);
+    }
+
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .shimmer-text {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(150, 88, 138, 0.2) 50%, rgba(255, 255, 255, 0) 100%);
+    background-size: 200% 100%;
+    animation: shimmer-snap 0.3s infinite;
+    @apply rounded-lg bg-slate-100 dark:bg-slate-800 text-transparent !important;
+  }
+
+  .animate-snap {
+    animation: snap-bounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
   }
 
   .animation-delay-2000 {

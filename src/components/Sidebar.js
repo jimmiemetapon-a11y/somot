@@ -5,6 +5,7 @@ const IC = {
   panda: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 11h.01"/><path d="M11 15h.01"/><path d="M16 16h.01"/><path d="m2 16 20 6-6-20A20 20 0 0 0 2 16"/><path d="M5.71 17.11a17.04 17.04 0 0 1 11.4-11.4"/></svg>`,
   online: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
   expenses: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17V7"/></svg>`,
+  analytics: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
   settings: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`
 };
 
@@ -13,13 +14,23 @@ export function renderSidebar(activeTab, onNavigate, isCollapsed, onToggle) {
   const sidebar = document.createElement('aside');
   sidebar.className = `sidebar ${isCollapsed ? 'collapsed' : ''}`;
   sidebar.innerHTML = `
-    <!-- Spacer for floating look -->
-    <div class="h-4"></div>
+    <!-- Sidebar Header with Mockup Logo -->
+    <div class="h-[72px] flex items-center px-8 border-b border-slate-100 dark:border-slate-800/50">
+       <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#96588a] to-[#7a4671] flex items-center justify-center text-white font-black text-xl shadow-lg shadow-purple-500/20">
+            S
+          </div>
+          <div class="sidebar-header-text">
+            <p class="text-sm font-black text-slate-800 dark:text-white leading-none">SO MOT</p>
+            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Dashboard</p>
+          </div>
+       </div>
+    </div>
 
     <!-- Nav -->
-    <nav class="flex-1 px-4 py-4 space-y-2 overflow-y-auto scrollbar-hide">
+    <nav class="flex-1 px-4 py-8 space-y-2 overflow-y-auto scrollbar-hide">
       <div class="nav-item ${activeTab === 'dashboard' ? 'active' : ''}" data-tab="dashboard" title="Dashboard">
-        <span class="icon-box">${IC.dash}</span> <span class="nav-text">Dashboard</span>
+        <span class="icon-box">${IC.dash}</span> <span class="nav-text font-bold">Dashboard</span>
       </div>
 
       <div class="nav-item ${activeTab === 'dinein' ? 'active' : ''}" data-tab="dinein" title="Dine In">
@@ -40,6 +51,9 @@ export function renderSidebar(activeTab, onNavigate, isCollapsed, onToggle) {
       <div class="nav-item ${activeTab === 'expenses' ? 'active' : ''}" data-tab="expenses" title="Expenses">
         <span class="icon-box">${IC.expenses}</span> <span class="nav-text">Expenses</span>
       </div>
+      <div class="nav-item ${activeTab === 'pantry_analysis' ? 'active' : ''}" data-tab="pantry_analysis" title="Pantry Analysis">
+        <span class="icon-box">${IC.analytics}</span> <span class="nav-text">Pantry Analysis</span>
+      </div>
 
       <div class="nav-item ${activeTab === 'settings' ? 'active' : ''}" data-tab="settings" title="Settings">
         <span class="icon-box">${IC.settings}</span> <span class="nav-text">Settings</span>
@@ -58,17 +72,6 @@ export function renderSidebar(activeTab, onNavigate, isCollapsed, onToggle) {
   sidebar.querySelectorAll('.nav-item').forEach(el => {
     el.onclick = () => onNavigate(el.dataset.tab);
   });
-
-  sidebar.onmouseenter = () => {
-    if (sidebar.classList.contains('collapsed')) {
-      onToggle(false);
-    }
-  };
-  sidebar.onmouseleave = () => {
-    if (!sidebar.classList.contains('collapsed')) {
-      onToggle(true);
-    }
-  };
 
   return sidebar;
 }

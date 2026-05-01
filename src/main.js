@@ -5,6 +5,7 @@ import { renderHeader } from './components/Header.js';
 import { renderDashboard } from './pages/Dashboard.js';
 import { renderChannelPage } from './pages/ChannelPage.js';
 import { renderExpensesPage } from './pages/Expenses.js';
+import { renderPantryAnalysis } from './pages/PantryAnalysis.js';
 import { renderSettings } from './pages/Settings.js';
 import { renderLoginPage } from './pages/Login.js';
 import { auth, db } from './firebase.js';
@@ -14,26 +15,58 @@ import { doc, getDoc } from 'firebase/firestore';
 let currentUser = null;
 let isSidebarCollapsed = false;
 let currentTab = 'dashboard';
+let activeSubTab = null;
 
 const PAGE_TITLES = {
-  dashboard: ['Dashboard',    'Revenue overview across all channels', null],
-  dinein:    ['Dine In',      'In-house dining revenue', 'id_VcqlrDV_1777185371840.svg'],
-  grabfood:  ['GrabFood',     'GrabFood delivery channel', 'GrabFood.svg'],
-  foodpanda: ['FoodPanda',    'FoodPanda delivery channel', 'Foodpanda.svg'],
-  online:    ['Online Order', 'Direct online orders', 'WooCommerce.svg'],
-  expenses:  ['Expenses',     'Petty cash & liquidation tracking', null],
-  settings:  ['Settings',     'App configuration & preferences', null],
+  dashboard: ['Dashboard', 'Revenue overview across all channels', null],
+  dinein: ['Dine In', 'In-house dining revenue', 'id_VcqlrDV_1777185371840.svg'],
+  grabfood: ['GrabFood', 'GrabFood delivery channel', 'GrabFood.svg'],
+  foodpanda: ['FoodPanda', 'FoodPanda delivery channel', 'Foodpanda.svg'],
+  online: ['Online Order', 'Direct online orders', 'WooCommerce.svg'],
+  expenses: ['Expenses', 'Petty cash & liquidation tracking', null],
+  pantry_analysis: ['Pantry Analysis', 'Deep dive into ingredient costs & usage', null],
+  settings: ['Settings', 'App configuration & preferences', null],
+};
+
+const SUB_TABS_CONFIG = {
+  expenses: [
+    { id: 'cashier', label: 'Cashier' },
+    { id: 'ledger', label: 'Ledger' },
+    { id: 'audit', label: 'Audit' }
+  ],
+  dinein: [
+    { id: 'history', label: 'History' },
+    { id: 'import', label: 'Import' }
+  ],
+  grabfood: [
+    { id: 'history', label: 'History' },
+    { id: 'import', label: 'Import' }
+  ],
+  foodpanda: [
+    { id: 'history', label: 'History' },
+    { id: 'import', label: 'Import' }
+  ],
+  online: [
+    { id: 'history', label: 'History' },
+    { id: 'import', label: 'Import' }
+  ]
 };
 
 const PAGE_MAP = {
   dashboard: () => renderDashboard(currentUser),
-  dinein:    () => renderChannelPage('dinein'),
-  grabfood:  () => renderChannelPage('grabfood'),
-  foodpanda: () => renderChannelPage('foodpanda'),
-  online:    () => renderChannelPage('online'),
-  expenses:  () => renderExpensesPage(),
-  settings:  () => renderSettings(),
+  dinein: () => renderChannelPage('dinein', activeSubTab),
+  grabfood: () => renderChannelPage('grabfood', activeSubTab),
+  foodpanda: () => renderChannelPage('foodpanda', activeSubTab),
+  online: () => renderChannelPage('online', activeSubTab),
+  expenses: () => renderExpensesPage(activeSubTab),
+  pantry_analysis: () => renderPantryAnalysis(),
+  settings: () => renderSettings(),
 };
+
+window.addEventListener('switch-sub-tab', (e) => {
+  activeSubTab = e.detail.tabId;
+  buildShell();
+});
 
 const yesterdayDate = new Date();
 yesterdayDate.setDate(yesterdayDate.getDate() - 1);
@@ -62,14 +95,14 @@ function buildShell() {
 
   if (!sidebarContainer || !mainContentContainer) {
     app.innerHTML = '';
-    
+
     sidebarContainer = document.createElement('div');
     sidebarContainer.id = 'sidebar-container';
     app.appendChild(sidebarContainer);
 
     mainContentContainer = document.createElement('div');
     mainContentContainer.id = 'main-container';
-    mainContentContainer.className = 'main-content flex flex-col min-h-screen transition-all duration-300';
+    mainContentContainer.className = 'main-content';
     app.appendChild(mainContentContainer);
   }
 
@@ -83,9 +116,9 @@ function buildShell() {
   const headerContainer = document.getElementById('header-container') || document.createElement('div');
   headerContainer.id = 'header-container';
   headerContainer.innerHTML = '';
-  
+
   const currentRange = document.getElementById('db-date-range')?.value || filterState.dateRange;
-  const header = renderHeader(title, subtitle, toggleDarkMode, logoUrl, filterState.branch, currentRange, currentUser, handleSignOut);
+  const header = renderHeader(title, subtitle, toggleDarkMode, logoUrl, filterState.branch, currentRange, currentUser, handleSignOut, SUB_TABS_CONFIG[currentTab] || [], activeSubTab);
   headerContainer.appendChild(header);
 
   if (!mainContentContainer.contains(headerContainer)) {
@@ -108,7 +141,7 @@ function buildShell() {
 async function renderPage(tabId) {
   const contentArea = document.getElementById('page-content');
   if (!contentArea) return;
-  
+
   // Show skeleton loader instead of spinner
   contentArea.innerHTML = `
     <div class="p-8 space-y-6 animate-pulse">
@@ -124,7 +157,7 @@ async function renderPage(tabId) {
       <div class="h-64 bg-slate-200 dark:bg-slate-800 rounded-2xl w-full"></div>
     </div>
   `;
-  
+
   const renderFn = PAGE_MAP[tabId];
   if (renderFn) {
     try {
@@ -146,7 +179,7 @@ function attachFilterListeners() {
   if (branchSelect) {
     branchSelect.addEventListener('change', (e) => {
       filterState.branch = e.target.value;
-      renderPage(currentTab);
+      window.dispatchEvent(new CustomEvent('global-filter-changed', { detail: filterState }));
     });
   }
 
@@ -159,7 +192,7 @@ function attachFilterListeners() {
       } else {
         filterState.from = filterState.to = val;
       }
-      renderPage(currentTab);
+      window.dispatchEvent(new CustomEvent('global-filter-changed', { detail: filterState }));
     });
   }
 }
@@ -167,6 +200,7 @@ function attachFilterListeners() {
 function navigateTo(tabId) {
   if (currentTab === tabId) return;
   currentTab = tabId;
+  activeSubTab = SUB_TABS_CONFIG[tabId]?.[0]?.id || null;
   buildShell();
 }
 
@@ -209,8 +243,8 @@ onAuthStateChanged(auth, async (user) => {
         user.permissions = permSnap.data();
       } else {
         // Fallback permissions if not specifically defined in DB
-        user.permissions = { 
-          allowedBranches: ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'] 
+        user.permissions = {
+          allowedBranches: ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf']
         };
       }
 
@@ -222,7 +256,7 @@ onAuthStateChanged(auth, async (user) => {
       console.error("Error fetching user permissions:", err);
     }
   }
-  
+
   currentUser = user;
   buildShell();
 });

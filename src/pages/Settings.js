@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, orderBy, limit, deleteDoc, writeBatch } from 'firebase/firestore';
 
 export function renderSettings() {
   const page = document.createElement('div');
@@ -25,10 +25,39 @@ export function renderSettings() {
          <button class="settings-tab w-full text-left px-5 py-3.5 rounded-2xl font-bold text-sm text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-3" data-tab="expenses">
             <i data-lucide="wallet" class="w-4 h-4"></i> Expenses Setup
          </button>
+         
+         <button class="settings-tab w-full text-left px-5 py-3.5 rounded-2xl font-bold text-sm text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all flex items-center gap-3" data-tab="history">
+            <i data-lucide="history" class="w-4 h-4"></i> Import History
+         </button>
       </div>
 
       <!-- Right Content Area -->
       <div class="flex-1 bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 p-8 min-h-[500px]">
+         
+         <!-- IMPORT HISTORY TAB -->
+         <div id="tab-history" class="settings-pane hidden space-y-6 animate-fade-in">
+            <div class="mb-8">
+               <h3 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Import History & Undo</h3>
+               <p class="text-xs text-slate-400 mt-1">Review recent data imports and roll back if necessary.</p>
+            </div>
+
+            <div class="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800">
+               <table class="w-full text-left border-collapse">
+                  <thead>
+                     <tr class="bg-slate-50 dark:bg-slate-800/50">
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date/Time</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Branch</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rows</th>
+                        <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                     </tr>
+                  </thead>
+                  <tbody id="import-history-body" class="divide-y divide-slate-50 dark:divide-slate-800/50">
+                     <tr><td colspan="5" class="px-6 py-10 text-center text-xs text-slate-400 italic">Loading history...</td></tr>
+                  </tbody>
+               </table>
+            </div>
+         </div>
          
          <!-- GENERAL TAB -->
          <div id="tab-general" class="settings-pane space-y-6 animate-fade-in">
@@ -219,8 +248,25 @@ export function renderSettings() {
 
           if (target === 'kpi') loadKPI(page.querySelector('#kpi-branch-select').value);
           if (target === 'expenses') loadExpenses(page.querySelector('#exp-branch-select').value);
+          if (target === 'history') loadImportHistory();
        };
     });
+
+    // Handle Undo button clicks (delegation)
+    const historyBody = page.querySelector('#import-history-body');
+    if (historyBody) {
+       historyBody.onclick = async (e) => {
+          const btn = e.target.closest('.undo-btn');
+          if (!btn) return;
+          const batchId = btn.dataset.batchId;
+          const type = btn.dataset.type;
+          const rowCount = btn.dataset.rowCount;
+          
+          if (confirm(`Are you sure you want to UNDO this import?\n\nType: ${type}\nRows: ${rowCount}\n\nThis will permanently delete these records from the database.`)) {
+             await undoImport(batchId, btn);
+          }
+       };
+    }
 
     // --- GENERAL LOGIC ---
     const dmToggle = page.querySelector('#st-dark-toggle');
@@ -521,6 +567,95 @@ export function renderSettings() {
         <button type="button" data-action="add-purpose" data-category-index="${cIdx}" class="px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all">+ Add Purpose</button>
       </div>
     `).join('');
+  }
+
+  async function loadImportHistory() {
+     const body = page.querySelector('#import-history-body');
+     if (!body) return;
+     body.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-xs text-slate-400 italic">Fetching logs...</td></tr>';
+
+     try {
+        const q = query(collection(db, "import_logs"), orderBy("timestamp", "desc"), limit(20));
+        const snap = await getDocs(q);
+        
+        if (snap.empty) {
+           body.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-xs text-slate-400 italic">No import history found.</td></tr>';
+           return;
+        }
+
+        body.innerHTML = snap.docs.map(doc => {
+           const log = doc.data();
+           const date = log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : 'Just now';
+           const isDeleted = log.status === 'deleted';
+           
+           return `
+              <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all ${isDeleted ? 'opacity-40 grayscale' : ''}">
+                 <td class="px-6 py-4">
+                    <p class="text-xs font-bold text-slate-700 dark:text-slate-200">${date}</p>
+                    <p class="text-[9px] text-slate-400 font-medium font-mono uppercase">${log.batchId}</p>
+                 </td>
+                 <td class="px-6 py-4">
+                    <span class="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[9px] font-black uppercase text-slate-500">${log.type}</span>
+                 </td>
+                 <td class="px-6 py-4 text-xs font-semibold text-slate-500">${log.branchId}</td>
+                 <td class="px-6 py-4 text-xs font-black text-[#96588a]">${log.rowCount}</td>
+                 <td class="px-6 py-4 text-right">
+                    ${isDeleted ? 
+                       '<span class="text-[9px] font-black uppercase text-rose-500 bg-rose-50 dark:bg-rose-900/20 px-2 py-1 rounded-md">Rolled Back</span>' : 
+                       `<button class="undo-btn px-4 py-1.5 rounded-lg border border-rose-200 text-rose-500 text-[9px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-sm" 
+                         data-batch-id="${log.batchId}" data-type="${log.type}" data-row-count="${log.rowCount}">Undo</button>`
+                    }
+                 </td>
+              </tr>
+           `;
+        }).join('');
+
+     } catch (err) {
+        console.error("Error loading import history:", err);
+        body.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-xs text-rose-400 font-bold italic">Error: ${err.message}</td></tr>`;
+     }
+  }
+
+  async function undoImport(batchId, btn) {
+     const originalText = btn.innerText;
+     btn.disabled = true;
+     btn.innerText = 'Deleting...';
+     
+     try {
+        const logSnap = await getDoc(doc(db, "import_logs", batchId));
+        if (!logSnap.exists()) throw new Error("Log entry not found.");
+        
+        const log = logSnap.data();
+        const collections = log.collections || ["daily_sales"]; // fallback
+        
+        let totalDeleted = 0;
+        
+        for (const colName of collections) {
+           const q = query(collection(db, colName), where("importBatchId", "==", batchId));
+           const snap = await getDocs(q);
+           
+           if (!snap.empty) {
+              const batch = writeBatch(db);
+              snap.docs.forEach(d => {
+                 batch.delete(d.ref);
+                 totalDeleted++;
+              });
+              await batch.commit();
+           }
+        }
+        
+        // Mark log as deleted instead of removing it (for audit trail)
+        await setDoc(doc(db, "import_logs", batchId), { status: 'deleted' }, { merge: true });
+        
+        window.showToast(`Successfully rolled back ${totalDeleted} records.`, 'success');
+        loadImportHistory(); // Refresh table
+        
+     } catch (err) {
+        console.error("Undo Error:", err);
+        window.showToast("Failed to undo: " + err.message, "error");
+        btn.disabled = false;
+        btn.innerText = originalText;
+     }
   }
 
   return page;

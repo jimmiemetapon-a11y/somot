@@ -1,14 +1,35 @@
 import { db, storage } from '../firebase.js';
 import { collection, getDocs, query, where, orderBy, addDoc, serverTimestamp, doc, getDoc, setDoc, limit, writeBatch, updateDoc, increment, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import * as XLSX from 'xlsx';
-import ExcelJS from 'exceljs';
 
-export async function renderExpensesPage() {
+// Module-level cache for master data (Categories, Purposes, etc.)
+let masterCache = {
+   data: null,
+   branchFunds: {}, // branchName -> fundAmount
+   timestamp: 0
+};
+
+// Helper for Shimmer-Snap animation
+function animateValue(el, end, formatter) {
+   if (!el) return;
+   const newValue = formatter(end);
+   if (el.textContent === newValue) return;
+
+   el.classList.add('shimmer-text');
+   setTimeout(() => {
+      el.textContent = newValue;
+      el.classList.remove('shimmer-text');
+      el.classList.add('animate-snap');
+      setTimeout(() => el.classList.remove('animate-snap'), 500);
+   }, 250);
+}
+
+export async function renderExpensesPage(activeTab = 'cashier') {
    const APPROVAL_TEMPLATE_URL = '/templates/liquidation-approval-template.xlsx';
    const container = document.createElement('div');
    container.className = 'p-6 space-y-6 pb-20 page-enter';
 
+   let currentTab = activeTab;
    let categories = [];
    let purposes = [];
    let categoryMappings = {};
@@ -19,20 +40,11 @@ export async function renderExpensesPage() {
    let pendingTotal = 0;
 
    container.innerHTML = `
-    <div class="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-800/50 pb-5">
-      <div class="flex flex-col">
-        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.25em]">Cashier Fund & Accountant Ledger</p>
-      </div>
-      
-      <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-full shadow-inner border border-slate-200/50 dark:border-slate-700/30">
-         <button class="expense-tab active px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all bg-[#96588a] text-white shadow-lg shadow-[#96588a]/20" data-tab="cashier">Cashier</button>
-         <button class="expense-tab px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all text-slate-400 hover:text-slate-600" data-tab="ledger">Ledger</button>
-         <button class="expense-tab px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all text-slate-400 hover:text-slate-600" data-tab="audit">Audit</button>
-      </div>
-    </div>
-
     <div id="expense-content" class="min-h-[400px]"></div>
   `;
+
+   // Initial Load
+   loadTabContent(currentTab);
 
    async function loadMasterData() {
       const freshBranch = document.getElementById('db-branch')?.value;
@@ -41,19 +53,30 @@ export async function renderExpensesPage() {
       }
 
       try {
-         // Load Categories & Purposes from settings/expenses_master
-         const masterSnap = await getDoc(doc(db, 'settings', 'expenses_master'));
-         if (masterSnap.exists()) {
-            const m = masterSnap.data();
-            categories = m.categories || [];
-            purposes = m.purposes || [];
-            categoryMappings = m.categoryMappings || m.cashierMappings || {};
+         // Load Categories & Purposes (Cached)
+         if (!masterCache.data || (Date.now() - masterCache.timestamp > 300000)) { // 5 min cache
+            const masterSnap = await getDoc(doc(db, 'settings', 'expenses_master'));
+            if (masterSnap.exists()) {
+               masterCache.data = masterSnap.data();
+               masterCache.timestamp = Date.now();
+            }
          }
 
-         // Load Base Fund from kpi_settings/branch
-         const branchSnap = await getDoc(doc(db, 'kpi_settings', currentBranch));
-         if (branchSnap.exists()) {
-            baseFund = branchSnap.data().petty_base || 0;
+         if (masterCache.data) {
+            categories = masterCache.data.categories || [];
+            purposes = masterCache.data.purposes || [];
+            categoryMappings = masterCache.data.categoryMappings || masterCache.data.cashierMappings || {};
+         }
+
+         // Load Base Fund (Cached per branch)
+         if (masterCache.branchFunds[currentBranch]) {
+            baseFund = masterCache.branchFunds[currentBranch];
+         } else {
+            const branchSnap = await getDoc(doc(db, 'kpi_settings', currentBranch));
+            if (branchSnap.exists()) {
+               baseFund = branchSnap.data().petty_base || 0;
+               masterCache.branchFunds[currentBranch] = baseFund;
+            }
          }
 
          // Calculate spent unliquidated
@@ -68,25 +91,28 @@ export async function renderExpensesPage() {
       }
    }
 
-   async function loadTabContent(tabName) {
+   async function loadTabContent(tabName, silent = false) {
       const content = container.querySelector('#expense-content');
       if (!content) return;
-      // Show skeleton loader for tab transition
-      content.innerHTML = `
-        <div class="space-y-6 animate-pulse p-2">
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
-            <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
-            <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
-            <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
-          </div>
-          <div class="space-y-3">
-            ${Array(6).fill(0).map(() => `
-               <div class="h-16 bg-slate-100 dark:bg-slate-800/40 rounded-2xl w-full"></div>
-            `).join('')}
-          </div>
-        </div>
-      `;
+
+      // Only show skeleton if NOT a silent update and content is empty or different tab
+      if (!silent || !content.innerHTML.trim()) {
+         content.innerHTML = `
+           <div class="space-y-6 animate-pulse p-2">
+             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+               <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
+               <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
+               <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
+               <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
+             </div>
+             <div class="space-y-3">
+               ${Array(6).fill(0).map(() => `
+                  <div class="h-16 bg-slate-100 dark:bg-slate-800/40 rounded-2xl w-full"></div>
+               `).join('')}
+             </div>
+           </div>
+         `;
+      }
 
       try {
          await loadMasterData();
@@ -501,8 +527,10 @@ export async function renderExpensesPage() {
                // 3. Directly update summary figures via ID
                const balanceEl = container.querySelector('#cashier-balance-display');
                const spentEl = container.querySelector('#cashier-spent-display');
-               if (balanceEl) balanceEl.innerText = '₱' + (baseFund - unliquidatedTotal).toLocaleString('en-PH', { minimumFractionDigits: 2 });
-               if (spentEl) spentEl.innerText = '₱' + unliquidatedTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+               const fmt = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+               if (balanceEl) animateValue(balanceEl, (baseFund - unliquidatedTotal), fmt);
+               if (spentEl) animateValue(spentEl, unliquidatedTotal, fmt);
 
                // 4. Silently refresh lists
                if (typeof loadCashierData === 'function') await loadCashierData();
@@ -594,7 +622,7 @@ export async function renderExpensesPage() {
       overlay.className = 'fixed inset-0 z-[9999] bg-slate-900/30 animate-fade-in flex items-center justify-center p-4';
 
       // Identify Context
-      const isAuditMode = reqData.status === 'pending' && container.querySelector('.expense-tab.active')?.dataset.tab === 'audit';
+      const isAuditMode = reqData.status === 'pending' && currentTab === 'audit';
       const isEditMode = reqData.status === 'rejected' || reqData.status === 'partially_rejected';
 
       overlay.innerHTML = `
@@ -648,7 +676,7 @@ export async function renderExpensesPage() {
             <!-- Action Footer (Fixed at bottom) -->
             <div class="px-8 pb-8 pt-4 flex-shrink-0 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-t border-slate-100 dark:border-slate-800/50 relative z-20">
                <div class="flex gap-2">
-                  ${(reqData.status === 'pending' && container.querySelector('.expense-tab.active')?.dataset.tab === 'audit') ? `
+                  ${(reqData.status === 'pending' && currentTab === 'audit') ? `
                       <button id="detail-complete-review" class="w-full py-4 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl">Complete Review</button>
                   ` : (reqData.status === 'pending') ? `
                       <button id="detail-cancel-request" class="w-full py-4 rounded-2xl bg-rose-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-xl">Cancel Request</button>
@@ -1050,9 +1078,12 @@ export async function renderExpensesPage() {
                      <i data-lucide="landmark" class="w-3.5 h-3.5 text-blue-500"></i> Accountant
                   </button>
                </div>
-               <div class="flex items-center gap-2">
-                  <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Branch:</span>
-                  <span class="px-3 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-[9px] font-bold text-slate-600 dark:text-slate-300 uppercase">${document.getElementById('db-branch')?.value || 'Current'}</span>
+               <div class="flex items-center gap-3">
+                  <!-- Accountant Advanced Import (Round) -->
+                  <input type="file" id="import-accountant-file" class="hidden" accept=".xlsx, .xls">
+                  <button id="import-accountant-btn" class="hidden w-10 h-10 flex items-center justify-center bg-[#96588a] text-white rounded-full hover:bg-[#7a4671] transition-all shadow-lg shadow-[#96588a]/20" title="Import Accountant Advanced Excel">
+                     <i data-lucide="file-up" class="w-5 h-5"></i>
+                  </button>
                </div>
             </div>
 
@@ -1317,6 +1348,254 @@ export async function renderExpensesPage() {
          };
       }
 
+      // --- ADVANCED ACCOUNTANT IMPORT LOGIC ---
+      const importAccBtn = container.querySelector('#import-accountant-btn');
+      const importAccFile = container.querySelector('#import-accountant-file');
+
+      if (importAccBtn) importAccBtn.onclick = () => {
+         if (currentBranch === 'All Branches') { alert('Select a specific branch first.'); return; }
+         importAccFile.click();
+      };
+
+      if (importAccFile) {
+         importAccFile.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            window.showToast('Loading advanced parser...', 'info');
+
+            try {
+               const XLSX = await import('xlsx');
+               const reader = new FileReader();
+               reader.onload = async (ev) => {
+                  try {
+                     const data = new Uint8Array(ev.target.result);
+                     const workbook = XLSX.read(data, { type: 'array' });
+                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                     const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                     
+                     // Shared Utilities
+                     function getLocalDateString(dateObj) {
+                        const year = dateObj.getFullYear();
+                        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                        const day = String(dateObj.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                     }
+                     function standardizeDate(val) {
+                        if (val === undefined || val === null || String(val).trim() === '') return null;
+                        if (typeof val === 'number') {
+                           const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+                           if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+                        }
+                        const str = String(val).trim();
+                        try {
+                           const datePart = str.split(' ')[0];
+                           if (datePart.includes('-')) {
+                              const parts = datePart.split('-');
+                              if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                              if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                           }
+                           if (datePart.includes('/')) {
+                              const parts = datePart.split('/');
+                              if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                              if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                           }
+                           const fallback = new Date(str);
+                           if (!isNaN(fallback.getTime())) return getLocalDateString(fallback);
+                        } catch (e) { return null; }
+                        return null;
+                     }
+                     function cleanNumber(val) {
+                        if (val === undefined || val === null || val === '') return 0;
+                        if (typeof val === 'number') return val;
+                        let str = String(val).trim();
+                        const isParenthesized = str.startsWith('(') && str.endsWith(')');
+                        let cleaned = str.replace(/[^0-9.-]+/g, "");
+                        let num = parseFloat(cleaned);
+                        if (isNaN(num)) return 0;
+                        return isParenthesized ? -Math.abs(num) : num;
+                     }
+
+                     // Grouping Logic (Starting from Row 2)
+                     const invoiceMap = {};
+                     let totalRows = 0;
+
+                     for (let i = 1; i < rows.length; i++) {
+                        const r = rows[i];
+                        if (!r || !r[1]) continue; // Skip if Transaction ID (Col B) is empty
+
+                        const transId = String(r[1]).trim();
+                        const date = standardizeDate(r[2]); // Col C
+                        if (!date) continue;
+
+                        if (!invoiceMap[transId]) {
+                           invoiceMap[transId] = {
+                              transId: transId,
+                              date: date,
+                              purpose: r[8] || 'Accountant Import', // Col I
+                              totalBill: cleanNumber(r[30]), // Col AE
+                              items: []
+                           };
+                        }
+
+                        invoiceMap[transId].items.push({
+                           itemName: String(r[45] || '').trim().toUpperCase(), // Col AT
+                           unit: String(r[46] || '').trim(), // Col AU
+                           quantity: cleanNumber(r[48]), // Col AW
+                           unitPrice: cleanNumber(r[52]), // Col BA
+                           lineTotal: cleanNumber(r[53]) // Col BB
+                        });
+                        totalRows++;
+                     }
+
+                     const invoiceIds = Object.keys(invoiceMap);
+                     if (invoiceIds.length === 0) {
+                        window.showToast('No valid Transaction IDs found!', 'error');
+                        return;
+                     }
+
+                                           // Rich Detailed Preview
+                      const totalAmount = invoiceIds.reduce((sum, id) => sum + invoiceMap[id].totalBill, 0);
+                      const previewHtml = `
+                         <div class="space-y-6">
+                            <div class="grid grid-cols-3 gap-3">
+                               <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                  <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Invoices</p>
+                                  <p class="text-lg font-black text-[#96588a]">${invoiceIds.length}</p>
+                               </div>
+                               <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                  <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Items</p>
+                                  <p class="text-lg font-black text-blue-500">${totalRows}</p>
+                               </div>
+                               <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                  <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Value</p>
+                                  <p class="text-lg font-black text-emerald-500">₱${totalAmount.toLocaleString()}</p>
+                               </div>
+                            </div>
+                            
+                            <div class="rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                               <div class="max-h-[350px] overflow-y-auto scrollbar-thin">
+                                  <table class="w-full text-left border-collapse text-[10px]">
+                                     <thead class="sticky top-0 bg-white dark:bg-slate-900 z-10">
+                                        <tr class="border-b border-slate-100 dark:border-slate-800">
+                                           <th class="px-4 py-3 font-black text-slate-400 uppercase">Trans ID</th>
+                                           <th class="px-4 py-3 font-black text-slate-400 uppercase">Date</th>
+                                           <th class="px-4 py-3 font-black text-slate-400 uppercase text-center">Items</th>
+                                           <th class="px-4 py-3 font-black text-slate-400 uppercase text-right">Amount</th>
+                                        </tr>
+                                     </thead>
+                                     <tbody>
+                                        ${invoiceIds.map(id => {
+                                           const inv = invoiceMap[id];
+                                           return `
+                                              <tr class="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                 <td class="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">${inv.transId}</td>
+                                                 <td class="px-4 py-3 text-slate-500">${inv.date}</td>
+                                                 <td class="px-4 py-3 text-center font-bold text-blue-400">${inv.items.length}</td>
+                                                 <td class="px-4 py-3 text-right font-black text-slate-900 dark:text-white">₱${inv.totalBill.toLocaleString()}</td>
+                                              </tr>
+                                           `;
+                                        }).join('')}
+                                     </tbody>
+                                  </table>
+                               </div>
+                            </div>
+                            <p class="text-[9px] text-slate-400 italic text-center">Please verify the summary above before confirming the import.</p>
+                         </div>
+                      `;
+
+                      const confirmed = await window.showConfirmModal('Accountant Import Preview', previewHtml);
+
+                     if (!confirmed) { importAccFile.value = ''; return; }
+
+                                           // Batch Processing (Max 500 per batch)
+                      const batchId = `BATCH_ACC_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                     const allOperations = [];
+                     invoiceIds.forEach(id => {
+                        const inv = invoiceMap[id];
+                        const masterId = `ACC_${inv.transId}_${inv.date.replace(/-/g, '')}`;
+                        
+                        // Master Record
+                        allOperations.push({
+                           collection: 'expenses',
+                           id: masterId,
+                           data: {
+                              branchId: currentBranch,
+                              date: inv.date,
+                              category: 'Pantry',
+                              amount: inv.totalBill,
+                              purpose: inv.purpose,
+                              description: inv.transId,
+                              fundedBy: 'accountant',
+                                                            status: 'liquidated',
+                              importBatchId: batchId,
+                              createdAt: serverTimestamp()
+                           }
+                        });
+
+                        // Detail Records
+                        inv.items.forEach(item => {
+                           allOperations.push({
+                              collection: 'Pantry_Expense_Items_Detail',
+                              data: {
+                                 transactionId: inv.transId,
+                                 branchId: currentBranch,
+                                 itemName: item.itemName,
+                                 unit: item.unit,
+                                 quantity: item.quantity,
+                                 unitPrice: item.unitPrice,
+                                 lineTotal: item.lineTotal,
+                                                                  date: inv.date,
+                                 importBatchId: batchId,
+                                 createdAt: serverTimestamp()
+                              }
+                           });
+                        });
+                     });
+
+                     window.showToast(`Importing ${allOperations.length} records...`, 'info');
+
+                     // Execute in Chunks of 500
+                     for (let i = 0; i < allOperations.length; i += 500) {
+                        const chunk = allOperations.slice(i, i + 500);
+                        
+                      const batch = writeBatch(db);
+                        
+                        chunk.forEach(op => {
+                           if (op.id) {
+                              batch.set(doc(db, op.collection, op.id), op.data, { merge: true });
+                           } else {
+                              batch.set(doc(collection(db, op.collection)), op.data);
+                           }
+                        });
+                        
+                        await batch.commit();
+
+                      // Create log entry for Undo
+                      await setDoc(doc(db, "import_logs", batchId), {
+                         batchId,
+                         timestamp: serverTimestamp(),
+                         type: 'ledger_import',
+                         branchId: activeBranch,
+                         rowCount: jsonData.length,
+                         collections: ["expenses"],
+                         status: "active"
+                      });
+                     }
+
+                     window.showToast(`Imported ${invoiceIds.length} invoices successfully!`, 'success');
+                     importAccFile.value = '';
+                     loadLedgerData();
+
+                  } catch (err) {
+                     console.error(err);
+                     window.showToast('Import failed. Check console for details.', 'error');
+                  }
+               };
+               reader.readAsArrayBuffer(file);
+            } catch (err) { console.error(err); }
+         };
+      }
+
       const importBtn = container.querySelector('#import-excel-btn');
       const importFile = container.querySelector('#import-excel-file');
       if (importBtn) importBtn.onclick = () => {
@@ -1329,74 +1608,132 @@ export async function renderExpensesPage() {
          importFile.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            window.showToast('Parsing Excel...', 'info');
+            window.showToast('Loading parser...', 'info');
 
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-               try {
-                  const data = new Uint8Array(ev.target.result);
-                  const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-                  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                  const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-                  const rawData = rows.slice(2).filter(r => r.length > 0 && (r[8] !== undefined || r[2] !== undefined));
+            try {
+               const XLSX = await import('xlsx');
+               const reader = new FileReader();
+               reader.onload = async (ev) => {
+                  try {
+                     const data = new Uint8Array(ev.target.result);
+                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                     const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                     const rawData = rows.slice(2).filter(r => r.length > 0 && (r[8] !== undefined || r[2] !== undefined));
 
-                  if (rawData.length === 0) {
-                     window.showToast('No valid data found in Excel', 'error');
-                     return;
-                  }
-
-                  const jsonData = rawData.map(r => {
-                     let d = r[0];
-                     if (d instanceof Date) d = d.toISOString().split('T')[0];
-                     else if (typeof d === 'number') {
-                        const dateObj = new Date(Math.round((d - 25569) * 86400 * 1000));
-                        d = dateObj.toISOString().split('T')[0];
+                     if (rawData.length === 0) {
+                        window.showToast('No valid data found in Excel', 'error');
+                        return;
                      }
-                     return {
-                        'Date': d || new Date().toISOString().split('T')[0],
-                        'Category': r[1] || 'Other',
-                        'Purpose': r[2] || 'Imported',
-                        'Detail Description': r[3] || '',
-                        'Amount': r[8] || 0,
-                        'Funded by': r[9] || 'Petty cash'
-                     };
-                  });
 
-                  const confirmed = await showExcelPreviewModal(jsonData);
-                  if (!confirmed) { importFile.value = ''; return; }
+                     function getLocalDateString(dateObj) {
+                        const year = dateObj.getFullYear();
+                        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                        const day = String(dateObj.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                     }
 
-                  const batch = writeBatch(db);
-                  const activeBranch = document.getElementById('db-branch')?.value;
-                  window.showToast(`Importing ${jsonData.length} records...`, 'info');
+                     function standardizeDate(val) {
+                        if (val === undefined || val === null || String(val).trim() === '') return null;
+                        if (val instanceof Date) return getLocalDateString(val);
+                        if (typeof val === 'number') {
+                           const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+                           if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+                        }
+                        const str = String(val).trim();
+                        try {
+                           const datePart = str.split(' ')[0];
+                           if (datePart.includes('-')) {
+                              const parts = datePart.split('-');
+                              if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                              if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                           }
+                           if (datePart.includes('/')) {
+                              const parts = datePart.split('/');
+                              if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                              if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                           }
+                           const fallback = new Date(str);
+                           if (!isNaN(fallback.getTime())) return getLocalDateString(fallback);
+                        } catch (e) { return null; }
+                        return null;
+                     }
 
-                  jsonData.forEach(row => {
-                     const fundRaw = (row['Funded by'] || '').toString().toLowerCase();
-                     const expData = {
+                     function cleanNumber(val) {
+                        if (val === undefined || val === null || val === '') return 0;
+                        if (typeof val === 'number') return val;
+                        let str = String(val).trim();
+                        const isParenthesized = str.startsWith('(') && str.endsWith(')');
+                        let cleaned = str.replace(/[^0-9.-]+/g, "");
+                        let num = parseFloat(cleaned);
+                        if (isNaN(num)) return 0;
+                        return isParenthesized ? -Math.abs(num) : num;
+                     }
+
+                     const jsonData = rawData.map(r => {
+                        return {
+                           'Date': standardizeDate(r[0]) || new Date().toISOString().split('T')[0],
+                           'Category': r[1] || 'Other',
+                           'Purpose': r[2] || 'Imported',
+                           'Detail Description': r[3] || '',
+                           'Amount': cleanNumber(r[8]),
+                           'Funded by': r[9] || 'Petty cash'
+                        };
+                     });
+
+                     const confirmed = await showExcelPreviewModal(jsonData);
+                     if (!confirmed) { importFile.value = ''; return; }
+
+                                          const batchId = `BATCH_LEDGER_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                     const batch = writeBatch(db);
+                     const activeBranch = document.getElementById('db-branch')?.value;
+                     window.showToast(`Importing ${jsonData.length} records...`, 'info');
+
+                     jsonData.forEach(row => {
+                        const fundRaw = (row['Funded by'] || '').toString().toLowerCase();
+                        const expData = {
+                           branchId: activeBranch,
+                           date: row.Date,
+                           category: row.Category,
+                           amount: parseFloat(row.Amount || 0),
+                           purpose: row.Purpose,
+                           description: row['Detail Description'] || '',
+                           invoiceNo: row['Invoice No.'] || row['Invoice No'] || '',
+                           fundedBy: fundRaw.includes('petty') ? 'petty_cash' : 'accountant',
+                           status: 'liquidated',
+                           importBatchId: batchId,
+                           createdAt: serverTimestamp()
+                        };
+                        const newDoc = doc(collection(db, 'expenses'));
+                        batch.set(newDoc, expData);
+                     });
+
+                     await batch.commit();
+
+                     // Log for Undo
+                     await setDoc(doc(db, "import_logs", batchId), {
+                        batchId,
+                        timestamp: serverTimestamp(),
+                        type: 'ledger_import',
                         branchId: activeBranch,
-                        date: row.Date,
-                        category: row.Category,
-                        amount: parseFloat(row.Amount || 0),
-                        purpose: row.Purpose,
-                        description: row['Detail Description'] || '',
-                        invoiceNo: row['Invoice No.'] || row['Invoice No'] || '',
-                        fundedBy: fundRaw.includes('petty') ? 'petty_cash' : 'accountant',
-                        status: 'liquidated',
-                        createdAt: serverTimestamp()
-                     };
-                     const newDoc = doc(collection(db, 'expenses'));
-                     batch.set(newDoc, expData);
-                  });
+                        rowCount: jsonData.length,
+                        collections: ["expenses"],
+                        status: "active"
+                     });
 
-                  await batch.commit();
-                  window.showToast(`Successfully imported ${jsonData.length} records!`, 'success');
-                  importFile.value = '';
-                  loadLedgerData();
-               } catch (err) {
-                  console.error('Import Error:', err);
-                  window.showToast('Error parsing Excel', 'error');
-               }
-            };
-            reader.readAsArrayBuffer(file);
+                     window.showToast(`Successfully imported ${jsonData.length} records!`, 'success');
+                     importFile.value = '';
+                     loadLedgerData();
+                  } catch (err) {
+                     console.error('Import Error:', err);
+                     window.showToast('Error parsing Excel', 'error');
+                  }
+               };
+               reader.readAsArrayBuffer(file);
+            } catch (err) {
+               console.error('Lazy Load Error:', err);
+               window.showToast('Failed to load Excel parser', 'error');
+            }
          };
       }
 
@@ -1410,6 +1747,10 @@ export async function renderExpensesPage() {
                if (activeBranch && activeBranch !== 'All Branches') constraints.unshift(where('branchId', '==', activeBranch));
 
                const snap = await getDocs(query(collection(db, 'expenses'), ...constraints));
+
+               // Lazy Load XLSX
+               const XLSX = await import('xlsx');
+
                const data = snap.docs.map(d => {
                   const r = d.data();
                   return {
@@ -1595,6 +1936,11 @@ export async function renderExpensesPage() {
       const res = await fetch(APPROVAL_TEMPLATE_URL);
       if (!res.ok) throw new Error('Template file not found');
       const fileData = await res.arrayBuffer();
+
+      window.showToast('Loading Excel engine...', 'info');
+      const ExcelJSModule = await import('exceljs');
+      const ExcelJS = ExcelJSModule.default || ExcelJSModule;
+
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(fileData);
       const ws = workbook.worksheets[0];
@@ -1756,6 +2102,13 @@ export async function renderExpensesPage() {
          // Toggle Views
          container.querySelectorAll('.ledger-view').forEach(v => v.classList.add('hidden'));
          container.querySelector(`#${targetId}`).classList.remove('hidden');
+
+         // Toggle Accountant Import Button
+         const accImp = container.querySelector('#import-accountant-btn');
+         if (accImp) {
+            if (targetId === 'accountant-view') accImp.classList.remove('hidden');
+            else accImp.classList.add('hidden');
+         }
       }
    });
 
@@ -1764,8 +2117,7 @@ export async function renderExpensesPage() {
       const refreshBtn = document.getElementById('db-refresh');
       if (refreshBtn) {
          refreshBtn.onclick = async () => {
-            const activeTab = container.querySelector('.expense-tab.active')?.dataset.tab || 'cashier';
-            loadTabContent(activeTab);
+            loadTabContent(currentTab);
          };
       }
    }, 100);
@@ -2119,8 +2471,7 @@ export async function renderExpensesPage() {
             btn.onclick = () => {
                const reqData = docs.find(d => d.id === btn.dataset.id);
                if (reqData) {
-                  const activeTab = container.querySelector('.expense-tab.active')?.dataset.tab || 'cashier';
-                  showLiquidationDetailModal(reqData, () => loadTabContent(activeTab));
+                  showLiquidationDetailModal(reqData, () => loadTabContent(currentTab));
                }
             };
          });
@@ -2199,7 +2550,11 @@ export async function renderExpensesPage() {
    }
 
    // Initialize Page
-   setTimeout(() => loadTabContent('cashier'), 0);
+   setTimeout(() => loadTabContent(currentTab), 0);
+
+   // Listen for global filter changes
+   const globalFilterHandler = () => loadTabContent(currentTab, true);
+   window.addEventListener('global-filter-changed', globalFilterHandler);
 
    return container;
 }
