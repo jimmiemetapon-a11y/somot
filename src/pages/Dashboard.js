@@ -104,8 +104,10 @@ export function renderDashboard(user) {
         </div>
       </div>
       <div class="w-full pt-1">
-        <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-1">
-          <div id="hero-net-bar" class="h-full bg-white transition-all duration-1000" style="width:0%"></div>
+        <div class="w-full h-1.5 bg-white/10 rounded-full relative mb-1.5">
+          <div id="hero-net-bar" class="h-full bg-white transition-all duration-1000 relative rounded-full" style="width:0%">
+            <div class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-[3px] border-orange-500 rounded-full shadow-lg translate-x-1/2"></div>
+          </div>
         </div>
         <p id="hero-net-pct" class="text-[9px] text-white/50 font-bold uppercase tracking-widest">0% of target</p>
       </div>
@@ -121,7 +123,7 @@ export function renderDashboard(user) {
           <p class="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">Total Gross Sale</p>
         </div>
         <div class="flex flex-col items-start leading-tight">
-          <h2 id="hero-gross" class="text-xl font-black text-slate-800 dark:text-white tracking-tight">₱0.00</h2>
+          <h2 id="hero-gross" class="text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">₱0.00</h2>
           <div id="hero-gross-trend" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold">0% ↑</div>
         </div>
       </div>
@@ -398,7 +400,7 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   const profit = totalNet - totalExpenses;
   const profitEl = page.querySelector('#hero-profit');
   animateValue(profitEl, profit, (n) => (n < 0 ? '-' : '') + '₱' + formatAbbreviated(Math.abs(n)));
-  if (profitEl) profitEl.className = `text-[22px] font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
+  if (profitEl) profitEl.className = `text-xl font-black ${profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
 
   // Update Margin Pill
   const efficiency = totalNet > 0 ? (profit / totalNet) * 100 : 0;

@@ -23,6 +23,10 @@ function animateValue(el, end, formatter) {
 }
 
 export function renderPantryAnalysis() {
+  // Reset global chart instances for the new page instance
+  if (chartTrend) { chartTrend.destroy(); chartTrend = null; }
+  if (chartPie) { chartPie.destroy(); chartPie = null; }
+
   const page = document.createElement('div');
   page.className = 'p-5 space-y-5 page-enter min-h-full';
 

@@ -119,7 +119,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
   page.innerHTML = `
     <!-- TAB: HISTORY -->
     <div id="section-history" class="tab-content ${activeTab === 'history' ? '' : 'hidden'} space-y-4 page-enter">
-       <div id="channel-summary-container" class="channel-summary-grid"></div>
+       <div id="channel-summary-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"></div>
 
        <div class="flex items-center justify-between">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Historical Data</p>
@@ -221,7 +221,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     btnSave.onclick = async () => {
       if (!currentResults) return;
       const branchId = document.getElementById('db-branch')?.value || 'Pioneer Center';
-      
+
       btnSave.disabled = true;
       btnSave.style.backgroundColor = '#10b981'; // Emerald Green
       btnSave.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Saving...';
@@ -229,7 +229,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
       try {
         await saveToDatabase(channelId, branchId, currentResults);
         window.showToast('Data saved successfully!', 'success');
-        
+
         // Reset Import state
         currentResults = null;
         btnSave.classList.add('hidden');
@@ -356,7 +356,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     // Listen for global filter changes (from main.js) without full re-render
     const globalFilterHandler = () => refreshData();
     window.addEventListener('global-filter-changed', globalFilterHandler);
-    
+
     // Clean up on page change (simplified for this structure)
     // Note: Since we recreate the page element, we should be careful with listeners
     // but in this app's architecture, old elements are GC'd.
@@ -500,7 +500,7 @@ function groupDataByDate(data, channelId, cfg) {
 async function saveToDatabase(channelId, branchId, results) {
   const batchId = `BATCH_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
   let totalRows = 0;
-  
+
   const promises = Object.entries(results).map(([date, res]) => {
     totalRows += (res.orders || 0);
     const safeBranchName = branchId.replace(/\s+/g, '');
@@ -984,6 +984,7 @@ function updateSummary(items, channelId, page) {
 
   const totalNet = items.reduce((sum, item) => sum + (item.financials?.net || 0), 0);
   const totalOrders = items.reduce((sum, item) => sum + (item.orders || 0), 0);
+  const totalDed = items.reduce((sum, item) => sum + (item.financials?.totalDeductions || 0), 0);
   const avgOrder = totalOrders > 0 ? totalNet / totalOrders : 0;
   const accent = ACCENT_COLORS[channelId] || '#96588a';
 
@@ -1004,6 +1005,7 @@ function updateSummary(items, channelId, page) {
   const netVal = `₱${Math.round(totalNet).toLocaleString()}`;
   const ordersVal = totalOrders.toLocaleString();
   const avgVal = `₱${Math.round(avgOrder).toLocaleString()}`;
+  const dedVal = `₱${Math.round(totalDed).toLocaleString()}`;
 
   summaryContainer.innerHTML = `
     <div class="channel-card-premium" style="--channel-accent: ${accent}">
@@ -1047,20 +1049,28 @@ function updateSummary(items, channelId, page) {
           <p class="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Revenue Per Order</p>
        </div>
     </div>
+
+    <div class="channel-card-premium">
+       <div class="relative z-10">
+          <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Deduction</p>
+          <h3 id="summary-ded" class="text-2xl font-black text-rose-500 tracking-tighter transition-all duration-300">${dedVal}</h3>
+          <p class="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Platform Fees & Costs</p>
+       </div>
+    </div>
   `;
 
   // Trigger Shimmer-Snap Animation
-  ['summary-net', 'summary-orders', 'summary-avg'].forEach((id, idx) => {
+  ['summary-net', 'summary-orders', 'summary-avg', 'summary-ded'].forEach((id, idx) => {
     const el = summaryContainer.querySelector(`#${id}`);
     if (el) {
       // Step 1: Shimmer phase
       el.classList.add('shimmer-text');
-      
+
       setTimeout(() => {
         // Step 2: Snap phase
         el.classList.remove('shimmer-text');
         el.classList.add('animate-snap');
-        
+
         // Clean up animation class
         setTimeout(() => el.classList.remove('animate-snap'), 500);
       }, 200 + (idx * 50)); // Staggered snap for a more "flowing" feel
@@ -1111,7 +1121,7 @@ async function fetchChannelHistory(channelId) {
       const yest = new Date();
       yest.setDate(yest.getDate() - 1);
       const yestStr = yest.toISOString().split('T')[0];
-      
+
       q = query(
         collection(db, "daily_sales"),
         where("channelId", "==", channelId),
