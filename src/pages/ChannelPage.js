@@ -186,7 +186,10 @@ export function renderChannelPage(channelId, activeTab = 'history') {
               </div>
               <p class="text-sm font-semibold text-slate-600">Drop ${cfg.label} file</p>
             </div>
-            <button id="btn-choose" class="w-full py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98]" style="background: linear-gradient(135deg, #96588a 0%, #7a4671 100%);">Choose File</button>
+            <div class="flex gap-2 w-full">
+               <button id="btn-choose" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98]" style="background: linear-gradient(135deg, #96588a 0%, #7a4671 100%);">Choose File</button>
+               <button id="btn-manual" class="hidden flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-white shadow-lg transition-all active:scale-[0.98] bg-emerald-500 hover:bg-emerald-600">Add Manual</button>
+            </div>
           </div>
           <div id="preview-area" class="chart-card md:col-span-2 overflow-auto min-h-[260px] flex items-center justify-center relative">
              <p class="text-sm text-slate-400 italic text-center">Preview area<br><span class="text-[10px]">Excel columns (A, B, C...) will appear here</span></p>
@@ -213,7 +216,20 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     // Initial state refresh
     fetchChannelHistory(channelId);
 
+    const btnManual = page.querySelector('#btn-manual');
+    const branchSelect = document.getElementById('db-branch');
+    
+    const updateManualBtn = () => {
+      if (channelId === 'dinein' && branchSelect?.value === 'Ayala Cloverleaf') {
+        btnManual?.classList.remove('hidden');
+      } else {
+        btnManual?.classList.add('hidden');
+      }
+    };
+
+    updateManualBtn();
     btnChoose.onclick = () => fileInput.click();
+    if (btnManual) btnManual.onclick = () => showManualEntryModal();
     fileInput.onchange = (e) => { if (e.target.files.length > 0) processFiles(e.target.files); };
     dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('border-indigo-400'); };
     dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('border-indigo-400'); if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files); };
@@ -291,6 +307,39 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     page.querySelector('#btn-export-csv').onclick = async () => {
       if (historyItems.length === 0) return alert('No data to export');
 
+      // 1. Danh mục label phí
+      const labelsMap = {
+        merchantDiscount: 'Merchant Discount',
+        deliveryDiscount: 'Delivery Discount',
+        commission: 'Commission',
+        marketingFee: 'Marketing Fee',
+        orderCommission: 'Order Commission',
+        adsFee: 'Ads Fee',
+        dineOutPromo: 'Dine Out Promo',
+        adjustmentFee: 'Adjustments',
+        otherBaFees: 'Other Fees',
+        productDiscount: 'Product Discount',
+        invoiceDiscount: 'Invoice Discount',
+        bankCardFee: 'Bank Card Fee',
+        discount: 'Discount',
+        tax: 'Tax Charge',
+        others: 'Others Deductions',
+        vendorRefunds: 'Other Incomes',
+        grabDineOut: 'Grab Dine Out (Adj)',
+        discount100: '100% Discount (Manager)'
+      };
+
+      // 2. Thu thập tất cả các loại phí có trong dữ liệu hiện tại để tạo cột động
+      const deductionKeys = new Set();
+      historyItems.forEach(item => {
+        if (item.breakdown && item.breakdown.deductions) {
+          Object.keys(item.breakdown.deductions).forEach(k => {
+            if (k !== 'total_deduction') deductionKeys.add(k);
+          });
+        }
+      });
+      const dedKeyList = Array.from(deductionKeys);
+
       // Sort chronologically (smallest to largest date)
       const sortedItems = [...historyItems].sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -313,6 +362,22 @@ export function renderChannelPage(channelId, activeTab = 'history') {
 
         const worksheet = workbook.worksheets[0];
 
+        // 3. Ghi Tiêu đề cho các cột mặc định (A-E)
+        worksheet.getCell('A1').value = 'Date';
+        worksheet.getCell('B1').value = 'Orders';
+        worksheet.getCell('C1').value = 'Gross Revenue';
+        worksheet.getCell('D1').value = 'Total Deductions';
+        worksheet.getCell('E1').value = 'Net Revenue';
+
+        // 4. Ghi Tiêu đề cho các cột phí động (Bắt đầu từ cột F - cột số 6)
+        // Loại bỏ style cứng để template tự áp dụng định dạng (Conditional Formatting)
+        dedKeyList.forEach((key, i) => {
+          const colNum = 6 + i;
+          const cell = worksheet.getCell(1, colNum);
+          cell.value = labelsMap[key] || key;
+          // Không set cell.fill hay cell.font để giữ format gốc của template
+        });
+
         // Populate data starting from Row 2
         sortedItems.forEach((item, index) => {
           const rowNum = 2 + index;
@@ -321,6 +386,13 @@ export function renderChannelPage(channelId, activeTab = 'history') {
           worksheet.getCell(`C${rowNum}`).value = item.financials.gross;
           worksheet.getCell(`D${rowNum}`).value = item.financials.totalDeductions;
           worksheet.getCell(`E${rowNum}`).value = item.financials.net;
+
+          // 5. Điền giá trị chi tiết cho từng loại phí vào đúng cột
+          dedKeyList.forEach((key, i) => {
+            const colNum = 6 + i;
+            const val = item.breakdown?.deductions?.[key] || 0;
+            worksheet.getCell(rowNum, colNum).value = val;
+          });
         });
 
         const buffer = await workbook.xlsx.writeBuffer();
@@ -354,8 +426,16 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     };
 
     // Listen for global filter changes (from main.js) without full re-render
-    const globalFilterHandler = () => refreshData();
+    const globalFilterHandler = () => {
+      refreshData();
+      updateManualBtn();
+    };
     window.addEventListener('global-filter-changed', globalFilterHandler);
+
+    // Cleanup logic
+    window.addEventListener('cleanup-page', () => {
+      window.removeEventListener('global-filter-changed', globalFilterHandler);
+    }, { once: true });
 
     // Clean up on page change (simplified for this structure)
     // Note: Since we recreate the page element, we should be careful with listeners
@@ -1114,7 +1194,8 @@ async function fetchChannelHistory(channelId) {
         where("branchId", "==", branchId),
         where("date", ">=", fromDate),
         where("date", "<=", toDate),
-        orderBy("date", "desc")
+        orderBy("date", "desc"),
+        limit(100)
       );
     } else {
       // DEFAULT: Yesterday
@@ -1370,6 +1451,130 @@ function showDayDetail(item, channelLabel) {
   modalContent.innerHTML = html;
   if (window.lucide) window.lucide.createIcons();
 }
+
+
+  async function showManualEntryModal() {
+    const branchId = document.getElementById('db-branch')?.value || 'Ayala Cloverleaf';
+    
+    const ov = document.createElement('div');
+    ov.className = 'fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+    ov.innerHTML = `
+      <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-scale-up">
+        <div class="px-8 pt-8 pb-4 flex items-center justify-between">
+           <div>
+              <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Manual Entry</h3>
+              <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">${branchId} • Dine In</p>
+           </div>
+           <button id="close-manual" class="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-all text-2xl font-light">&times;</button>
+        </div>
+
+        <div class="p-8 space-y-4">
+           <div class="space-y-1">
+              <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
+              <input type="date" id="m-date" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" value="${new Date().toISOString().split('T')[0]}">
+           </div>
+           <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                 <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Number Order</label>
+                 <input type="number" id="m-orders" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" placeholder="0">
+              </div>
+              <div class="space-y-1">
+                 <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Net Sale</label>
+                 <input type="number" id="m-net" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" placeholder="0.00">
+              </div>
+           </div>
+           <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-1">
+                 <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Discount</label>
+                 <input type="number" id="m-discount" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" placeholder="0.00">
+              </div>
+              <div class="space-y-1">
+                 <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Tax Charge</label>
+                 <input type="number" id="m-tax" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" placeholder="0.00">
+              </div>
+           </div>
+           <div class="p-5 bg-slate-900 rounded-2xl text-center space-y-1">
+              <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Auto-calculated Gross Sale</p>
+              <p id="m-gross-display" class="text-2xl font-black text-emerald-400">₱0.00</p>
+           </div>
+           
+           <button id="btn-m-save" class="w-full py-4 bg-[#96588a] text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-xl hover:shadow-[#96588a]/30 active:scale-95">
+              Save Manual Entry
+           </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(ov);
+
+    const inputs = ov.querySelectorAll('input[type="number"]');
+    const grossDisplay = ov.querySelector('#m-gross-display');
+    const updateGross = () => {
+      const net = parseFloat(ov.querySelector('#m-net').value) || 0;
+      const disc = parseFloat(ov.querySelector('#m-discount').value) || 0;
+      const tax = parseFloat(ov.querySelector('#m-tax').value) || 0;
+      const gross = net + disc + tax;
+      grossDisplay.textContent = '₱' + gross.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return gross;
+    };
+    inputs.forEach(i => i.oninput = updateGross);
+
+    ov.querySelector('#close-manual').onclick = () => ov.remove();
+
+    ov.querySelector('#btn-m-save').onclick = async () => {
+      const date = ov.querySelector('#m-date').value;
+      const orders = parseInt(ov.querySelector('#m-orders').value) || 0;
+      const net = parseFloat(ov.querySelector('#m-net').value) || 0;
+      const disc = parseFloat(ov.querySelector('#m-discount').value) || 0;
+      const tax = parseFloat(ov.querySelector('#m-tax').value) || 0;
+      const gross = net + disc + tax;
+
+      if (!date) { window.showToast('Select a date', 'error'); return; }
+
+      const btn = ov.querySelector('#btn-m-save');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>';
+
+      try {
+        const dataToSave = {
+          branchId: branchId,
+          channelId: 'dinein',
+          date: date,
+          orders: orders,
+          financials: {
+            gross: gross,
+            net: net,
+            totalDeductions: disc + tax
+          },
+          breakdown: {
+            deductions: {
+              discount: disc,
+              tax: tax
+            }
+          },
+          updatedAt: serverTimestamp()
+        };
+
+        const docId = `sales_${branchId}_dinein_${date}`;
+        await setDoc(doc(db, "daily_sales", docId), dataToSave);
+        
+        btn.style.backgroundColor = '#10b981';
+        btn.innerHTML = 'SUCCESS';
+        window.showToast('Data saved successfully!', 'success');
+        
+        setTimeout(() => {
+          ov.remove();
+          fetchChannelHistory('dinein');
+        }, 1000);
+      } catch (err) {
+        console.error(err);
+        window.showToast('Save failed: ' + err.message, 'error');
+        btn.disabled = false;
+        btn.style.backgroundColor = '#96588a';
+        btn.innerHTML = 'Save Manual Entry';
+      }
+    };
+  }
 
 function renderPreviewTable(data, container, fileName) {
   container.className = 'chart-card md:col-span-2 flex flex-col h-full overflow-hidden p-0';

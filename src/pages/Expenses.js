@@ -80,10 +80,14 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          }
 
          // Calculate spent unliquidated
-         const q = query(collection(db, 'expenses'), where('branchId', '==', currentBranch));
+         const q = query(
+            collection(db, 'expenses'), 
+            where('branchId', '==', currentBranch),
+            where('status', 'in', ['pending', 'requested', 'rejected'])
+         );
          const snap = await getDocs(q);
          const docs = snap.docs.map(d => d.data());
-         const unliquidatedDocs = docs.filter(d => (d.fundedBy === 'petty_cash' || d.fundedBy === 'pettyCash') && ['pending', 'requested', 'rejected'].includes(d.status));
+         const unliquidatedDocs = docs.filter(d => (d.fundedBy === 'petty_cash' || d.fundedBy === 'pettyCash'));
          unliquidatedTotal = unliquidatedDocs.reduce((acc, d) => acc + (d.amount || 0), 0);
          pendingTotal = unliquidatedDocs.filter(d => d.status === 'pending').reduce((acc, d) => acc + (d.amount || 0), 0);
       } catch (err) {
@@ -696,7 +700,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
       const detailBody = overlay.querySelector('#detail-body');
       try {
-         const snap = await getDocs(query(collection(db, 'expenses'), where('liquidationId', '==', reqData.id)));
+         const snap = await getDocs(query(collection(db, 'expenses'), where('liquidationId', '==', reqData.id), limit(500)));
          const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
          const resubmitFiles = {}; // Store new files for resubmission
 
@@ -1186,7 +1190,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             }
             if (fromDate) constraints.push(where('date', '>=', fromDate));
             if (toDate) constraints.push(where('date', '<=', toDate));
-            constraints.push(orderBy('date', 'desc'), limit(200));
+            constraints.push(orderBy('date', 'desc'), limit(500));
 
             const q = query(collection(db, 'expenses'), ...constraints);
             const snap = await getDocs(q);
@@ -2555,6 +2559,11 @@ export async function renderExpensesPage(activeTab = 'cashier') {
    // Listen for global filter changes
    const globalFilterHandler = () => loadTabContent(currentTab, true);
    window.addEventListener('global-filter-changed', globalFilterHandler);
+
+   // Cleanup mechanism
+   window.addEventListener('cleanup-page', () => {
+      window.removeEventListener('global-filter-changed', globalFilterHandler);
+   }, { once: true });
 
    return container;
 }

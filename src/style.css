@@ -12,7 +12,8 @@
   --brand-primary-dark: #7a4671;
 
   /* --- Surface & BG Colors (Clean SaaS Style) --- */
-  --app-bg: #e9e9e9e4;
+  --app-bg: #f8fafc;
+  /* White with subtle slate tint (slate-50) */
   --app-surface: #ffffff;
   --app-border: #f1f5f9;
 
@@ -96,14 +97,18 @@
 @layer components {
 
   /* --- Layout Root --- */
+  html,
+  body {
+    @apply h-screen overflow-hidden scroll-smooth scrollbar-hide;
+  }
+
   #app {
-    @apply flex h-screen overflow-hidden w-full;
+    @apply flex h-screen overflow-hidden w-full bg-white dark:bg-slate-950;
   }
 
   .sidebar {
-    @apply relative w-[260px] h-full bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col z-40 transition-all duration-300 ease-in-out shadow-lg;
+    @apply relative w-[260px] h-full bg-transparent border-none flex flex-col z-40 transition-all duration-300 ease-in-out shadow-none;
     border-radius: 0;
-    /* Remove floating rounded corners */
   }
 
   .sidebar.collapsed {
@@ -111,27 +116,51 @@
   }
 
   .main-content {
-    @apply flex-1 flex flex-col h-screen overflow-hidden relative;
-    background-color: var(--app-bg);
+    @apply flex-1 flex flex-col h-[calc(100vh-24px)] overflow-hidden relative m-3 rounded-[48px] border-2 border-white/60 dark:border-slate-800/50 dark:bg-slate-900/20;
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.03);
   }
 
   .topbar {
-    @apply absolute top-0 left-0 right-0 flex items-center justify-between px-8 py-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 z-[100] shrink-0 h-[72px];
+    @apply absolute top-4 left-4 right-4 flex items-center justify-between px-10 py-3 bg-white/40 backdrop-blur-2xl border border-white/80 z-[100] shrink-0 h-[64px] rounded-[32px] dark:bg-slate-800/60 dark:border-slate-700/50;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
   }
 
   #page-content {
-    @apply flex-1 overflow-auto bg-slate-50 dark:bg-[#020617] pt-[72px];
+    @apply flex-1 overflow-auto pt-[88px] px-4 pb-8 dark:bg-slate-900/40 scrollbar-hide;
+    background: rgba(203, 213, 225, 0.2);
+    backdrop-filter: blur(20px);
   }
 
-  /* ── Sidebar nav items ── */
   .nav-item {
-    @apply flex items-center gap-3 px-4 py-2 rounded-full text-sm font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-[#96588a] cursor-pointer transition-all duration-500 ease-in-out;
-    height: 52px;
-    width: calc(100% - 24px);
-    margin: 4px auto;
-    flex-shrink: 0;
-    white-space: nowrap;
-    overflow: hidden;
+    @apply flex items-center gap-3 pl-4 pr-2 py-3 text-sm font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer transition-all duration-300 relative shrink-0 whitespace-nowrap overflow-hidden;
+    height: 44px;
+    margin: 1px 0;
+    background: transparent !important;
+    border-radius: 0;
+  }
+
+  .nav-item.active {
+    @apply font-black;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .nav-item.active .nav-text,
+  .nav-item.active .icon-box svg {
+    color: #96588a !important;
+    stroke: #96588a !important;
+    stroke-width: 3px !important;
+  }
+
+  /* Sophisticated Soft Fade Scroll Mask */
+  .nav-scroll-mask {
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 15%, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%);
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 15%, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%);
+  }
+
+  .nav-item i {
+    @apply w-5 h-5 transition-transform duration-300 group-hover:scale-110;
   }
 
   .icon-box {

@@ -139,6 +139,9 @@ function buildShell() {
 }
 
 async function renderPage(tabId) {
+  // Dispatch cleanup event for the previous page
+  window.dispatchEvent(new CustomEvent('cleanup-page'));
+
   const contentArea = document.getElementById('page-content');
   if (!contentArea) return;
 

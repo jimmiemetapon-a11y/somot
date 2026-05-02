@@ -172,7 +172,7 @@ export function renderDashboard(user) {
         </div>
         <div class="flex flex-col items-start leading-tight">
           <h2 id="hero-profit" class="text-xl font-black text-slate-800 dark:text-white tracking-tight">₱0.00</h2>
-          <div id="hero-efficiency-text" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[9px] font-bold">0% Margin</div>
+          <div id="hero-efficiency-text" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[9px] font-bold dark:bg-white/40 text-emerald-600">0% Margin</div>
         </div>
       </div>
     </div>
@@ -281,11 +281,19 @@ export function renderDashboard(user) {
     // Initial load
     handleUpdate();
 
-    // Listen for global filter changes (Sunsilk Smooth)
+    // Listen for global filter changes
     window.addEventListener('global-filter-changed', handleUpdate);
 
-    if (refreshBtn) refreshBtn.onclick = (e) => { e.preventDefault(); handleUpdate(); };
+    // Cleanup logic to prevent memory leaks
+    const cleanup = () => {
+      window.removeEventListener('global-filter-changed', handleUpdate);
+      if (chartMain) { chartMain.destroy(); chartMain = null; }
+      if (chartPie) { chartPie.destroy(); chartPie = null; }
+      if (chartMini) { chartMini.destroy(); chartMini = null; }
+    };
+    window.addEventListener('cleanup-page', cleanup, { once: true });
 
+    if (refreshBtn) refreshBtn.onclick = (e) => { e.preventDefault(); handleUpdate(); };
     if (window.lucide) window.lucide.createIcons();
   }, 0);
 
@@ -323,17 +331,27 @@ async function loadAndRender(page, branch, fromDate, toDate) {
 }
 
 async function fetchSalesData(branch, fromDate, toDate) {
-  const q = query(collection(db, 'daily_sales'), where('date', '>=', fromDate), where('date', '<=', toDate));
-  const snap = await getDocs(q);
-  const all = snap.docs.map(d => d.data());
-  return branch === 'All Branches' ? all : all.filter(d => d.branchId === branch);
+  let q = collection(db, 'daily_sales');
+  let constraints = [where('date', '>=', fromDate), where('date', '<=', toDate)];
+
+  if (branch && branch !== 'All Branches') {
+    constraints.push(where('branchId', '==', branch));
+  }
+
+  const snap = await getDocs(query(q, ...constraints));
+  return snap.docs.map(d => d.data());
 }
 
 async function fetchExpenseData(branch, fromDate, toDate) {
-  const q = query(collection(db, 'expenses'), where('date', '>=', fromDate), where('date', '<=', toDate));
-  const snap = await getDocs(q);
-  const all = snap.docs.map(d => d.data());
-  return branch === 'All Branches' ? all : all.filter(d => d.branchId === branch);
+  let q = collection(db, 'expenses');
+  let constraints = [where('date', '>=', fromDate), where('date', '<=', toDate)];
+
+  if (branch && branch !== 'All Branches') {
+    constraints.push(where('branchId', '==', branch));
+  }
+
+  const snap = await getDocs(query(q, ...constraints));
+  return snap.docs.map(d => d.data());
 }
 
 function getNet(d) { return d.financials ? d.financials.net : (d.net || 0); }
@@ -400,7 +418,7 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   const profit = totalNet - totalExpenses;
   const profitEl = page.querySelector('#hero-profit');
   animateValue(profitEl, profit, (n) => (n < 0 ? '-' : '') + '₱' + formatAbbreviated(Math.abs(n)));
-  if (profitEl) profitEl.className = `text-xl font-black ${profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
+  if (profitEl) profitEl.className = `text-xl font-black ${profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`;
 
   // Update Margin Pill
   const efficiency = totalNet > 0 ? (profit / totalNet) * 100 : 0;

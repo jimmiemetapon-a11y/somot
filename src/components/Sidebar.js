@@ -14,21 +14,8 @@ export function renderSidebar(activeTab, onNavigate, isCollapsed, onToggle) {
   const sidebar = document.createElement('aside');
   sidebar.className = `sidebar ${isCollapsed ? 'collapsed' : ''}`;
   sidebar.innerHTML = `
-    <!-- Sidebar Header with Mockup Logo -->
-    <div class="h-[72px] flex items-center px-8 border-b border-slate-100 dark:border-slate-800/50">
-       <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#96588a] to-[#7a4671] flex items-center justify-center text-white font-black text-xl shadow-lg shadow-purple-500/20">
-            S
-          </div>
-          <div class="sidebar-header-text">
-            <p class="text-sm font-black text-slate-800 dark:text-white leading-none">SO MOT</p>
-            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Dashboard</p>
-          </div>
-       </div>
-    </div>
-
     <!-- Nav -->
-    <nav class="flex-1 px-4 py-8 space-y-2 overflow-y-auto scrollbar-hide">
+    <nav class="flex-1 pl-0 pr-2 py-10 space-y-1 overflow-y-auto scrollbar-hide nav-scroll-mask">
       <div class="nav-item ${activeTab === 'dashboard' ? 'active' : ''}" data-tab="dashboard" title="Dashboard">
         <span class="icon-box">${IC.dash}</span> <span class="nav-text font-bold">Dashboard</span>
       </div>

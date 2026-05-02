@@ -631,7 +631,7 @@ export function renderSettings() {
         let totalDeleted = 0;
         
         for (const colName of collections) {
-           const q = query(collection(db, colName), where("importBatchId", "==", batchId));
+           const q = query(collection(db, colName), where("importBatchId", "==", batchId), limit(500));
            const snap = await getDocs(q);
            
            if (!snap.empty) {

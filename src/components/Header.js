@@ -121,25 +121,34 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
       </button>
 
       <!-- User Profile (Click to Logout) -->
-      <div id="user-profile-btn" class="flex items-center gap-3 cursor-pointer group pl-1 pr-4 py-1 rounded-full bg-white dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:border-rose-200 dark:hover:border-rose-800/50 transition-all shadow-sm relative overflow-hidden" title="Click to Sign Out">
-        ${photoUrl ? `
-          <img src="${photoUrl}" alt="Profile" class="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 object-cover shadow-sm group-hover:opacity-50 transition-opacity">
-        ` : `
-          <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-[#96588a] to-[#7a4671] flex items-center justify-center text-white text-[10px] font-black shadow-sm border-2 border-white dark:border-slate-900 group-hover:opacity-50 transition-opacity">
-            ${initials}
+      <div id="user-profile-btn" class="flex items-center gap-3 cursor-pointer group pl-1 pr-4 py-1 rounded-full bg-slate-300/40 dark:bg-slate-800/40 dark:border-slate-700/50 transition-all shadow-sm relative overflow-hidden" title="Click to Sign Out">
+        <!-- Sliding Switch Background (Rounded Pill) -->
+        <div class="absolute inset-0 bg-rose-400 -translate-x-[102%] group-hover:translate-x-0 transition-transform duration-500 ease-out rounded-full"></div>
+
+        <!-- Content Area -->
+        <div class="relative z-10 flex items-center gap-3">
+          ${photoUrl ? `
+            <img src="${photoUrl}" alt="Profile" class="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 object-cover shadow-sm group-hover:scale-90 transition-transform duration-500">
+          ` : `
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-[#96588a] to-[#7a4671] flex items-center justify-center text-white text-[10px] font-black shadow-sm border-2 border-white dark:border-slate-900 group-hover:scale-90 transition-transform duration-500">
+              ${initials}
+            </div>
+          `}
+          
+          <!-- Horizontal Sliding Text Wrapper -->
+          <div class="hidden lg:block relative h-8 overflow-hidden min-w-[120px]">
+             <!-- Profile Info (Slides out to the right) -->
+             <div class="absolute inset-0 flex flex-col justify-center transition-all duration-500 ease-in-out group-hover:translate-x-[120%] group-hover:opacity-0">
+                <p class="text-[11px] font-black text-slate-700 dark:text-white leading-tight">${displayName}</p>
+                <p class="text-[9px] text-slate-400 font-medium leading-tight">${email}</p>
+             </div>
+             <!-- Sign Out (Slides in from the left) -->
+             <div class="absolute inset-0 flex items-center transition-all duration-500 ease-in-out -translate-x-full opacity-0 group-hover:translate-x-0 group-hover:opacity-100">
+                <span class="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                   <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Sign Out
+                </span>
+             </div>
           </div>
-        `}
-        
-        <div class="hidden lg:block text-left group-hover:opacity-10 transition-opacity">
-          <p class="text-[11px] font-black text-slate-700 dark:text-white leading-tight">${displayName}</p>
-          <p class="text-[9px] text-slate-400 font-medium leading-tight">${email}</p>
-        </div>
-        
-        <!-- Hover Sign Out Text -->
-        <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-           <span class="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest flex items-center gap-1">
-              <i data-lucide="log-out" class="w-3 h-3"></i> Sign Out
-           </span>
         </div>
       </div>
     </div>

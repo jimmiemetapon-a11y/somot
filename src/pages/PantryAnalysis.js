@@ -176,10 +176,21 @@ export function renderPantryAnalysis() {
 
     handleUpdate();
 
-    // Listen for the same global event as Dashboard
+    // Listen for global filter changes
     window.addEventListener('global-filter-changed', handleUpdate);
 
-    // Cleanup listener if needed, but since it's an SPA it's fine
+    // Refresh button logic
+    const refreshBtn = document.getElementById('db-refresh');
+    if (refreshBtn) refreshBtn.onclick = (e) => { e.preventDefault(); handleUpdate(); };
+
+    const cleanup = () => {
+      window.removeEventListener('global-filter-changed', handleUpdate);
+      if (chartTrend) { chartTrend.destroy(); chartTrend = null; }
+      if (chartPie) { chartPie.destroy(); chartPie = null; }
+    };
+    window.addEventListener('cleanup-page', cleanup, { once: true });
+
+    if (window.lucide) window.lucide.createIcons();
   }, 0);
 
   return page;
@@ -198,10 +209,11 @@ async function loadData(branch, fromDate, toDate) {
     };
 
     // 1. Fetch Expenses for the selected period
-    const qExp = query(collection(db, 'expenses'), where('date', '>=', fromDate), where('date', '<=', toDate));
+    let qExpConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
+    if (branch !== 'All Branches') qExpConstr.push(where('branchId', '==', branch));
+    const qExp = query(collection(db, 'expenses'), ...qExpConstr);
     const snapExp = await getDocs(qExp);
     let expenses = snapExp.docs.map(d => d.data());
-    if (branch !== 'All Branches') expenses = expenses.filter(e => e.branchId === branch);
     expenses = expenses.filter(filterPantry);
 
     // 2. Fetch Previous Period Expenses for Trend
@@ -215,27 +227,30 @@ async function loadData(branch, fromDate, toDate) {
     const prevTo = prevToDate.toISOString().split('T')[0];
     const prevFrom = prevFromDate.toISOString().split('T')[0];
 
-    const qPrevExp = query(collection(db, 'expenses'), where('date', '>=', prevFrom), where('date', '<=', prevTo));
+    let qPrevExpConstr = [where('date', '>=', prevFrom), where('date', '<=', prevTo)];
+    if (branch !== 'All Branches') qPrevExpConstr.push(where('branchId', '==', branch));
+    const qPrevExp = query(collection(db, 'expenses'), ...qPrevExpConstr);
     const snapPrevExp = await getDocs(qPrevExp);
     let prevExpenses = snapPrevExp.docs.map(d => d.data());
-    if (branch !== 'All Branches') prevExpenses = prevExpenses.filter(e => e.branchId === branch);
     prevExpenses = prevExpenses.filter(filterPantry);
 
     // 3. Fetch Items for the selected period
-    const qItems = query(collection(db, 'Pantry_Expense_Items_Detail'), where('date', '>=', fromDate), where('date', '<=', toDate));
+    let qItemsConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
+    if (branch !== 'All Branches') qItemsConstr.push(where('branchId', '==', branch));
+    const qItems = query(collection(db, 'Pantry_Expense_Items_Detail'), ...qItemsConstr);
     const snapItems = await getDocs(qItems);
     let items = snapItems.docs.map(d => d.data());
-    if (branch !== 'All Branches') items = items.filter(e => e.branchId === branch);
 
     // 4. Fetch Items for 15 days ending at `toDate` for charts
     const chartFromDate = new Date(d2);
     chartFromDate.setDate(chartFromDate.getDate() - 14);
     const chartFromStr = chartFromDate.toISOString().split('T')[0];
 
-    const qChart = query(collection(db, 'expenses'), where('date', '>=', chartFromStr), where('date', '<=', toDate));
+    let qChartConstr = [where('date', '>=', chartFromStr), where('date', '<=', toDate)];
+    if (branch !== 'All Branches') qChartConstr.push(where('branchId', '==', branch));
+    const qChart = query(collection(db, 'expenses'), ...qChartConstr);
     const snapChart = await getDocs(qChart);
     let chartExpenses = snapChart.docs.map(d => d.data());
-    if (branch !== 'All Branches') chartExpenses = chartExpenses.filter(e => e.branchId === branch);
     chartExpenses = chartExpenses.filter(filterPantry);
 
     // --- Processing Top Stats ---
