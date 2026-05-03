@@ -81,7 +81,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
          // Calculate spent unliquidated
          const q = query(
-            collection(db, 'expenses'), 
+            collection(db, 'expenses'),
             where('branchId', '==', currentBranch),
             where('status', 'in', ['pending', 'requested', 'rejected'])
          );
@@ -1376,7 +1376,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      const workbook = XLSX.read(data, { type: 'array' });
                      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                      const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-                     
+
                      // Shared Utilities
                      function getLocalDateString(dateObj) {
                         const year = dateObj.getFullYear();
@@ -1457,9 +1457,9 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                         return;
                      }
 
-                                           // Rich Detailed Preview
-                      const totalAmount = invoiceIds.reduce((sum, id) => sum + invoiceMap[id].totalBill, 0);
-                      const previewHtml = `
+                     // Rich Detailed Preview
+                     const totalAmount = invoiceIds.reduce((sum, id) => sum + invoiceMap[id].totalBill, 0);
+                     const previewHtml = `
                          <div class="space-y-6">
                             <div class="grid grid-cols-3 gap-3">
                                <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
@@ -1489,8 +1489,8 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                                      </thead>
                                      <tbody>
                                         ${invoiceIds.map(id => {
-                                           const inv = invoiceMap[id];
-                                           return `
+                        const inv = invoiceMap[id];
+                        return `
                                               <tr class="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                                  <td class="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">${inv.transId}</td>
                                                  <td class="px-4 py-3 text-slate-500">${inv.date}</td>
@@ -1498,7 +1498,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                                                  <td class="px-4 py-3 text-right font-black text-slate-900 dark:text-white">₱${inv.totalBill.toLocaleString()}</td>
                                               </tr>
                                            `;
-                                        }).join('')}
+                     }).join('')}
                                      </tbody>
                                   </table>
                                </div>
@@ -1507,17 +1507,17 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                          </div>
                       `;
 
-                      const confirmed = await window.showConfirmModal('Accountant Import Preview', previewHtml);
+                     const confirmed = await window.showConfirmModal('Accountant Import Preview', previewHtml);
 
                      if (!confirmed) { importAccFile.value = ''; return; }
 
-                                           // Batch Processing (Max 500 per batch)
-                      const batchId = `BATCH_ACC_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                     // Batch Processing (Max 500 per batch)
+                     const batchId = `BATCH_ACC_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
                      const allOperations = [];
                      invoiceIds.forEach(id => {
                         const inv = invoiceMap[id];
                         const masterId = `ACC_${inv.transId}_${inv.date.replace(/-/g, '')}`;
-                        
+
                         // Master Record
                         allOperations.push({
                            collection: 'expenses',
@@ -1530,7 +1530,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                               purpose: inv.purpose,
                               description: inv.transId,
                               fundedBy: 'accountant',
-                                                            status: 'liquidated',
+                              status: 'liquidated',
                               importBatchId: batchId,
                               createdAt: serverTimestamp()
                            }
@@ -1548,7 +1548,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                                  quantity: item.quantity,
                                  unitPrice: item.unitPrice,
                                  lineTotal: item.lineTotal,
-                                                                  date: inv.date,
+                                 date: inv.date,
                                  importBatchId: batchId,
                                  createdAt: serverTimestamp()
                               }
@@ -1561,9 +1561,9 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      // Execute in Chunks of 500
                      for (let i = 0; i < allOperations.length; i += 500) {
                         const chunk = allOperations.slice(i, i + 500);
-                        
-                      const batch = writeBatch(db);
-                        
+
+                        const batch = writeBatch(db);
+
                         chunk.forEach(op => {
                            if (op.id) {
                               batch.set(doc(db, op.collection, op.id), op.data, { merge: true });
@@ -1571,19 +1571,19 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                               batch.set(doc(collection(db, op.collection)), op.data);
                            }
                         });
-                        
+
                         await batch.commit();
 
-                      // Create log entry for Undo
-                      await setDoc(doc(db, "import_logs", batchId), {
-                         batchId,
-                         timestamp: serverTimestamp(),
-                         type: 'ledger_import',
-                         branchId: activeBranch,
-                         rowCount: jsonData.length,
-                         collections: ["expenses"],
-                         status: "active"
-                      });
+                        // Create log entry for Undo
+                        await setDoc(doc(db, "import_logs", batchId), {
+                           batchId,
+                           timestamp: serverTimestamp(),
+                           type: 'ledger_import',
+                           branchId: activeBranch,
+                           rowCount: jsonData.length,
+                           collections: ["expenses"],
+                           status: "active"
+                        });
                      }
 
                      window.showToast(`Imported ${invoiceIds.length} invoices successfully!`, 'success');
@@ -1688,7 +1688,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      const confirmed = await showExcelPreviewModal(jsonData);
                      if (!confirmed) { importFile.value = ''; return; }
 
-                                          const batchId = `BATCH_LEDGER_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                     const batchId = `BATCH_LEDGER_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
                      const batch = writeBatch(db);
                      const activeBranch = document.getElementById('db-branch')?.value;
                      window.showToast(`Importing ${jsonData.length} records...`, 'info');

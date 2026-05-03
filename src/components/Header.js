@@ -1,4 +1,4 @@
-export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'All Branches', dateRange = null, user = null, onSignOut = null, subTabs = [], activeSubTab = null) {
+export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'All Branches', dateRange = null, user = null, onSignOut = null, subTabs = [], activeSubTab = null, darkLogoUrl = null) {
   const now = new Date();
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -26,10 +26,11 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-1.5">
         ${(isDashboard || !logoUrl) ? `
-          <h1 class="text-sm font-black text-slate-400 uppercase tracking-widest ml-2">${title}</h1>
+          <h1 class="text-sm font-black text-white/60 uppercase tracking-widest ml-2">${title}</h1>
         ` : `
           <div class="h-6 flex items-center border-r border-slate-200 dark:border-slate-800/60 pr-4 ml-1">
-             <img src="/src/assets/${logoUrl}" class="h-full w-auto object-contain dark:brightness-0 dark:invert" alt="${title} Logo" />
+             <img src="/src/assets/${logoUrl}" class="h-full w-auto object-contain ${darkLogoUrl ? 'dark:hidden' : 'dark:brightness-0 dark:invert'}" alt="${title} Logo" />
+             ${darkLogoUrl ? `<img src="/src/assets/${darkLogoUrl}" class="h-full w-auto object-contain hidden dark:block" alt="${title} Logo" />` : ''}
           </div>
         `}
         
@@ -53,58 +54,45 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
 
     <!-- Right: Profile & Theme -->
     <div class="flex items-center gap-3">
-<!-- Pill 1: Branch Custom UI -->
-<div class="relative h-10 group" id="branch-dropdown-wrapper">
-    <!-- Hidden input để giữ giá trị cho Logic cũ -->
-    <input type="hidden" id="db-branch" value="${branch}">
-    
-        <!-- Button hiển thị thay cho select cũ -->
-        <div id="branch-display" class="h-full pl-4 pr-10 rounded-full text-[11px] font-black bg-[#96588a] text-white flex items-center cursor-pointer hover:bg-[#7a4671] transition-all shadow-md relative">
-            <span id="current-branch-text">${branch}</span>
-            <!-- Icon mũi tên -->
-            <div class="absolute right-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
+      <!-- Pill 1: Branch Picker -->
+      <div class="relative h-10 group" id="branch-dropdown-wrapper">
+        <input type="hidden" id="db-branch" value="${branch}">
+        
+        <div id="branch-display" class="h-full pl-4 pr-10 rounded-full text-[11px] font-black bg-[#96588a] dark:bg-[#141414] text-white flex items-center cursor-pointer hover:bg-[#834d78] dark:hover:bg-white/5 transition-all shadow-md relative border-none">
+          <span id="current-branch-text" class="uppercase dark:text-white/60 transition-colors">${branch}</span>
+          <div class="absolute right-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-opacity="0.6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
         </div>
 
-          <!-- Danh sách chi nhánh hiệu ứng Kính Mờ -->
-          <div id="branch-options" class="absolute top-full left-0 mt-2 w-48 bg-white/70 dark:bg-slate-900/70 border border-white/20 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[70] overflow-hidden backdrop-blur-md">
-              <div class="py-2">
-                  ${allowedBranches.map(b => `
-                      <div class="branch-item px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-white/40 hover:text-[#96588a] transition-all cursor-pointer" 
-                          onclick="document.getElementById('db-branch').value='${b}'; document.getElementById('current-branch-text').innerText='${b}'; document.getElementById('db-branch').dispatchEvent(new Event('change'));">
-                          ${b}
-                      </div>
-                  `).join('')}
+        <div id="branch-options" class="absolute top-full left-0 mt-2 w-52 bg-white/60 dark:bg-black/60 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[70] overflow-hidden ultra-blur border-none">
+          <div class="py-2">
+            ${allowedBranches.map(b => `
+              <div class="branch-item px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/60 uppercase tracking-[0.15em] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" 
+                   onclick="document.getElementById('db-branch').value='${b}'; document.getElementById('current-branch-text').innerText='${b}'; document.getElementById('db-branch').dispatchEvent(new Event('change'));">
+                ${b}
               </div>
+            `).join('')}
           </div>
+        </div>
       </div>
       
-      <!-- Pill 2: Date Selector (Custom Dropdown + Flatpickr) -->
-      <div class="flex items-center h-10 bg-white dark:bg-slate-800 border-2 border-[#96588a]/40 rounded-full px-4 hover:border-[#96588a] transition-all shadow-sm group relative cursor-pointer" id="custom-preset-container">
-         <i data-lucide="calendar" class="w-4 h-4 text-[#96588a] mr-2"></i>
-         
-         <!-- Hidden Input for Flatpickr logic -->
+      <!-- Pill 2: Date Picker -->
+      <div class="flex items-center h-10 bg-white/60 dark:bg-[#141414] rounded-full px-5 hover:bg-white dark:hover:bg-white/5 transition-all shadow-md group relative cursor-pointer border-none" id="custom-preset-container">
+         <i data-lucide="calendar" class="w-3.5 h-3.5 text-[#96588a] mr-2.5"></i>
          <input type="text" id="db-date-range" class="absolute inset-0 opacity-0 pointer-events-none" value="${dateRange || ''}">
          
-         <!-- Custom Dropdown Trigger -->
-         <div class="flex items-center gap-2">
-            <span id="preset-label" class="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight">Yesterday</span>
-            <i data-lucide="chevron-down" id="preset-chevron" class="w-3 h-3 text-slate-400 transition-transform duration-300 group-hover:rotate-180"></i>
+         <div class="flex items-center gap-2.5">
+            <span id="preset-label" class="text-[11px] font-black text-slate-700 dark:text-white/60 uppercase tracking-tight">Yesterday</span>
+            <i data-lucide="chevron-down" id="preset-chevron" class="w-3 h-3 text-slate-400 dark:text-white/60 transition-transform duration-300 group-hover:rotate-180"></i>
          </div>
 
-         <!-- Custom Dropdown Menu -->
-         <div id="preset-menu" class="absolute top-full left-0 mt-2 w-48 bg-white/80 dark:bg-slate-900/80 border border-white/20 dark:border-slate-800/50 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[60] overflow-hidden backdrop-blur-xl">
+         <div id="preset-menu" class="absolute top-full left-0 mt-2 w-52 bg-white/60 dark:bg-black/60 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[60] overflow-hidden ultra-blur border-none">
             <div class="py-2">
-               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="yesterday">Yesterday</div>
-               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="last7">Last 7 Days</div>
-               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="thisMonth">This Month</div>
-               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all" data-value="lastMonth">Last Month</div>
-               <div class="border-t border-slate-50 dark:border-slate-800 my-1"></div>
-               <div class="preset-option px-4 py-2.5 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#96588a] transition-all flex items-center justify-between" data-value="custom">
-                  Custom Range
-                  <i data-lucide="edit-3" class="w-3 h-3 opacity-40"></i>
-               </div>
+               <div class="preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all" data-value="yesterday">Yesterday</div>
+               <div class="preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all" data-value="last7">Last 7 Days</div>
+               <div class="preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all" data-value="thisMonth">This Month</div>
+               <div class="preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all border-t border-slate-100 dark:border-white/5" data-value="custom">Custom Range...</div>
             </div>
          </div>
       </div>
@@ -116,7 +104,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
 
       <div class="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
 
-      <button id="dark-btn" class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+      <button id="dark-btn" class="p-2 rounded-lg text-[#141414] dark:text-white/60 hover:bg-grey-100 dark:hover:bg-[#141414] transition-colors">
         <i data-lucide="moon" id="icon-moon" class="w-5 h-5"></i>
       </button>
 

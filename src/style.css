@@ -25,9 +25,9 @@
 }
 
 .dark {
-  --app-bg: #020617;
-  --app-surface: #0f172a;
-  --app-border: #1e293b;
+  --app-bg: #0D0D0D;
+  --app-surface: #141414;
+  --app-border: #1f1f1f;
 }
 
 
@@ -103,12 +103,11 @@
   }
 
   #app {
-    @apply flex h-screen overflow-hidden w-full bg-white dark:bg-slate-950;
+    @apply flex h-screen overflow-hidden w-full bg-white dark:bg-[#0D0D0D];
   }
 
   .sidebar {
-    @apply relative w-[260px] h-full bg-transparent border-none flex flex-col z-40 transition-all duration-300 ease-in-out shadow-none;
-    border-radius: 0;
+    @apply relative w-[260px] h-screen bg-white dark:bg-[#0D0D0D] border-r border-slate-100 dark:border-white/5 flex flex-col z-40 transition-all duration-300 ease-in-out;
   }
 
   .sidebar.collapsed {
@@ -116,20 +115,15 @@
   }
 
   .main-content {
-    @apply flex-1 flex flex-col h-[calc(100vh-24px)] overflow-hidden relative m-3 rounded-[48px] border-2 border-white/60 dark:border-slate-800/50 dark:bg-slate-900/20;
-    background: rgba(255, 255, 255, 0.3);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.03);
+    @apply flex-1 flex flex-col h-screen overflow-hidden relative bg-[#f8fafc] dark:bg-[#0D0D0D];
   }
 
   .topbar {
-    @apply absolute top-4 left-4 right-4 flex items-center justify-between px-10 py-3 bg-white/40 backdrop-blur-2xl border border-white/80 z-[100] shrink-0 h-[64px] rounded-[32px] dark:bg-slate-800/60 dark:border-slate-700/50;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+    @apply sticky top-0 flex items-center justify-between px-8 py-3 bg-white/80 backdrop-blur-md border-b border-slate-100 dark:border-white/5 z-[100] shrink-0 h-[70px] dark:bg-[#0D0D0D]/80;
   }
 
   #page-content {
-    @apply flex-1 overflow-auto pt-[88px] px-4 pb-8 dark:bg-slate-900/40 scrollbar-hide;
-    background: rgba(203, 213, 225, 0.2);
-    backdrop-filter: blur(20px);
+    @apply flex-1 overflow-auto p-8 dark:bg-transparent scrollbar-hide;
   }
 
   .nav-item {
@@ -155,8 +149,8 @@
 
   /* Sophisticated Soft Fade Scroll Mask */
   .nav-scroll-mask {
-    mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 15%, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%);
-    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 15%, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%);
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 15%, rgba(0, 0, 0, 1) 85%, rgba(0, 0, 0, 0) 100%);
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 15%, rgba(0, 0, 0, 1) 85%, rgba(0, 0, 0, 0) 100%);
   }
 
   .nav-item i {
@@ -187,7 +181,11 @@
   }
 
   .channel-card-premium {
-    @apply relative overflow-hidden bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-[2rem] p-6 border border-white/20 dark:border-white/5 shadow-xl transition-all duration-500 hover:shadow-2xl hover:-translate-y-1;
+    @apply relative overflow-hidden bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-7 border-t border-t-white/80 dark:border-t-white/10 shadow-xl transition-all duration-500 hover:shadow-2xl hover:-translate-y-1;
+  }
+
+  .dark .channel-card-premium {
+    background-image: linear-gradient(to top, rgba(255, 255, 255, 0.05), transparent 40%);
   }
 
   .channel-card-accent {
@@ -213,7 +211,7 @@
 
   /* ── Chart / content cards ── */
   .chart-card {
-    @apply bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm;
+    @apply bg-white dark:bg-[#141414] rounded-2xl p-6 border border-slate-100 dark:border-white/5 shadow-sm;
   }
 
   /* ── Upload zone ── */
@@ -353,7 +351,7 @@
 
   /* ── 2026 Bento UI Utilities ── */
   .bento-card {
-    @apply bg-white dark:bg-slate-900 rounded-[24px] p-6 border border-slate-100 dark:border-slate-800 transition-all duration-500 ease-out;
+    @apply bg-white dark:bg-[#141414] rounded-[24px] p-6 border border-slate-100 dark:border-white/5 transition-all duration-500 ease-out;
     box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.02);
   }
 
@@ -385,7 +383,7 @@
 
   /* Glassmorphism Hero */
   .glass-panel {
-    @apply bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/40 dark:border-slate-700/40 rounded-[32px] overflow-hidden relative;
+    @apply bg-white/60 dark:bg-[#141414]/60 backdrop-blur-2xl border border-white/40 dark:border-white/5 rounded-[32px] overflow-hidden relative;
     box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
   }
 
@@ -398,6 +396,12 @@
   /* Premium Shadow for Bento Cards */
   .shadow-premium {
     box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 4px 10px -2px rgba(0, 0, 0, 0.02);
+  }
+
+  /* Dark Mode Channel Header Override */
+  .dark .channel-card-header {
+    background-color: var(--header-tint) !important;
+    backdrop-filter: blur(12px);
   }
 
   .dark .shadow-premium {

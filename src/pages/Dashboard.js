@@ -18,10 +18,10 @@ const IC = {
 const BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
 
 const CHANNELS = {
-  dinein: { label: 'DINE-IN', kpi: 585000, color: '#60A5FA', bg: '#eff6ff', icon: 'id_VcqlrDV_1777185371840.svg' },
-  online: { label: 'ONLINE', kpi: 135000, color: '#96588a', bg: '#fbf7fb', icon: 'WooCommerce.svg' }, // Woo Purple
-  grabfood: { label: 'GRAB', kpi: 270000, color: '#34D399', bg: '#ecfdf5', icon: 'GrabFood.svg' },
-  foodpanda: { label: 'FOOD PANDA', kpi: 135000, color: '#F472B6', bg: '#fdf2f8', icon: 'Foodpanda.svg' },
+  dinein: { label: 'DINE-IN', kpi: 585000, color: '#60A5FA', bg: '#eff6ff', icon: 'id_VcqlrDV_1777185371840.svg', darkIcon: 'kiotviet_dark.svg' },
+  online: { label: 'ONLINE', kpi: 135000, color: '#96588a', bg: '#fbf7fb', icon: 'WooCommerce.svg', darkIcon: 'woo_dark.svg' },
+  grabfood: { label: 'GRAB', kpi: 270000, color: '#34D399', bg: '#ecfdf5', icon: 'GrabFood.svg', darkIcon: 'Grab_dark.svg' },
+  foodpanda: { label: 'FOOD PANDA', kpi: 135000, color: '#F472B6', bg: '#fdf2f8', icon: 'Foodpanda.svg', darkIcon: 'panda_dark.svg' },
 };
 
 let chartMain = null, chartPie = null, chartMini = null;
@@ -67,181 +67,204 @@ export function renderDashboard(user) {
   const today = now.toISOString().split('T')[0];
 
   page.innerHTML = `
-    <!-- Greeting Banner -->
-    <div class="card-stagger relative overflow-hidden rounded-3xl mb-6 p-7 bg-gradient-to-br from-[#96588a] via-[#8a507e] to-[#7a4671] text-white shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-white/10" style="animation-delay: 0.1s">
-      <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
-        <div>
-          <div class="flex items-center gap-4 mb-4">
-            <i data-lucide="${weatherIcon}" class="w-8 h-8 text-yellow-300 drop-shadow-[0_0_10px_rgba(253,224,71,0.4)]"></i>
-            <span class="text-white/70 text-[11px] font-black uppercase tracking-[0.25em]">${dateStr}</span>
-          </div>
-          <h1 class="text-3xl md:text-4xl font-black tracking-tight font-nunito mb-2">
-            ${greeting}, <span class="text-purple-200">${userName}</span>!
-          </h1>
-          <p class="text-white/60 text-sm font-medium">
-            Your revenue center is looking strong today.
-          </p>
+    <!-- Floating Typographic Greeting (Option A - Borderless) -->
+    <div class="card-stagger relative mb-8 mt-0 px-2" style="animation-delay: 0.1s">
+      <!-- Atmospheric Background Element -->
+      <div class="absolute -top-10 -left-6 opacity-[0.08] dark:opacity-[0.08] pointer-events-none select-none text-slate-800/80 dark:text-white/100">
+        <i data-lucide="${weatherIcon}" class="w-32 h-32 -rotate-12"></i>
+      </div>
+
+      <div class="relative z-10 flex flex-col gap-2">
+        <div class="flex items-center gap-3 text-slate-400 dark:text-white/20 text-[9px] font-black uppercase tracking-[0.3em]">
+          <i data-lucide="calendar" class="w-3 h-3"></i>
+          <span>${dateStr}</span>
         </div>
+
+        <h1 class="text-3xl md:text-4xl font-black tracking-tighter text-slate-800 dark:text-white leading-tight whitespace-nowrap">
+          ${greeting}, 
+          <span class="whitespace-nowrap bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
+            ${userName}
+          </span>
+        </h1>
+
+        <p class="text-slate-400 dark:text-white/30 text-xs font-medium tracking-wide">
+          Welcome to <span class="text-slate-600 dark:text-white/50 font-bold">So Mot Vietnamese Cuisine!</span>
+        </p>
       </div>
     </div>
 
-      <!-- Hero Stats Grid (Modern SaaS Style) -->
-  <!-- Grid cha: items-stretch giúp các phần tử con có chiều cao bằng nhau trong cùng 1 hàng -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-stretch">
-
-    <!-- Card 1: Total Net Revenue (Card chuẩn về chiều cao) -->
-    <div class="card-stagger relative bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 text-white shadow-[0_10px_40px_rgba(0,0,0,0.08)] flex flex-col justify-between space-y-3 group" style="animation-delay: 0.2s">
-      <div class="flex flex-col space-y-2">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
-            <i data-lucide="wallet" class="w-3.5 h-3.5"></i>
-          </div>
-          <p class="text-white/80 text-[10px] font-extrabold uppercase tracking-widest">Total Net Revenue</p>
-        </div>
-        <div class="flex flex-col items-start leading-tight">
-          <h2 id="hero-net" class="text-xl font-black tracking-tight">₱0.00</h2>
-          <div id="hero-net-trend-text" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 text-[9px] font-bold text-white">0% ↑</div>
-        </div>
-      </div>
-      <div class="w-full pt-1">
-        <div class="w-full h-1.5 bg-white/10 rounded-full relative mb-1.5">
-          <div id="hero-net-bar" class="h-full bg-white transition-all duration-1000 relative rounded-full" style="width:0%">
-            <div class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-[3px] border-orange-500 rounded-full shadow-lg translate-x-1/2"></div>
-          </div>
-        </div>
-        <p id="hero-net-pct" class="text-[9px] text-white/50 font-bold uppercase tracking-widest">0% of target</p>
-      </div>
-    </div>
-
-    <!-- Card 2: Total Gross Sale -->
-    <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800/50 flex flex-col justify-between space-y-3 group" style="animation-delay: 0.25s">
-      <div class="flex flex-col space-y-2">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
-            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
-          </div>
-          <p class="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">Total Gross Sale</p>
-        </div>
-        <div class="flex flex-col items-start leading-tight">
-          <h2 id="hero-gross" class="text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">₱0.00</h2>
-          <div id="hero-gross-trend" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold">0% ↑</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Card 3: Total Deduction -->
-    <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800/50 flex flex-col justify-between space-y-3 group" style="animation-delay: 0.3s">
-      <div class="flex flex-col space-y-2">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
-            <i data-lucide="scissors" class="w-3.5 h-3.5"></i>
-          </div>
-          <p class="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">Total Deduction</p>
-        </div>
-        <div class="flex flex-col items-start leading-tight">
-          <h2 id="hero-ded" class="text-xl font-black text-rose-500 tracking-tight">₱0.00</h2>
-          <p class="mt-1 text-[9px] text-slate-400 font-bold uppercase">Platform fees</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Card 4: Total Expenses -->
-    <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800/50 flex flex-col justify-between space-y-3 group" style="animation-delay: 0.35s">
-      <div class="flex flex-col space-y-2">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
-            <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
-          </div>
-          <p class="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">Total Expenses</p>
-        </div>
-        <div class="flex flex-col items-start leading-tight">
-          <h2 id="hero-expenses" class="text-xl font-black text-rose-500 tracking-tight">₱0.00</h2>
-          <div id="hero-expenses-trend" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold">0% ↑</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Card 5: Net Profit -->
-    <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800/50 flex flex-col justify-between space-y-3 group" style="animation-delay: 0.4s">
-      <div class="flex flex-col space-y-2">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-slate-900 dark:text-white">
-            <i data-lucide="dollar-sign" class="w-3.5 h-3.5"></i>
-          </div>
-          <p class="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">Net Profit / Loss</p>
-        </div>
-        <div class="flex flex-col items-start leading-tight">
-          <h2 id="hero-profit" class="text-xl font-black text-slate-800 dark:text-white tracking-tight">₱0.00</h2>
-          <div id="hero-efficiency-text" class="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[9px] font-bold dark:bg-white/40 text-emerald-600">0% Margin</div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-    <!-- Channel Cards Grid (Integrated Header Style - Top Aligned) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-      ${Object.entries(CHANNELS).map(([id, ch]) => `
-        <div class="card-stagger relative bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.08)] border-2 border-transparent h-52 flex flex-col group transition-all cursor-pointer"
-             style="animation-delay: ${0.5 + (Object.keys(CHANNELS).indexOf(id) * 0.1)}s"
-             onmouseover="this.style.borderColor='${ch.color}44'" 
-             onmouseout="this.style.borderColor='transparent'">
-          
-          <!-- Integrated Header Banner (Top Aligned) -->
-          <div class="px-4 py-3 flex justify-between items-start relative z-10" style="background: ${ch.bg}">
-            <div class="flex-1">
-              <p class="text-[11px] font-extrabold tracking-tight mb-1" style="color: ${ch.color}">${ch.label}</p>
-              <h3 id="card-${id}-net" class="text-xl font-extrabold" style="color: ${ch.color}">₱0.00</h3>
+  <!-- Unified Command Center (Compact Single Glass Panel) -->
+  <div class="card-stagger luxury-card relative bg-white/40 dark:bg-[#141414]/60 rounded-[2.5rem] p-6 mb-8 text-white shadow-xl dark:shadow-2xl backdrop-blur-3xl border-t border-white/60 dark:border-white/10 group overflow-hidden" style="animation-delay: 0.2s">
+    <div class="luxury-shine"></div>
+    <div class="channel-card-accent" style="background-color: #f97316; opacity: 0.15; transform: scale(2.5); filter: blur(100px); top: -20%; left: -10%;"></div>
+    
+    <div class="relative z-10 flex flex-col lg:flex-row items-center gap-10">
+      
+      <!-- Primary Section: Net Revenue -->
+      <div class="flex-1 w-full lg:w-auto">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+              <i data-lucide="zap" class="w-4 h-4"></i>
             </div>
-            <div class="w-16 h-8 flex items-center justify-end overflow-hidden transition-transform duration-300 group-hover:scale-110">
-              <img src="/src/assets/${ch.icon}" class="w-full h-full object-contain object-right-top" alt="${ch.label}">
+            <p class="text-slate-500 dark:text-white/60 text-[9px] font-black uppercase tracking-[0.2em]">Net Revenue</p>
+          </div>
+          <div id="hero-net-trend-text" class="text-[9px] font-bold px-2 py-0.5 rounded-md bg-emerald-600 text-white">0% ^</div>
+        </div>
+        
+        <div class="flex items-baseline gap-3 mb-4">
+          <h2 id="hero-net" class="text-4xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-500">₱0.00</h2>
+        </div>
+
+        <div class="w-full">
+          <div class="flex justify-between items-end mb-2">
+            <p id="hero-net-pct" class="text-[8px] text-slate-400 dark:text-white/40 font-black uppercase tracking-widest">0% of daily target</p>
+            <span class="text-[8px] text-orange-600 dark:text-orange-500 font-black uppercase tracking-tighter">Target: ₱1.125M</span>
+          </div>
+          <div class="w-full h-2 bg-slate-200/50 dark:bg-white/10 rounded-full relative overflow-hidden">
+            <div id="hero-net-bar" class="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-1000 relative rounded-full" style="width:0%">
+              <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)] animate-[shimmer_2s_infinite]"></div>
             </div>
           </div>
+        </div>
+      </div>
 
-          <!-- Content Body -->
-          <div class="p-4 flex flex-col flex-1 relative z-10">
-            <div class="space-y-1 mb-3 font-nunito text-[12px]">
-              <div class="flex justify-between items-center">
-                <span class="text-gray-400 font-medium">Deduction</span>
-                <span id="card-${id}-ded" class="font-bold text-rose-500">0.00</span>
-              </div>
-              <div class="flex justify-between items-center">
-                <span class="text-gray-400 font-medium">Gross Sales</span>
-                <span id="card-${id}-gross" class="font-bold text-slate-600 dark:text-slate-300">0.00</span>
-              </div>
-              <div class="flex justify-between items-center">
-                <span class="text-gray-400 font-medium">KPI Target</span>
-                <span id="card-${id}-kpi" class="font-bold text-slate-600 dark:text-slate-300">${(ch.kpi).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
-              </div>
+      <!-- Secondary Section: Nested Dark Hub (Adaptive Colors) -->
+      <div class="flex-1 w-full lg:w-auto bg-slate-100/50 dark:bg-[#1c1c1c]/70 backdrop-blur-2xl rounded-[1.5rem] p-5 shadow-sm dark:shadow-lg border border-slate-200/50 dark:border-white/[0.08] grid grid-cols-2 gap-x-8 gap-y-5">
+        
+        <!-- Gross Sale -->
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5 text-slate-400 dark:text-white/60">
+              <i data-lucide="trending-up" class="w-3 h-3"></i>
+              <span class="text-[9px] font-black uppercase tracking-widest">Gross</span>
             </div>
+            <div id="hero-gross-trend" class="text-[7px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-600 text-white leading-none">0% ^</div>
+          </div>
+          <h3 id="hero-gross" class="text-lg font-black text-slate-900 dark:text-white tracking-tight">₱0.00</h3>
+        </div>
+
+        <!-- Net Profit -->
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-1.5 text-slate-400 dark:text-white/60">
+              <i data-lucide="bar-chart-3" class="w-3 h-3"></i>
+              <span class="text-[9px] font-black uppercase tracking-widest">Profit</span>
+            </div>
+            <h3 id="hero-profit" class="text-lg font-black text-slate-900 dark:text-white tracking-tight">₱0.00</h3>
+          </div>
+          <!-- Apple-style Circular Progress (Larger, Minimalist) -->
+          <div class="relative flex items-center justify-center w-10 h-10 shrink-0">
+            <svg class="w-full h-full -rotate-90" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-width="4" fill="transparent" class="text-slate-200 dark:text-white/5" />
+              <circle id="profit-ring" cx="20" cy="20" r="16" stroke="currentColor" stroke-width="4" fill="transparent" stroke-dasharray="100.5" stroke-dashoffset="100.5" stroke-linecap="round" class="text-emerald-500 transition-all duration-1000" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Expenses -->
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5 text-slate-400 dark:text-white/60">
+              <i data-lucide="receipt" class="w-3 h-3"></i>
+              <span class="text-[9px] font-black uppercase tracking-widest">Expenses</span>
+            </div>
+            <div id="hero-expenses-trend" class="text-[7px] font-bold px-1.5 py-0.5 rounded-md bg-rose-600 text-white leading-none">0% v</div>
+          </div>
+          <h3 id="hero-expenses" class="text-lg font-black text-rose-600 dark:text-rose-500 tracking-tight">₱0.00</h3>
+        </div>
+
+        <!-- Deduction -->
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-1.5 text-slate-400 dark:text-white/60">
+              <i data-lucide="scissors" class="w-3 h-3"></i>
+              <span class="text-[9px] font-black uppercase tracking-widest">Deduction</span>
+            </div>
+            <h3 id="hero-ded" class="text-lg font-black text-rose-600 dark:text-rose-500 tracking-tight">₱0.00</h3>
+          </div>
+          <!-- Apple-style Circular Progress (Larger, Minimalist) -->
+          <div class="relative flex items-center justify-center w-10 h-10 shrink-0">
+            <svg class="w-full h-full -rotate-90" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-width="4" fill="transparent" class="text-slate-200 dark:text-white/5" />
+              <circle id="ded-ring" cx="20" cy="20" r="16" stroke="currentColor" stroke-width="4" fill="transparent" stroke-dasharray="100.5" stroke-dashoffset="100.5" stroke-linecap="round" class="text-rose-500 transition-all duration-1000" />
+            </svg>
+          </div>
+        </div>
+
+      </div>
+
+      </div>
+
+      <!-- Channel Management Row (Integrated into Unified Surface) -->
+      <div class="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        ${Object.entries(CHANNELS).map(([id, ch]) => `
+          <div class="card-stagger relative bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-md rounded-2xl overflow-hidden shadow-lg border border-white/20 dark:border-white/5 h-52 flex flex-col group transition-all cursor-pointer"
+               style="animation-delay: ${0.5 + (Object.keys(CHANNELS).indexOf(id) * 0.1)}s"
+               onmouseover="this.style.borderColor='${ch.color}44'" 
+               onmouseout="this.style.borderColor='transparent'">
             
-            <div class="mt-auto">
-              <div class="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full relative">
-                <div id="card-${id}-bar" class="h-full rounded-full transition-all duration-1000 relative" style="width:0%; background:${ch.color};">
-                  <div class="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 rounded-full shadow-md translate-x-1/2 transition-all duration-300" style="border-color: ${ch.color}"></div>
+            <!-- Integrated Header Banner (Glass Tint Style) -->
+            <div class="channel-card-header px-4 py-3 flex justify-between items-start relative z-10 transition-colors" 
+                 style="background-color: ${ch.bg}; --header-tint: ${ch.color}26">
+              <div class="flex-1">
+                <p class="text-[11px] font-extrabold tracking-tight mb-1" style="color: ${ch.color}">${ch.label}</p>
+                <h3 id="card-${id}-net" class="text-xl font-extrabold" style="color: ${ch.color}">₱0.00</h3>
+              </div>
+              <div class="w-16 h-8 flex items-center justify-end overflow-hidden transition-transform duration-300 group-hover:scale-110">
+                <img src="/src/assets/${ch.icon}" class="w-full h-full object-contain object-right-top dark:hidden" alt="${ch.label}">
+                <img src="/src/assets/${ch.darkIcon}" class="w-full h-full object-contain object-right-top hidden dark:block" alt="${ch.label}">
+              </div>
+            </div>
+
+            <!-- Content Body -->
+            <div class="p-4 flex flex-col flex-1 relative z-10">
+              <div class="space-y-1 mb-3 font-nunito text-[12px]">
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400 font-medium">Deduction</span>
+                  <span id="card-${id}-ded" class="font-bold text-rose-500">0.00</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400 font-medium">Gross Sales</span>
+                  <span id="card-${id}-gross" class="font-bold text-slate-600 dark:text-slate-300">0.00</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400 font-medium">KPI Target</span>
+                  <span id="card-${id}-kpi" class="font-bold text-slate-600 dark:text-slate-300">${(ch.kpi).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
-              <div class="flex justify-between items-center mt-1.5">
-                <span id="card-${id}-pct" class="text-[9px] font-bold text-gray-400 uppercase tracking-tight">0% achieved</span>
+              
+              <div class="mt-auto">
+                <div class="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full relative">
+                  <div id="card-${id}-bar" class="h-full rounded-full transition-all duration-1000 relative" style="width:0%; background:${ch.color};">
+                    <div class="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 rounded-full shadow-md translate-x-1/2 transition-all duration-300" style="border-color: ${ch.color}"></div>
+                  </div>
+                </div>
+                <div class="flex justify-between items-center mt-1.5">
+                  <span id="card-${id}-pct" class="text-[9px] font-bold text-gray-400 uppercase tracking-tight">0% achieved</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      `).join('')}
+        `).join('')}
+      </div>
+
     </div>
+  </div>
 
     <!-- Charts Row -->
-    <div class="card-stagger grid grid-cols-1 lg:grid-cols-3 gap-3" style="animation-delay: 0.9s">
-      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-100 dark:border-slate-700 lg:col-span-2">
+    <div class="card-stagger grid grid-cols-1 lg:grid-cols-3 gap-6" style="animation-delay: 0.9s">
+      <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-7 shadow-xl dark:shadow-2xl border-t border-white/60 dark:border-white/10 lg:col-span-2 transition-all">
         <div class="mb-5">
-          <p class="font-bold text-slate-800 dark:text-white text-sm font-nunito">Net Revenue Trend</p>
-          <p class="text-xs text-slate-500 mt-0.5 font-nunito">Daily breakdown across all channels</p>
+          <p class="font-black text-slate-800 dark:text-white/80 text-sm font-nunito uppercase tracking-widest">Net Revenue Trend</p>
+          <p class="text-[10px] text-slate-400 dark:text-white/30 mt-1 font-nunito font-bold uppercase tracking-tight">Daily breakdown across all channels</p>
         </div>
         <div class="h-64"><canvas id="chart-main"></canvas></div>
       </div>
-      <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-100 dark:border-slate-700">
-        <div class="mb-4">
-          <p class="font-bold text-slate-800 dark:text-white text-sm font-nunito">Channel Mix</p>
+      <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-7 shadow-xl dark:shadow-2xl border-t border-white/60 dark:border-white/10 transition-all">
+        <div class="mb-5">
+          <p class="font-black text-slate-800 dark:text-white/80 text-sm font-nunito uppercase tracking-widest">Channel Mix</p>
+          <p class="text-[10px] text-slate-400 dark:text-white/30 mt-1 font-nunito font-bold uppercase tracking-tight">Revenue distribution</p>
         </div>
         <div class="h-44 flex items-center justify-center"><canvas id="chart-pie"></canvas></div>
         <div class="mt-4 space-y-2.5">
@@ -385,8 +408,8 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   const trendEl = page.querySelector('#hero-net-trend-text');
   if (trendEl) {
     const isUp = netTrendPct >= 0;
-    trendEl.innerHTML = `${isUp ? '+' : ''}${netTrendPct.toFixed(1)}% ${isUp ? '↑' : '↓'}`;
-    trendEl.className = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isUp ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-white'}`;
+    trendEl.innerHTML = `${isUp ? '+' : ''}${netTrendPct.toFixed(1)}% ${isUp ? '^' : 'v'}`;
+    trendEl.className = `text-[9px] font-bold px-2 py-0.5 rounded-md text-white ${isUp ? 'bg-emerald-600' : 'bg-rose-600'}`;
   }
 
   // Update Card 2: Gross
@@ -396,8 +419,8 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   const grossTrendEl = page.querySelector('#hero-gross-trend');
   if (grossTrendEl) {
     const isUp = grossTrend >= 0;
-    grossTrendEl.innerHTML = `${isUp ? '+' : ''}${grossTrend.toFixed(1)}% ${isUp ? '↑' : '↓'}`;
-    grossTrendEl.className = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isUp ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`;
+    grossTrendEl.innerHTML = `${isUp ? '+' : ''}${grossTrend.toFixed(1)}% ${isUp ? '^' : 'v'}`;
+    grossTrendEl.className = `text-[8px] font-bold px-1.5 py-0.5 rounded-md text-white leading-none ${isUp ? 'bg-emerald-600' : 'bg-rose-600'}`;
   }
 
   // Update Card 3: Deduction
@@ -410,23 +433,35 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   if (expTrendEl) {
     const isUp = expTrendPct >= 0;
     // For expenses: UP is generally bad (Rose), DOWN is good (Emerald)
-    expTrendEl.innerHTML = `${isUp ? '+' : ''}${expTrendPct.toFixed(1)}% ${isUp ? '↑' : '↓'}`;
-    expTrendEl.className = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isUp ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600'}`;
+    expTrendEl.innerHTML = `${isUp ? '+' : ''}${expTrendPct.toFixed(1)}% ${isUp ? '^' : 'v'}`;
+    expTrendEl.className = `text-[8px] font-bold px-1.5 py-0.5 rounded-md text-white leading-none ${isUp ? 'bg-rose-600' : 'bg-emerald-600'}`;
   }
 
-  // Update Card 5: Profit
+  // Update Card 5: Profit & Margin Ring
   const profit = totalNet - totalExpenses;
   const profitEl = page.querySelector('#hero-profit');
   animateValue(profitEl, profit, (n) => (n < 0 ? '-' : '') + '₱' + formatAbbreviated(Math.abs(n)));
-  if (profitEl) profitEl.className = `text-xl font-black ${profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`;
+  if (profitEl) profitEl.className = `text-lg font-black ${profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`;
 
-  // Update Margin Pill
   const efficiency = totalNet > 0 ? (profit / totalNet) * 100 : 0;
-  const effText = page.querySelector('#hero-efficiency-text');
-  if (effText) {
-    effText.textContent = Math.round(efficiency) + '% Margin';
-    effText.className = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${profit >= 0 ? 'bg-orange-500/10 text-orange-600' : 'bg-rose-500/10 text-rose-600'}`;
+  const ring = page.querySelector('#profit-ring');
+  if (ring) {
+    const val = Math.max(0, Math.min(100, Math.round(efficiency)));
+    const offset = 100.5 - (100.5 * val) / 100;
+    ring.style.strokeDashoffset = offset;
+    ring.className.baseVal = `transition-all duration-1000 ${profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`;
   }
+
+  // Update Deduction Ring
+  const dedRatio = totalGross > 0 ? (totalDed / totalGross) * 100 : 0;
+  const dRing = page.querySelector('#ded-ring');
+  if (dRing) {
+    const val = Math.max(0, Math.min(100, Math.round(dedRatio)));
+    const offset = 100.5 - (100.5 * val) / 100;
+    dRing.style.strokeDashoffset = offset;
+  }
+
+
 
   // Card 1 KPI bar
   const totalKpi = Object.values(CHANNELS).reduce((acc, c) => acc + c.kpi, 0);
@@ -464,38 +499,102 @@ function updateCharts(docs) {
   const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
   const lblColor = '#64748b'; // slate-500
 
-  const dailyMap = {};
+  // Aggregate by Date and Channel
+  const dailyData = {}; // { date: { chId: netVal } }
   docs.forEach(d => {
-    if (!dailyMap[d.date]) dailyMap[d.date] = 0;
-    dailyMap[d.date] += getNet(d);
+    if (!dailyData[d.date]) {
+      dailyData[d.date] = {};
+      Object.keys(CHANNELS).forEach(k => dailyData[d.date][k] = 0);
+    }
+    if (dailyData[d.date][d.channelId] !== undefined) {
+      dailyData[d.date][d.channelId] += getNet(d);
+    }
   });
-  const dates = Object.keys(dailyMap).sort();
-  const values = dates.map(d => dailyMap[d]);
 
-  // Main Bar/Line Chart (Now Green to match theme)
+  const dates = Object.keys(dailyData).sort();
+  
+  // Build Datasets for each Channel
   const mainCtx = document.getElementById('chart-main');
+  let datasets = [];
+  
+  if (mainCtx) {
+    const ctx = mainCtx.getContext('2d');
+    datasets = Object.entries(CHANNELS).map(([id, cfg]) => {
+      // Create individual gradient for each channel
+      const grad = ctx.createLinearGradient(0, 0, 0, 250);
+      grad.addColorStop(0, cfg.color + '33'); // ~20% opacity
+      grad.addColorStop(1, cfg.color + '00'); // 0% opacity
+
+      return {
+        label: cfg.label,
+        data: dates.map(d => dailyData[d][id]),
+        borderColor: cfg.color,
+        backgroundColor: grad,
+        borderWidth: 2.5,
+        tension: 0.4,
+        fill: true,
+        pointRadius: dates.length > 15 ? 0 : 3,
+        pointHoverRadius: 6,
+        borderCapStyle: 'round',
+        borderJoinStyle: 'round'
+      };
+    });
+  }
+
   if (mainCtx) {
     if (chartMain) chartMain.destroy();
-    const grad = mainCtx.getContext('2d').createLinearGradient(0, 0, 0, 250);
-    grad.addColorStop(0, 'rgba(21,128,61,0.2)'); // green-700
-    grad.addColorStop(1, 'rgba(21,128,61,0)');
-
     chartMain = new Chart(mainCtx, {
       type: 'line',
       data: {
         labels: dates.map(d => d.slice(5)), // MM-DD
-        datasets: [{
-          label: 'Net Revenue', data: values, borderColor: '#15803d', backgroundColor: grad,
-          borderWidth: 2.5, tension: 0.4, fill: true, pointBackgroundColor: '#15803d',
-          pointRadius: dates.length > 15 ? 0 : 3, pointHoverRadius: 6
-        }]
+        datasets: datasets
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { 
+          legend: { 
+            display: true, 
+            position: 'top',
+            align: 'end',
+            labels: {
+              boxWidth: 8,
+              boxHeight: 8,
+              usePointStyle: true,
+              pointStyle: 'circle',
+              padding: 20,
+              color: lblColor,
+              font: { family: 'Plus Jakarta Sans', size: 10, weight: 'bold' }
+            }
+          },
+          tooltip: {
+            backgroundColor: isDark ? '#1e293b' : '#fff',
+            titleColor: isDark ? '#fff' : '#1e293b',
+            bodyColor: isDark ? '#cbd5e1' : '#64748b',
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+            borderWidth: 1,
+            padding: 12,
+            boxPadding: 6,
+            usePointStyle: true,
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ₱${ctx.parsed.y.toLocaleString()}`
+            }
+          }
+        },
         scales: {
-          x: { grid: { color: gridColor }, ticks: { color: lblColor, font: { family: 'Plus Jakarta Sans', size: 11 } } },
-          y: { grid: { color: gridColor }, ticks: { color: lblColor, font: { family: 'Plus Jakarta Sans', size: 11 }, callback: v => '₱' + (v / 1000).toFixed(0) + 'K' } },
+          x: { 
+            grid: { display: false }, 
+            ticks: { color: lblColor, font: { family: 'Plus Jakarta Sans', size: 10 } } 
+          },
+          y: { 
+            grid: { color: gridColor, drawBorder: false }, 
+            ticks: { 
+              color: lblColor, 
+              font: { family: 'Plus Jakarta Sans', size: 10 },
+              callback: v => '₱' + (v / 1000).toFixed(0) + 'K' 
+            } 
+          },
         },
       },
     });

@@ -18,14 +18,14 @@ let currentTab = 'dashboard';
 let activeSubTab = null;
 
 const PAGE_TITLES = {
-  dashboard: ['Dashboard', 'Revenue overview across all channels', null],
-  dinein: ['Dine In', 'In-house dining revenue', 'id_VcqlrDV_1777185371840.svg'],
-  grabfood: ['GrabFood', 'GrabFood delivery channel', 'GrabFood.svg'],
-  foodpanda: ['FoodPanda', 'FoodPanda delivery channel', 'Foodpanda.svg'],
-  online: ['Online Order', 'Direct online orders', 'WooCommerce.svg'],
-  expenses: ['Expenses', 'Petty cash & liquidation tracking', null],
-  pantry_analysis: ['Pantry Analysis', 'Deep dive into ingredient costs & usage', null],
-  settings: ['Settings', 'App configuration & preferences', null],
+  dashboard: ['Dashboard', 'Revenue overview across all channels', null, null],
+  dinein: ['Dine In', 'In-house dining revenue', 'id_VcqlrDV_1777185371840.svg', 'kiotviet_dark.svg'],
+  grabfood: ['GrabFood', 'GrabFood delivery channel', 'GrabFood.svg', 'Grab_dark.svg'],
+  foodpanda: ['FoodPanda', 'FoodPanda delivery channel', 'Foodpanda.svg', 'panda_dark.svg'],
+  online: ['Online Order', 'Direct online orders', 'WooCommerce.svg', 'woo_dark.svg'],
+  expenses: ['Expenses', 'Petty cash & liquidation tracking', null, null],
+  pantry_analysis: ['Pantry Analysis', 'Deep dive into ingredient costs & usage', null, null],
+  settings: ['Settings', 'App configuration & preferences', null, null],
 };
 
 const SUB_TABS_CONFIG = {
@@ -112,13 +112,13 @@ function buildShell() {
   sidebarContainer.appendChild(sidebar);
 
   // 3. Update Header
-  const [title, subtitle, logoUrl] = PAGE_TITLES[currentTab] || ['Dashboard', '', null];
+  const [title, subtitle, logoUrl, darkLogoUrl] = PAGE_TITLES[currentTab] || ['Dashboard', '', null, null];
   const headerContainer = document.getElementById('header-container') || document.createElement('div');
   headerContainer.id = 'header-container';
   headerContainer.innerHTML = '';
 
   const currentRange = document.getElementById('db-date-range')?.value || filterState.dateRange;
-  const header = renderHeader(title, subtitle, toggleDarkMode, logoUrl, filterState.branch, currentRange, currentUser, handleSignOut, SUB_TABS_CONFIG[currentTab] || [], activeSubTab);
+  const header = renderHeader(title, subtitle, toggleDarkMode, logoUrl, filterState.branch, currentRange, currentUser, handleSignOut, SUB_TABS_CONFIG[currentTab] || [], activeSubTab, darkLogoUrl);
   headerContainer.appendChild(header);
 
   if (!mainContentContainer.contains(headerContainer)) {

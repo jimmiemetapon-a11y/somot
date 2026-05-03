@@ -33,27 +33,27 @@ export function renderPantryAnalysis() {
   page.innerHTML = `
     <!-- Top Stats Row -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800 flex flex-col space-y-2">
+      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0 4px 10px rgba(0,0,0,0.3)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
         <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Total Spend</p>
         <h2 id="pa-total-spend" class="text-2xl font-black text-rose-500">₱0.00</h2>
         <div id="pa-spend-trend" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold w-max">0%</div>
       </div>
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800 flex flex-col space-y-2">
+      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
         <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Transactions</p>
         <h2 id="pa-total-trans" class="text-2xl font-black text-blue-500">0</h2>
         <p class="text-[10px] text-slate-400 font-medium">In selected period</p>
       </div>
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800 flex flex-col space-y-2">
+      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
         <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Unique Items</p>
         <h2 id="pa-total-items" class="text-2xl font-black text-[#96588a]">0</h2>
         <p class="text-[10px] text-slate-400 font-medium">Purchased</p>
       </div>
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800 flex flex-col space-y-2">
+      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
         <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Top Purpose</p>
         <h2 id="pa-top-purpose" class="text-lg font-black text-slate-800 dark:text-white truncate" title="">-</h2>
         <p id="pa-top-purpose-val" class="text-[10px] text-slate-400 font-medium font-bold">₱0.00</p>
       </div>
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800 flex flex-col space-y-2">
+      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
         <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Top Item</p>
         <h2 id="pa-top-item" class="text-lg font-black text-emerald-500 truncate" title="">-</h2>
         <p id="pa-top-item-val" class="text-[10px] text-slate-400 font-medium font-bold">₱0.00</p>
@@ -62,7 +62,7 @@ export function renderPantryAnalysis() {
 
     <!-- Charts Row -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800 lg:col-span-2">
+      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] lg:col-span-2">
         <div class="mb-4">
          <div class="flex items-center gap-3">
            <div class="bg-emerald-100 dark:bg-emerald-500/10 p-2 rounded-full flex items-center justify-center"><i data-lucide="chart-bar-big" class="w-5 h-5 text-emerald-600 dark:text-emerald-400"></i></div>
@@ -74,7 +74,7 @@ export function renderPantryAnalysis() {
         </div>
         <div class="h-56"><canvas id="pa-chart-trend"></canvas></div>
       </div>
-      <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800">
+      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626]">
         <div class="mb-4">
          <div class="flex items-center gap-3">
            <div class="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-full flex items-center justify-center"><i data-lucide="wallet" class="w-5 h-5 text-indigo-500"></i></div>
@@ -92,8 +92,8 @@ export function renderPantryAnalysis() {
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
       
       <!-- Detailed Items Table -->
-      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-slate-800 lg:col-span-2 overflow-hidden flex flex-col">
-        <div class="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] lg:col-span-2 overflow-hidden flex flex-col">
+        <div class="p-4 border-b border-slate-100 dark:border-[#262626] bg-slate-50/50 dark:bg-slate-800/30">
          <div class="flex items-center gap-3">
              <div class="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-full flex items-center justify-center"><i data-lucide="list-ordered" class="w-5 h-5 text-blue-500"></i></div>
              <div class="flex flex-col">              
@@ -104,8 +104,8 @@ export function renderPantryAnalysis() {
         </div>
         <div class="flex-1 overflow-auto max-h-[400px] scrollbar-thin">
           <table class="w-full text-left border-collapse text-xs">
-            <thead class="sticky top-0 bg-white dark:bg-slate-900 shadow-sm z-10">
-              <tr class="border-b border-slate-100 dark:border-slate-800 text-[12px]">
+            <thead class="sticky top-0 bg-white dark:bg-[#2A2A2A] shadow-sm z-10">
+              <tr class="border-b border-slate-100 dark:border-[#262626] text-[12px]">
                 <th class="w-full px-4 py-3 uppercase font-black text-slate-400 tracking-wider">Item Name</th>
                 <th class="w-20 px-4 py-3 font-black text-slate-400 uppercase tracking-wider text-right">Qty</th>
                 <th class="whitespace-nowrap w-24 px-4 py-3 uppercase font-black text-slate-400 uppercase tracking-wider text-center">Unit</th>
@@ -121,7 +121,7 @@ export function renderPantryAnalysis() {
       </div>
 
       <!-- Price Alerts Table -->
-      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col">
+      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col">
         <div class="p-4 border-b border-rose-100 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-500/5">
           <div class="flex items-center gap-3">
              <i data-lucide="trending-up" class="w-4 h-4 text-rose-500"></i>
@@ -133,7 +133,7 @@ export function renderPantryAnalysis() {
         </div>
         <div class="flex-1 overflow-auto max-h-[400px] scrollbar-thin">
           <table class="w-full text-left border-collapse text-[12px]">
-            <thead class="sticky top-0 bg-white dark:bg-slate-900 shadow-sm z-10">
+            <thead class="sticky top-0 bg-white dark:bg-[#2A2A2A] shadow-sm z-10">
               <tr class="border-b border-slate-100 dark:border-slate-800 text-[12px]">
                 <th class="px-4 py-3 font-black text-slate-400 uppercase tracking-wider">Item</th>
                 <th class="px-4 py-3 font-black text-slate-400 uppercase tracking-wider text-right">Old → New</th>
@@ -259,7 +259,7 @@ async function loadData(branch, fromDate, toDate) {
     const trendPct = prevSpend > 0 ? ((totalSpend - prevSpend) / prevSpend) * 100 : (totalSpend > 0 ? 100 : 0);
 
     animateValue(document.getElementById('pa-total-spend'), totalSpend, fmt);
-    
+
     const trendEl = document.getElementById('pa-spend-trend');
     if (trendEl) {
       const isUp = trendPct >= 0;
@@ -321,10 +321,10 @@ async function loadData(branch, fromDate, toDate) {
         const pName = sortedPurposes[0][0];
         const pVal = sortedPurposes[0][1];
         if (topPurposeEl.textContent !== pName) {
-           topPurposeEl.classList.add('animate-snap');
-           topPurposeEl.textContent = pName;
-           topPurposeEl.title = pName;
-           setTimeout(() => topPurposeEl.classList.remove('animate-snap'), 500);
+          topPurposeEl.classList.add('animate-snap');
+          topPurposeEl.textContent = pName;
+          topPurposeEl.title = pName;
+          setTimeout(() => topPurposeEl.classList.remove('animate-snap'), 500);
         }
         animateValue(topPurposeValEl, pVal, fmt);
       } else {

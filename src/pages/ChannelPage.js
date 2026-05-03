@@ -121,52 +121,30 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     <div id="section-history" class="tab-content ${activeTab === 'history' ? '' : 'hidden'} space-y-4 page-enter">
        <div id="channel-summary-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"></div>
 
-       <div class="flex items-center justify-between">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Historical Data</p>
-          <div class="flex items-center gap-2">
-            <button id="btn-export-csv" class="px-4 py-1.5 rounded-lg bg-white border border-slate-200 text-[10px] font-bold text-slate-500 uppercase hover:bg-slate-50 transition-all shadow-sm flex items-center gap-2">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i> Export Excel
-            </button>
-          </div>
-       </div>
-
-       <!-- History Filters (Search + Date) -->
-       <div class="flex flex-col md:flex-row md:items-end justify-between gap-3">
-          <div class="flex gap-3">
-             <div class="space-y-1">
-                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">From</label>
-                <input id="channel-from" type="date" class="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-             </div>
-             <div class="space-y-1">
-                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">To</label>
-                <input id="channel-to" type="date" class="bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-             </div>
-          </div>
-
-          <div class="flex gap-2 items-center">
-             <input id="channel-search" type="text" placeholder="Search by date (YYYY-MM-DD) or orders..."
-               class="w-full md:w-[320px] bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
-             <button id="channel-clear-btn"
-               class="px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm">
-               Clear
+       <!-- Optimized Action Bar: Exclusive Export -->
+       <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl overflow-hidden shadow-xl border-t border-white/60 dark:border-white/10 transition-all">
+          <!-- Subdued Table Header Action Area -->
+          <div class="px-8 pt-6 pb-2 flex justify-between items-center">
+             <p class="text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Historical Data</p>
+             <button id="btn-export-csv" class="flex items-center gap-2 text-[9px] font-black text-slate-400 hover:text-[#96588a] dark:text-white/30 dark:hover:text-white uppercase tracking-widest transition-all group">
+                <i data-lucide="file-spreadsheet" class="w-3 h-3 group-hover:scale-110 transition-transform"></i>
+                Export Report
              </button>
           </div>
-       </div>
 
-       <div class="chart-card !p-0 overflow-hidden shadow-xl border border-slate-100 dark:border-slate-800">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Date</th>
-                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter text-center">Orders</th>
-                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Gross Sale</th>
-                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Total Ded.</th>
-                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">Net Sale</th>
-                <th class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter text-right">Action</th>
+              <tr class="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-transparent">
+                <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Date</th>
+                <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-center">Orders</th>
+                <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Gross Sale</th>
+                <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Total Ded.</th>
+                <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Net Sale</th>
+                <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-right">Action</th>
               </tr>
             </thead>
-            <tbody id="history-table-body" class="divide-y divide-slate-50 dark:divide-slate-800/50">
-               <tr><td colspan="6" class="px-6 py-10 text-center text-xs text-slate-400 italic">Fetching data from database...</td></tr>
+            <tbody id="history-table-body" class="divide-y divide-slate-100 dark:divide-white/5">
+               <tr><td colspan="6" class="px-6 py-10 text-center text-[11px] text-slate-400 italic">Fetching data from database...</td></tr>
             </tbody>
           </table>
        </div>
@@ -174,32 +152,41 @@ export function renderChannelPage(channelId, activeTab = 'history') {
 
     <!-- TAB: IMPORT (Current upload interface) -->
     <div id="section-import" class="tab-content ${activeTab === 'import' ? '' : 'hidden'} space-y-6 page-enter">
-        <div id="results-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
-        <div id="breakdown-area" class="hidden animate-fade-in chart-card !p-0 overflow-hidden"></div>
+        <!-- Results Hero Area -->
+        <div id="results-summary" class="w-full"></div>
+        <div id="breakdown-area" class="hidden"></div>
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="chart-card flex flex-col items-center justify-center gap-5 min-h-[260px]">
+        <!-- Upload Interface Row -->
+        <div id="upload-controls-row" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Left: Modernized Upload Zone -->
+          <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-8 flex flex-col items-center justify-center gap-6 min-h-[300px] border-t border-white/60 dark:border-white/10 relative overflow-hidden group">
             <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls, .csv" multiple>
-            <div id="drop-zone" class="upload-zone w-full flex flex-col items-center gap-3 hover:border-[#96588a] hover:bg-purple-50/50">
-              <div class="w-14 h-14 rounded-2xl flex items-center justify-center p-3 bg-purple-50 dark:bg-purple-900/20">
-                 <i data-lucide="file-up" class="w-8 h-8" style="color: #96588a;"></i>
+            <div id="drop-zone" class="w-full flex flex-col items-center gap-4 cursor-pointer transition-all duration-300">
+              <div class="w-16 h-16 rounded-[1.5rem] flex items-center justify-center bg-slate-100 dark:bg-white/5 shadow-inner">
+                 <i data-lucide="file-up" class="w-8 h-8 text-[#96588a]"></i>
               </div>
-              <p class="text-sm font-semibold text-slate-600">Drop ${cfg.label} file</p>
+              <div class="text-center">
+                <p class="text-xs font-black text-slate-700 dark:text-white uppercase tracking-widest">Drop ${cfg.label} File</p>
+                <p class="text-[9px] text-slate-400 font-bold mt-1">EXCEL / CSV ONLY</p>
+              </div>
             </div>
-            <div class="flex gap-2 w-full">
-               <button id="btn-choose" class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98]" style="background: linear-gradient(135deg, #96588a 0%, #7a4671 100%);">Choose File</button>
-               <button id="btn-manual" class="hidden flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-white shadow-lg transition-all active:scale-[0.98] bg-emerald-500 hover:bg-emerald-600">Add Manual</button>
+            <div class="flex gap-3 w-full">
+               <button id="btn-choose" class="flex-1 h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 bg-[#96588a]">Browse Files</button>
             </div>
           </div>
-          <div id="preview-area" class="chart-card md:col-span-2 overflow-auto min-h-[260px] flex items-center justify-center relative">
-             <p class="text-sm text-slate-400 italic text-center">Preview area<br><span class="text-[10px]">Excel columns (A, B, C...) will appear here</span></p>
+
+          <!-- Right: Premium Preview Area -->
+          <div id="preview-area" class="lg:col-span-2 luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-0 overflow-hidden min-h-[300px] border-t border-white/60 dark:border-white/10 relative flex items-center justify-center">
+             <div class="absolute top-6 left-8">
+                <p class="text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Data Audit Preview</p>
+             </div>
+             <p class="text-xs text-slate-400 italic">Excel columns will appear here after selection</p>
           </div>
         </div>
 
         <div class="flex justify-end pt-4">
-          <button id="btn-save" class="hidden px-8 py-3 rounded-xl text-[12px] font-bold text-white transition-all shadow-xl flex items-center gap-2 active:scale-95" style="background-color: #96588a;">
-            <i data-lucide="save" class="w-4 h-4"></i> Confirm & Save to Database
-          </button>
+          <!-- Standalone button hidden, now using the one inside Hero Card -->
+          <div id="btn-save" class="hidden"></div>
         </div>
     </div>
   `;
@@ -218,7 +205,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
 
     const btnManual = page.querySelector('#btn-manual');
     const branchSelect = document.getElementById('db-branch');
-    
+
     const updateManualBtn = () => {
       if (channelId === 'dinein' && branchSelect?.value === 'Ayala Cloverleaf') {
         btnManual?.classList.remove('hidden');
@@ -267,38 +254,42 @@ export function renderChannelPage(channelId, activeTab = 'history') {
 
     // Modal logic (Portal)
     function ensureModal() {
-      let modal = document.getElementById('detail-modal');
-      if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'detail-modal';
-        modal.className = 'fixed inset-0 z-[9999] hidden overflow-y-auto bg-slate-900/30 animate-fade-in py-10 px-4';
-        modal.innerHTML = `
-            <div class="flex min-h-full items-center justify-center">
-               <div class="bg-white/70 dark:bg-slate-900/80 backdrop-blur-2xl w-full max-w-md rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.2),inset_0_0_20px_rgba(255,255,255,0.1)] overflow-hidden animate-scale-up border-2 border-white/60 dark:border-white/10">
-                  <div class="px-8 pt-8 pb-2 flex items-center justify-between">
-                     <div>
-                        <h3 id="modal-date" class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Date Details</h3>
-                        <p class="text-[10px] text-[#96588a] font-bold uppercase tracking-[0.2em] mt-1">Financial Breakdown</p>
-                     </div>
-                     <button id="close-modal" class="w-10 h-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all text-slate-400 text-3xl font-light">&times;</button>
-                  </div>
-                  <div id="modal-content" class="px-8 pb-8 pt-4 space-y-4"></div>
-               </div>
-            </div>
-          `;
-        document.body.appendChild(modal);
+      const existing = document.getElementById('detail-modal');
+      if (existing) existing.remove();
 
-        modal.querySelector('#close-modal').onclick = () => {
+      const modal = document.createElement('div');
+      modal.id = 'detail-modal';
+      modal.className = 'fixed inset-0 z-[10000] hidden flex items-center justify-center p-4 animate-fade-in';
+      
+      // Ghost Glass logic (Minimalist 2026)
+      const glassBg = 'rgba(255, 255, 255, 0.08)'; // Pure Ghost Glass
+
+      modal.innerHTML = `
+          <div class="relative w-full max-w-[500px] rounded-[3rem] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.5)] overflow-hidden animate-fade-in flex flex-col min-h-[400px] max-h-[85vh] bg-white/70 dark:bg-white/[0.04] backdrop-blur-[40px] [transform:translateZ(0)] contain-paint isolation-isolate">
+             <div class="px-10 pt-12 pb-6 flex flex-col items-center relative z-10">
+                <p id="modal-title-prefix" class="text-[9px] font-black text-slate-500 dark:text-white/50 uppercase tracking-[0.5em] mb-1">Financial Report</p>
+                <h3 id="modal-date" class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter text-center">Date Details</h3>
+                <button id="close-modal" class="absolute top-8 right-8 w-9 h-9 rounded-full bg-slate-900/5 dark:bg-white/5 flex items-center justify-center text-rose-500 hover:bg-rose-500 hover:text-white transition-all backdrop-blur-2xl">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+             </div>
+
+             <!-- Modal Body -->
+             <div id="modal-content" class="px-8 pb-10 flex-1 flex flex-col gap-6"></div>
+          </div>
+        `;
+      document.body.appendChild(modal);
+
+      modal.querySelector('#close-modal').onclick = () => {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      };
+      modal.onclick = (e) => {
+        if (e.target.id === 'detail-modal' || e.target.classList.contains('flex')) {
           modal.classList.add('hidden');
           document.body.style.overflow = '';
-        };
-        modal.onclick = (e) => {
-          if (e.target.id === 'detail-modal' || e.target.classList.contains('flex')) {
-            modal.classList.add('hidden');
-            document.body.style.overflow = '';
-          }
-        };
-      }
+        }
+      };
       return modal;
     }
     ensureModal();
@@ -471,23 +462,45 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     btnSave.onclick = async () => {
       if (!currentResults) return;
       const branchId = document.getElementById('db-branch').value;
+      const heroBtn = page.querySelector('#hero-save-btn');
+
+      // Loading State
       btnSave.disabled = true;
-      btnSave.innerText = "Saving to Database...";
+      if (heroBtn) {
+        heroBtn.disabled = true;
+        heroBtn.innerHTML = `<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Saving...`;
+      }
+
       try {
         await saveToDatabase(channelId, branchId, currentResults);
-        btnSave.style.background = "#10b981";
-        btnSave.innerText = "Data Successfully Synced!";
-        // Switch to history tab to show the new data
+
+        // Success State
+        if (window.showToast) window.showToast('Data synced to database successfully!', 'success');
+
+        if (heroBtn) {
+          heroBtn.style.background = "#10b981";
+          heroBtn.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Data Successfully Synced!`;
+          if (window.lucide) window.lucide.createIcons();
+        }
+
+        // Wait a bit then switch tab
         setTimeout(() => {
           btnSave.classList.add('hidden');
-          btnSave.style.background = "";
-          page.querySelector('#tab-history').click();
-          fetchChannelHistory(channelId); // Refresh history
+          if (heroBtn) heroBtn.style.background = "";
+          const historyTab = page.querySelector('#tab-history');
+          if (historyTab) historyTab.click();
+          fetchChannelHistory(channelId);
         }, 1500);
+
       } catch (err) {
-        alert("Error saving: " + err.message);
+        console.error(err);
+        if (window.showToast) window.showToast("Error saving: " + err.message, 'error');
         btnSave.disabled = false;
-        btnSave.innerText = "Try Again";
+        if (heroBtn) {
+          heroBtn.disabled = false;
+          heroBtn.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i> Confirm & Commit Data`;
+          if (window.lucide) window.lucide.createIcons();
+        }
       }
     };
 
@@ -958,97 +971,101 @@ function updateUI(page, dailyResults, channelId) {
 
   const finalDetails = [...deductionList, ...incomeList];
 
+  // Hide upload row if data is found
+  const uploadRow = page.querySelector('#upload-controls-row');
+  if (uploadRow && dates.length > 0) uploadRow.classList.add('hidden');
+
   summaryArea.innerHTML = `
-    <div class="col-span-full grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+    <div class="luxury-card relative bg-white/40 dark:bg-[#141414]/60 rounded-[2.5rem] p-8 mb-8 shadow-2xl backdrop-blur-3xl border-t border-white/60 dark:border-white/10 overflow-hidden animate-fade-in flex flex-col lg:flex-row items-stretch gap-10">
       
-      <!-- LEFT: 2x2 KPI Grid -->
-      <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="chart-card bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl flex flex-col justify-between p-5 border-l-4 border-slate-400">
-          <div class="flex items-center justify-between">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Gross Revenue</p>
-            <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center"><i data-lucide="bar-chart-3" class="w-4 h-4 text-slate-400"></i></div>
-          </div>
-          <div class="mt-4">
-            <h3 class="text-2xl font-black text-slate-800 dark:text-white">${fmt.format(totalGross)}</h3>
-            <p class="text-[10px] text-slate-400 mt-1 font-medium">Total sales before deductions</p>
-          </div>
+      <!-- Left: Net Hero -->
+      <div class="flex-1 w-full py-2">
+        <div class="flex items-center gap-3 mb-6">
+           <div class="w-10 h-10 rounded-full bg-[#96588a] flex items-center justify-center text-white shadow-lg"><i data-lucide="zap" class="w-5 h-5"></i></div>
+           <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Analysis Complete</p>
         </div>
-
-        <div class="chart-card bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl flex flex-col justify-between p-5 border-l-4 border-[#96588a]">
-          <div class="flex items-center justify-between">
-            <p class="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Net Revenue</p>
-            <div class="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center"><i data-lucide="wallet" class="w-4 h-4 text-[#96588a]"></i></div>
-          </div>
-          <div class="mt-4">
-            <h3 class="text-2xl font-black text-slate-800 dark:text-white">${fmt.format(totalNet)}</h3>
-            <p class="text-[10px] text-emerald-500 mt-1 font-bold">Actual amount credited</p>
-          </div>
-        </div>
-
-        <div class="chart-card flex flex-col justify-between p-5 border-l-4 border-blue-400">
-          <div class="flex items-center justify-between">
-            <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Total Orders</p>
-            <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center"><i data-lucide="shopping-bag" class="w-4 h-4 text-blue-400"></i></div>
-          </div>
-          <div class="mt-4">
-            <h3 class="text-2xl font-black text-slate-800 dark:text-white">${totalOrders.toLocaleString()}</h3>
-            <p class="text-[10px] text-slate-400 mt-1 font-medium italic">Verified transaction count</p>
-          </div>
-        </div>
-
-        <div class="chart-card flex flex-col justify-between p-5 border-l-4 border-amber-400">
-          <div class="flex items-center justify-between">
-            <p class="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Days Found</p>
-            <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center"><i data-lucide="calendar-days" class="w-4 h-4 text-amber-500"></i></div>
-          </div>
-          <div class="mt-4">
-            <h3 class="text-2xl font-black text-slate-800 dark:text-white">${dates.length} Days</h3>
-            <p class="text-[10px] text-slate-400 mt-1 font-medium">Distinct dates in uploaded files</p>
-          </div>
+        <h2 class="text-5xl font-black text-slate-900 dark:text-white tracking-tighter">${fmt.format(totalNet)}</h2>
+        <div class="mt-10 flex flex-wrap items-center gap-10">
+           <div class="flex flex-col">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Gross Sales</span>
+              <span class="text-lg font-bold text-slate-700 dark:text-slate-200">${fmt.format(totalGross)}</span>
+           </div>
+           <div class="flex flex-col">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Orders</span>
+              <span class="text-lg font-bold text-slate-700 dark:text-slate-200">${totalOrders.toLocaleString()}</span>
+           </div>
+           <div class="flex flex-col">
+              <span class="text-[9px] font-black text-amber-500 uppercase tracking-widest">Days Found</span>
+              <span class="text-lg font-bold text-amber-600 dark:text-amber-500">${dates.length} Days</span>
+           </div>
         </div>
       </div>
 
-      <!-- RIGHT: Vertical Financial Breakdown -->
-      <div class="chart-card !p-0 overflow-hidden flex flex-col border-l-4 border-rose-400 shadow-xl">
-        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-rose-50/30">
-          <p class="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Financial Breakdown</p>
-        </div>
-        <div class="p-6 flex-1 space-y-4 overflow-auto max-h-[420px]">
-          ${finalDetails.length > 0 ? finalDetails.map(d => `
-            <div class="flex items-center justify-between group">
-              <div class="flex flex-col">
-                <p class="text-xs font-bold text-slate-600 dark:text-slate-300 group-hover:text-purple-500 transition-colors">${d.label}</p>
-                <p class="text-[9px] text-slate-400 uppercase font-medium">${d.type}</p>
-              </div>
-              <p class="text-sm font-bold ${d.color}">${d.type === 'deduction' ? '-' : '+'}${fmt.format(d.val)}</p>
+      <!-- Right: Financial Breakdown (Clean Hub) -->
+      <div class="flex-1 w-full flex flex-col justify-between border-l border-slate-200/50 dark:border-white/5 lg:pl-10">
+         <div>
+            <div class="px-0 py-2 mb-6">
+               <p class="text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Financial Breakdown</p>
             </div>
-          `).join('') : '<p class="text-xs text-slate-400 italic text-center py-10">No items found</p>'}
-          
-          <div class="pt-4 mt-4 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-2">
-            <div class="flex items-center justify-between">
-              <p class="text-[10px] font-bold text-rose-500 uppercase">Total Deductions</p>
-              <p class="text-xs font-bold text-rose-500">-${fmt.format(totalDed)}</p>
+            <div class="space-y-3 px-0">
+               ${finalDetails.length > 0 ? finalDetails.map(d => `
+                 <div class="flex items-center justify-between group py-1.5 border-b border-slate-200/30 dark:border-white/5 last:border-0">
+                   <div class="flex flex-col">
+                     <p class="text-[11px] font-bold text-slate-600 dark:text-slate-300">${d.label}</p>
+                     <p class="text-[8px] text-slate-400 uppercase font-black tracking-tighter">${d.type}</p>
+                   </div>
+                   <p class="text-[11px] font-black ${d.color}">${d.type === 'deduction' ? '-' : '+'}${fmt.format(d.val)}</p>
+                 </div>
+               `).join('') : '<p class="text-xs text-slate-400 italic py-6">No items found</p>'}
             </div>
-            ${totalIncome > 0 ? `
-              <div class="flex items-center justify-between">
-                <p class="text-[10px] font-bold text-emerald-500 uppercase">Total Incomes</p>
-                <p class="text-xs font-bold text-emerald-500">+${fmt.format(totalIncome)}</p>
-              </div>
-            ` : ''}
-            <div class="flex items-center justify-between pt-1">
-              <p class="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">Aggregated Net</p>
-              <p class="text-base font-black text-[#96588a]">${fmt.format(totalNet)}</p>
+         </div>
+         
+         <div class="pt-6 mt-6 border-t border-slate-200 dark:border-white/10 space-y-5">
+            <div class="space-y-2">
+               <div class="flex items-center justify-between">
+                  <p class="text-[10px] font-black text-rose-500 uppercase">Total Deductions</p>
+                  <p class="text-[11px] font-black text-rose-500">-${fmt.format(totalDed)}</p>
+               </div>
+               ${totalIncome > 0 ? `
+               <div class="flex items-center justify-between">
+                  <p class="text-[10px] font-black text-emerald-500 uppercase">Total Incomes</p>
+                  <p class="text-[11px] font-black text-emerald-500">+${fmt.format(totalIncome)}</p>
+               </div>` : ''}
+               <div class="flex items-center justify-between pt-1">
+                  <p class="text-[11px] font-black text-slate-800 dark:text-white uppercase tracking-tighter">Aggregated Net</p>
+                  <p class="text-xl font-black text-[#96588a]">${fmt.format(totalNet)}</p>
+               </div>
             </div>
-          </div>
-        </div>
+
+            <!-- Integrated Save Button -->
+            <button id="hero-save-btn" class="w-full h-14 rounded-2xl text-[12px] font-black uppercase tracking-[0.2em] text-white transition-all shadow-xl hover:shadow-[#96588a]/30 active:scale-95 flex items-center justify-center gap-3" style="background: linear-gradient(135deg, #96588a 0%, #4c2d46 100%);">
+               <i data-lucide="check-circle" class="w-5 h-5"></i> Confirm & Commit Data
+            </button>
+         </div>
       </div>
 
     </div>
   `;
 
+  // Re-attach save logic to the new hero button
+  const heroSaveBtn = summaryArea.querySelector('#hero-save-btn');
+  const originalSaveBtn = page.querySelector('#btn-save'); // This might be a hidden placeholder now
+
+  if (heroSaveBtn) {
+    heroSaveBtn.onclick = () => {
+      // Trigger the existing save logic by dispatching click to the original (hidden) button 
+      // OR manually trigger handleSave if available. 
+      // For safety, we'll try to find the event listener or just re-bind the logic.
+      // Assuming handleSave is accessible or we can just click the hidden one:
+      const realBtn = document.getElementById('btn-save');
+      if (realBtn) realBtn.click();
+    };
+  }
+
   breakdownArea.classList.add('hidden');
   if (window.lucide) window.lucide.createIcons();
 }
+
 
 
 const ACCENT_COLORS = {
@@ -1093,17 +1110,12 @@ function updateSummary(items, channelId, page) {
       <div class="relative z-10 flex flex-col h-full">
         <div class="flex justify-between items-start">
           <div>
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Revenue</p>
+            <p class="text-[10px] font-black text-slate-400 dark:text-white/70 uppercase tracking-widest mb-1">Net Revenue</p>
             <h3 id="summary-net" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${netVal}</h3>
           </div>
-          <div class="p-2 w-10 h-10 rounded-2xl bg-white/50 dark:bg-slate-800/50 flex items-center justify-center shadow-sm">
+          <div class="p-2 w-10 h-10 rounded-full bg-white/50 dark:bg-white/90 flex items-center justify-center shadow-sm">
             <i data-lucide="trending-up" class="w-5 h-5" style="color: ${accent}"></i>
           </div>
-        </div>
-        
-        <div class="mt-auto pt-6 flex items-center gap-2">
-          <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 text-[9px] font-black tracking-tight">STABLE</span>
-          <span class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Live Performance</span>
         </div>
       </div>
       
@@ -1116,25 +1128,25 @@ function updateSummary(items, channelId, page) {
 
     <div class="channel-card-premium">
        <div class="relative z-10">
-          <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Order Volume</p>
+          <p class="text-[10px] font-black text-slate-400 dark:text-white/70 uppercase tracking-widest mb-1">Order Volume</p>
           <h3 id="summary-orders" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${ordersVal}</h3>
-          <p class="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Total Orders Handled</p>
+          <p class="text-[9px] text-slate-400 dark:text-white/70 font-bold mt-2 uppercase tracking-widest">Total Orders Handled</p>
        </div>
     </div>
 
     <div class="channel-card-premium">
        <div class="relative z-10">
-          <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Average Order</p>
+          <p class="text-[10px] font-black text-slate-400 dark:text-white/70 uppercase tracking-widest mb-1">Average Order</p>
           <h3 id="summary-avg" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${avgVal}</h3>
-          <p class="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Revenue Per Order</p>
+          <p class="text-[9px] text-slate-400 dark:text-white/70 font-bold mt-2 uppercase tracking-widest">Revenue Per Order</p>
        </div>
     </div>
 
     <div class="channel-card-premium">
        <div class="relative z-10">
-          <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Deduction</p>
+          <p class="text-[10px] font-black text-slate-400 dark:text-white/70 uppercase tracking-widest mb-1">Total Deduction</p>
           <h3 id="summary-ded" class="text-2xl font-black text-rose-500 tracking-tighter transition-all duration-300">${dedVal}</h3>
-          <p class="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Platform Fees & Costs</p>
+          <p class="text-[9px] text-slate-400 dark:text-white/70 font-bold mt-2 uppercase tracking-widest">Platform Fees & Costs</p>
        </div>
     </div>
   `;
@@ -1163,21 +1175,13 @@ function updateSummary(items, channelId, page) {
 async function fetchChannelHistory(channelId) {
   const branchId = document.getElementById('db-branch')?.value || 'Pioneer Center';
   const rangeStr = document.getElementById('db-date-range')?.value || '';
-  const localFrom = document.getElementById('channel-from')?.value || '';
-  const localTo = document.getElementById('channel-to')?.value || '';
   const searchText = (document.getElementById('channel-search')?.value || '').trim().toLowerCase();
 
   let fromDate = '', toDate = '';
-  // Local (table-level) date filter takes precedence.
-  if (localFrom || localTo) {
-    fromDate = localFrom || localTo;
-    toDate = localTo || localFrom;
-  } else {
-    if (rangeStr.includes(' to ')) {
-      [fromDate, toDate] = rangeStr.split(' to ');
-    } else if (rangeStr) {
-      fromDate = toDate = rangeStr;
-    }
+  if (rangeStr.includes(' to ')) {
+    [fromDate, toDate] = rangeStr.split(' to ');
+  } else if (rangeStr) {
+    fromDate = toDate = rangeStr;
   }
 
   const tableBody = document.getElementById('history-table-body');
@@ -1241,21 +1245,23 @@ async function fetchChannelHistory(channelId) {
       totalDeductions += data.financials.totalDeductions;
 
       listHtml += `
-        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group history-row" data-id="${docId}">
-          <td class="px-6 py-4 text-[11px] font-bold text-slate-700 dark:text-slate-300">${data.date}</td>
-          <td class="px-6 py-4 text-[11px] font-bold text-slate-500 text-center">${data.orders.toLocaleString()}</td>
-          <td class="px-6 py-4 text-[11px] font-bold text-slate-700 dark:text-white">${fmt.format(data.financials.gross)}</td>
-          <td class="px-6 py-4 text-[11px] font-bold text-rose-500">-${fmt.format(data.financials.totalDeductions)}</td>
-          <td class="px-6 py-4 text-[11px] font-black text-[#96588a]">${fmt.format(data.financials.net)}</td>
-          <td class="px-6 py-4 text-right">
-            <div class="flex items-center justify-end gap-2">
-              <button class="channel-view-btn p-1.5 rounded-lg hover:bg-white hover:shadow-md transition-all opacity-0 group-hover:opacity-100" title="View Detail">
+        <tr class="hover:bg-white/10 dark:hover:bg-white/5 transition-all group history-row cursor-pointer" data-id="${docId}">
+          <td class="px-6 py-5 text-[11px] font-bold text-slate-700 dark:text-slate-300">${data.date}</td>
+          <td class="px-6 py-5 text-[11px] font-bold text-slate-500 text-center">
+            <span class="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400">${data.orders.toLocaleString()}</span>
+          </td>
+          <td class="px-6 py-5 text-[11px] font-bold text-slate-700 dark:text-white/80">${fmt.format(data.financials.gross)}</td>
+          <td class="px-6 py-5 text-[11px] font-bold text-rose-500">-${fmt.format(data.financials.totalDeductions)}</td>
+          <td class="px-6 py-5 text-[11px] font-black text-[#96588a] dark:text-white">${fmt.format(data.financials.net)}</td>
+          <td class="px-6 py-5 text-right">
+            <div class="flex items-center justify-end gap-2.5">
+              <button class="channel-view-btn w-8 h-8 flex items-center justify-center rounded-full hover:bg-white dark:hover:bg-white/10 hover:shadow-md transition-all opacity-0 group-hover:opacity-100" title="View Detail">
                 <i data-lucide="eye" class="w-3.5 h-3.5 text-slate-400"></i>
               </button>
-              <button class="channel-edit-btn p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all opacity-0 group-hover:opacity-100 shadow-sm" title="Edit Entry">
+              <button class="channel-edit-btn w-8 h-8 flex items-center justify-center rounded-full bg-indigo-50/50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 dark:hover:bg-indigo-500 hover:text-white transition-all opacity-0 group-hover:opacity-100" title="Edit Entry">
                 <i data-lucide="pencil" class="w-3 h-3"></i>
               </button>
-              <button class="channel-delete-btn p-1.5 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 shadow-sm" title="Delete Entry">
+              <button class="channel-delete-btn w-8 h-8 flex items-center justify-center rounded-full bg-rose-50/50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover:opacity-100" title="Delete Entry">
                 <i data-lucide="trash-2" class="w-3 h-3"></i>
               </button>
             </div>
@@ -1365,24 +1371,29 @@ function showDayDetail(item, channelLabel) {
   const fmt = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 
   modalDate.innerText = `${channelLabel} - ${item.date}`;
-  modal.classList.remove('hidden');
-  document.body.style.overflow = 'hidden'; // Prevent background scroll
+  document.body.style.overflow = 'hidden'; 
 
   let html = `
-    <div class="space-y-4">
-      <div class="p-4 bg-white/20 dark:bg-white/5 backdrop-blur-xl rounded-3xl border border-white/40 dark:border-white/10 flex items-center justify-between">
-         <div>
-            <p class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-widest">Gross Revenue</p>
-            <p class="text-lg font-black text-slate-800 dark:text-white mt-0.5">${fmt.format(item.financials.gross)}</p>
+    <div class="space-y-4 animate-fade-in [transform:translateZ(0)]">
+      <!-- Revenue Hub: Merged Gross & Net -->
+      <div class="p-8 bg-slate-900/[0.03] dark:bg-white/[0.05] backdrop-blur-[40px] rounded-[2.5rem] flex items-center justify-between relative overflow-hidden group">
+         <div class="flex-1 border-r border-slate-900/5 dark:border-white/5 pr-6">
+            <p class="text-[9px] font-black text-slate-500 dark:text-white/40 uppercase tracking-[0.4em] mb-1 text-center">Gross Sale</p>
+            <p class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter text-center">${fmt.format(item.financials.gross)}</p>
          </div>
-         <div class="w-10 h-10 rounded-xl bg-white/40 dark:bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/50">
-            <i data-lucide="trending-up" class="w-5 h-5 text-emerald-500"></i>
+         <div class="flex-1 pl-6 pr-6">
+            <p class="text-[9px] font-black text-slate-500 dark:text-white/40 uppercase tracking-[0.4em] mb-1 text-center">Net Revenue</p>
+            <p class="text-2xl font-black text-emerald-500 dark:text-emerald-400 tracking-tighter text-center">${fmt.format(item.financials.net)}</p>
          </div>
       </div>
 
-      <div class="space-y-2">
-         <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2 border-l-2 border-[#96588a]">Deductions</p>
-         <div class="space-y-0.5">
+      <!-- Breakdown List -->
+      <div class="px-2 pt-2">
+         <div class="flex items-center justify-between mb-4 px-2">
+            <p class="text-[9px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.4em]">Detail Analysis</p>
+            <div class="h-px flex-1 bg-slate-900/5 dark:bg-white/5 ml-6"></div>
+         </div>
+         <div class="space-y-1">
   `;
 
   const labelsMap = {
@@ -1410,9 +1421,9 @@ function showDayDetail(item, channelLabel) {
     for (const [key, val] of Object.entries(item.breakdown.deductions)) {
       if (val === 0 && key !== 'invoiceDiscount' && key !== 'discount100') continue;
       html += `
-          <div class="flex items-center justify-between px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors rounded-xl">
-            <p class="text-xs font-bold text-slate-600 dark:text-slate-400 leading-tight pr-4">${labelsMap[key] || key}</p>
-            <p class="text-[13px] font-black text-rose-500 whitespace-nowrap">-${fmt.format(val)}</p>
+          <div class="flex items-center justify-between px-6 py-2.5 hover:bg-slate-900/[0.03] dark:hover:bg-white/[0.03] transition-all rounded-2xl group">
+            <p class="text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-widest leading-tight">${labelsMap[key] || key}</p>
+            <p class="text-[12px] font-black text-rose-600 dark:text-rose-500 tracking-tight">-${fmt.format(val)}</p>
           </div>
         `;
     }
@@ -1422,9 +1433,9 @@ function showDayDetail(item, channelLabel) {
     for (const [key, val] of Object.entries(item.breakdown.incomes)) {
       if (val === 0) continue;
       html += `
-         <div class="flex items-center justify-between px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors rounded-xl">
-           <p class="text-xs font-bold text-slate-600 dark:text-slate-400 leading-tight pr-4">${labelsMap[key] || key}</p>
-           <p class="text-[13px] font-black text-emerald-500 whitespace-nowrap">+${fmt.format(val)}</p>
+         <div class="flex items-center justify-between px-6 py-2.5 hover:bg-slate-900/[0.03] dark:hover:bg-white/[0.03] transition-all rounded-2xl group">
+           <p class="text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-widest leading-tight">${labelsMap[key] || key}</p>
+           <p class="text-[12px] font-black text-emerald-600 dark:text-emerald-400 tracking-tight">+${fmt.format(val)}</p>
          </div>
        `;
     }
@@ -1433,32 +1444,22 @@ function showDayDetail(item, channelLabel) {
   html += `
          </div>
       </div>
-      
-      <div class="p-5 bg-[#96588a]/90 backdrop-blur-xl rounded-3xl border border-white/20 mt-4 shadow-lg shadow-purple-500/5">
-         <div class="flex items-center justify-between">
-            <div>
-               <p class="text-[10px] font-bold text-purple-50 uppercase tracking-widest">Net Revenue</p>
-               <p class="text-xl font-black text-white mt-0.5">${fmt.format(item.financials.net)}</p>
-            </div>
-            <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20">
-               <i data-lucide="wallet" class="w-5 h-5 text-white"></i>
-            </div>
-         </div>
-      </div>
     </div>
   `;
 
   modalContent.innerHTML = html;
-  if (window.lucide) window.lucide.createIcons();
+  
+  // Show modal AFTER content is ready to prevent flickering
+  modal.classList.remove('hidden');
 }
 
 
-  async function showManualEntryModal() {
-    const branchId = document.getElementById('db-branch')?.value || 'Ayala Cloverleaf';
-    
-    const ov = document.createElement('div');
-    ov.className = 'fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
-    ov.innerHTML = `
+async function showManualEntryModal() {
+  const branchId = document.getElementById('db-branch')?.value || 'Ayala Cloverleaf';
+
+  const ov = document.createElement('div');
+  ov.className = 'fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+  ov.innerHTML = `
       <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-scale-up">
         <div class="px-8 pt-8 pb-4 flex items-center justify-between">
            <div>
@@ -1505,76 +1506,76 @@ function showDayDetail(item, channelLabel) {
       </div>
     `;
 
-    document.body.appendChild(ov);
+  document.body.appendChild(ov);
 
-    const inputs = ov.querySelectorAll('input[type="number"]');
-    const grossDisplay = ov.querySelector('#m-gross-display');
-    const updateGross = () => {
-      const net = parseFloat(ov.querySelector('#m-net').value) || 0;
-      const disc = parseFloat(ov.querySelector('#m-discount').value) || 0;
-      const tax = parseFloat(ov.querySelector('#m-tax').value) || 0;
-      const gross = net + disc + tax;
-      grossDisplay.textContent = '₱' + gross.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return gross;
-    };
-    inputs.forEach(i => i.oninput = updateGross);
+  const inputs = ov.querySelectorAll('input[type="number"]');
+  const grossDisplay = ov.querySelector('#m-gross-display');
+  const updateGross = () => {
+    const net = parseFloat(ov.querySelector('#m-net').value) || 0;
+    const disc = parseFloat(ov.querySelector('#m-discount').value) || 0;
+    const tax = parseFloat(ov.querySelector('#m-tax').value) || 0;
+    const gross = net + disc + tax;
+    grossDisplay.textContent = '₱' + gross.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return gross;
+  };
+  inputs.forEach(i => i.oninput = updateGross);
 
-    ov.querySelector('#close-manual').onclick = () => ov.remove();
+  ov.querySelector('#close-manual').onclick = () => ov.remove();
 
-    ov.querySelector('#btn-m-save').onclick = async () => {
-      const date = ov.querySelector('#m-date').value;
-      const orders = parseInt(ov.querySelector('#m-orders').value) || 0;
-      const net = parseFloat(ov.querySelector('#m-net').value) || 0;
-      const disc = parseFloat(ov.querySelector('#m-discount').value) || 0;
-      const tax = parseFloat(ov.querySelector('#m-tax').value) || 0;
-      const gross = net + disc + tax;
+  ov.querySelector('#btn-m-save').onclick = async () => {
+    const date = ov.querySelector('#m-date').value;
+    const orders = parseInt(ov.querySelector('#m-orders').value) || 0;
+    const net = parseFloat(ov.querySelector('#m-net').value) || 0;
+    const disc = parseFloat(ov.querySelector('#m-discount').value) || 0;
+    const tax = parseFloat(ov.querySelector('#m-tax').value) || 0;
+    const gross = net + disc + tax;
 
-      if (!date) { window.showToast('Select a date', 'error'); return; }
+    if (!date) { window.showToast('Select a date', 'error'); return; }
 
-      const btn = ov.querySelector('#btn-m-save');
-      btn.disabled = true;
-      btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>';
+    const btn = ov.querySelector('#btn-m-save');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>';
 
-      try {
-        const dataToSave = {
-          branchId: branchId,
-          channelId: 'dinein',
-          date: date,
-          orders: orders,
-          financials: {
-            gross: gross,
-            net: net,
-            totalDeductions: disc + tax
-          },
-          breakdown: {
-            deductions: {
-              discount: disc,
-              tax: tax
-            }
-          },
-          updatedAt: serverTimestamp()
-        };
+    try {
+      const dataToSave = {
+        branchId: branchId,
+        channelId: 'dinein',
+        date: date,
+        orders: orders,
+        financials: {
+          gross: gross,
+          net: net,
+          totalDeductions: disc + tax
+        },
+        breakdown: {
+          deductions: {
+            discount: disc,
+            tax: tax
+          }
+        },
+        updatedAt: serverTimestamp()
+      };
 
-        const docId = `sales_${branchId}_dinein_${date}`;
-        await setDoc(doc(db, "daily_sales", docId), dataToSave);
-        
-        btn.style.backgroundColor = '#10b981';
-        btn.innerHTML = 'SUCCESS';
-        window.showToast('Data saved successfully!', 'success');
-        
-        setTimeout(() => {
-          ov.remove();
-          fetchChannelHistory('dinein');
-        }, 1000);
-      } catch (err) {
-        console.error(err);
-        window.showToast('Save failed: ' + err.message, 'error');
-        btn.disabled = false;
-        btn.style.backgroundColor = '#96588a';
-        btn.innerHTML = 'Save Manual Entry';
-      }
-    };
-  }
+      const docId = `sales_${branchId}_dinein_${date}`;
+      await setDoc(doc(db, "daily_sales", docId), dataToSave);
+
+      btn.style.backgroundColor = '#10b981';
+      btn.innerHTML = 'SUCCESS';
+      window.showToast('Data saved successfully!', 'success');
+
+      setTimeout(() => {
+        ov.remove();
+        fetchChannelHistory('dinein');
+      }, 1000);
+    } catch (err) {
+      console.error(err);
+      window.showToast('Save failed: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.style.backgroundColor = '#96588a';
+      btn.innerHTML = 'Save Manual Entry';
+    }
+  };
+}
 
 function renderPreviewTable(data, container, fileName) {
   container.className = 'chart-card md:col-span-2 flex flex-col h-full overflow-hidden p-0';
@@ -1599,40 +1600,43 @@ function renderPreviewTable(data, container, fileName) {
 
 function showChannelEditModal(item, channelId) {
   const ov = document.createElement('div');
-  ov.className = 'fixed inset-0 bg-slate-900/60 z-[10001] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in';
+  ov.className = 'fixed inset-0 z-[10001] flex items-center justify-center p-4 animate-fade-in [transform:translateZ(0)]';
   ov.innerHTML = `
-    <div class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] max-w-md w-full space-y-6 animate-scale-up shadow-2xl border border-white/20">
-      <div class="flex items-center justify-between">
-         <h3 class="text-xl font-black uppercase tracking-tighter">Edit Sales Record</h3>
-         <button id="close-channel-edit" class="text-slate-400 hover:text-slate-600 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+    <div class="relative w-full max-w-[600px] rounded-[3rem] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.5)] overflow-hidden animate-fade-in flex flex-col bg-white/70 dark:bg-white/[0.04] backdrop-blur-[40px] [transform:translateZ(0)] contain-paint isolation-isolate">
+      <div class="px-10 pt-12 pb-6 flex flex-col items-center relative z-10 text-center">
+         <p class="text-[9px] font-black text-slate-500 dark:text-white/40 uppercase tracking-[0.5em] mb-1">Database Management</p>
+         <h3 class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Edit Sales Record</h3>
+         <button id="close-channel-edit" class="absolute top-8 right-8 w-9 h-9 rounded-full bg-slate-900/5 dark:bg-white/5 flex items-center justify-center text-rose-500 hover:bg-rose-500 hover:text-white transition-all backdrop-blur-2xl">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+         </button>
       </div>
       
-      <div class="space-y-4">
-         <div class="space-y-1">
-            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Date (Read-only)</label>
-            <input type="text" class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold opacity-60" value="${item.date}" disabled>
+      <div class="px-10 pb-10 space-y-6 relative z-10">
+         <div class="grid grid-cols-2 gap-x-8 gap-y-5">
+            <div class="space-y-1">
+               <label class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest ml-1">Date (Read-only)</label>
+               <input type="text" class="w-full bg-slate-900/5 dark:bg-white/[0.05] border-none rounded-2xl px-5 py-4 text-xs font-bold text-slate-400 dark:text-white/30" value="${item.date}" disabled>
+            </div>
+            <div class="space-y-1">
+               <label class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest ml-1">Orders Count</label>
+               <input type="number" id="edit-ch-orders" class="w-full bg-slate-900/5 dark:bg-white/[0.05] border-none rounded-2xl px-5 py-4 text-xs font-bold text-slate-800 dark:text-white" value="${item.orders}">
+            </div>
+            <div class="space-y-1">
+               <label class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest ml-1">Gross Revenue (PHP)</label>
+               <input type="number" id="edit-ch-gross" class="w-full bg-slate-900/5 dark:bg-white/[0.05] border-none rounded-2xl px-5 py-4 text-xs font-bold text-slate-800 dark:text-white" value="${item.financials.gross}">
+            </div>
+            <div class="space-y-1">
+               <label class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest ml-1">Total Deductions (PHP)</label>
+               <input type="number" id="edit-ch-deductions" class="w-full bg-slate-900/5 dark:bg-white/[0.05] border-none rounded-2xl px-5 py-4 text-xs font-bold text-rose-600 dark:text-rose-500" value="${item.financials.totalDeductions}">
+            </div>
          </div>
-         <div class="space-y-1">
-            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Orders Count</label>
-            <input type="number" id="edit-ch-orders" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold" value="${item.orders}">
-         </div>
-         <div class="space-y-1">
-            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Gross Revenue (PHP)</label>
-            <input type="number" id="edit-ch-gross" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold" value="${item.financials.gross}">
-         </div>
-         <div class="space-y-1">
-            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Total Deductions (PHP)</label>
-            <input type="number" id="edit-ch-deductions" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold" value="${item.financials.totalDeductions}">
+
+         <div class="pt-4 flex justify-center">
+            <button id="save-channel-edit-btn" class="w-full h-14 bg-white text-[#141414] rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-xl hover:bg-white/90 active:scale-95 flex items-center justify-center gap-3">
+               Update Database Record
+            </button>
          </div>
       </div>
-
-      <p class="text-[10px] text-amber-600 font-bold bg-amber-50 dark:bg-amber-900/20 p-3 rounded-xl italic">
-        Note: Net revenue will be recalculated automatically based on Gross and Deductions.
-      </p>
-
-      <button id="save-channel-edit-btn" class="w-full py-4 bg-[#96588a] text-white rounded-xl font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-lg hover:shadow-[#96588a]/30">
-         Update Record
-      </button>
     </div>
   `;
   document.body.appendChild(ov);
