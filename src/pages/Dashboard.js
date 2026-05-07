@@ -512,11 +512,11 @@ function updateCharts(docs) {
   });
 
   const dates = Object.keys(dailyData).sort();
-  
+
   // Build Datasets for each Channel
   const mainCtx = document.getElementById('chart-main');
   let datasets = [];
-  
+
   if (mainCtx) {
     const ctx = mainCtx.getContext('2d');
     datasets = Object.entries(CHANNELS).map(([id, cfg]) => {
@@ -553,9 +553,9 @@ function updateCharts(docs) {
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
-        plugins: { 
-          legend: { 
-            display: true, 
+        plugins: {
+          legend: {
+            display: true,
             position: 'top',
             align: 'end',
             labels: {
@@ -583,17 +583,17 @@ function updateCharts(docs) {
           }
         },
         scales: {
-          x: { 
-            grid: { display: false }, 
-            ticks: { color: lblColor, font: { family: 'Plus Jakarta Sans', size: 10 } } 
+          x: {
+            grid: { display: false },
+            ticks: { color: lblColor, font: { family: 'Plus Jakarta Sans', size: 10 } }
           },
-          y: { 
-            grid: { color: gridColor, drawBorder: false }, 
-            ticks: { 
-              color: lblColor, 
+          y: {
+            grid: { color: gridColor, drawBorder: false },
+            ticks: {
+              color: lblColor,
               font: { family: 'Plus Jakarta Sans', size: 10 },
-              callback: v => '₱' + (v / 1000).toFixed(0) + 'K' 
-            } 
+              callback: v => '₱' + (v / 1000).toFixed(0) + 'K'
+            }
           },
         },
       },

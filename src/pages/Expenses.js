@@ -151,142 +151,176 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          <!-- TOP ROW: Action & Status -->
          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             
-            <!-- Form Center (2/3) -->
-            <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-800 h-full flex flex-col justify-between min-h-[420px]">
-               <div class="flex items-center gap-3 mb-6">
-                  <div class="w-10 h-10 bg-[#96588a]/10 rounded-2xl flex items-center justify-center text-[#96588a]">
-                     <i data-lucide="plus-circle" class="w-5 h-5"></i>
-                  </div>
-                  <h4 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Add Transaction</h4>
-               </div>
+            <!-- Form Center (2/3): Luxury Command Center -->
+             <div class="lg:col-span-2 luxury-card relative bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-8 shadow-2xl border-t border-white/60 dark:border-white/10 group overflow-hidden h-full flex flex-col justify-between min-h-[420px]">
+                <div class="luxury-shine"></div>
+                <div class="channel-card-accent" style="background-color: #96588a; opacity: 0.1; transform: scale(2); filter: blur(80px); top: -10%; left: -5%;"></div>
 
-               <form id="expense-form" class="flex-1 flex flex-col justify-between space-y-6">
-                  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-9 gap-4">
-                     <div class="lg:col-span-2 space-y-1.5">
-                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
-                        <select id="exp-category" required class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-                           <option value="">Select Category</option>
-                           ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
-                        </select>
-                     </div>
-                     <div class="lg:col-span-2 space-y-1.5">
-                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount</label>
-                        <div class="relative">
-                           <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₱</span>
-                           <input type="number" id="exp-amount" required step="0.01" placeholder="0.00" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl pl-8 pr-4 py-3 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
-                        </div>
-                     </div>
-                     <div class="lg:col-span-2 space-y-1.5">
-                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Purpose</label>
-                        <select id="exp-purpose" required class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-                           <option value="">Select Purpose</option>
-                           ${purposes.map(p => `<option value="${p}">${p}</option>`).join('')}
-                        </select>
-                     </div>
-                     <div id="exp-subcategory-wrap" class="space-y-1.5 hidden">
-                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sub Category</label>
-                        <select id="exp-subcategory" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-                           <option value="">Select Sub Category</option>
-                        </select>
-                     </div>
-                     <div class="lg:col-span-2 space-y-1.5">
-                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
-                        <input type="date" id="exp-date" required value="${new Date().toISOString().split('T')[0]}" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-                     </div>
-                  </div>
+                <div class="relative z-10 flex items-center gap-3 mb-8">
+                   <div class="w-10 h-10 bg-[#96588a]/20 rounded-2xl flex items-center justify-center text-[#96588a] shadow-lg shadow-[#96588a]/20">
+                      <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                   </div>
+                   <h4 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Add Transaction</h4>
+                </div>
 
-                  <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                     <div class="lg:col-span-2 space-y-1.5">
-                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Detail Description</label>
-                        <input type="text" id="exp-desc" required placeholder="Describe the expense..." class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
-                     </div>
-                     <div class="lg:col-span-1 space-y-1.5">
-                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice No. (Optional)</label>
-                        <input type="text" id="exp-invoice" placeholder="e.g. INV-2026-001" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all uppercase">
-                     </div>
-                     <div class="lg:col-span-1 space-y-1.5">
-                        <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Attachment</label>
-                        <input type="file" id="exp-file" class="hidden" accept="image/*">
-                        <div id="file-dropzone" class="border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl px-4 py-2.5 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all cursor-pointer relative overflow-hidden group">
-                           <div id="file-preview" class="hidden absolute inset-0 bg-white dark:bg-slate-900 z-10 flex items-center justify-center">
-                              <img src="" class="h-full w-auto object-contain">
-                              <button type="button" id="remove-file" class="absolute top-1 right-1 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg"><i data-lucide="x" class="w-3 h-3"></i></button>
-                           </div>
-                           <i data-lucide="camera" class="w-4 h-4 text-slate-400"></i>
-                           <span class="text-[9px] font-black text-slate-400 uppercase">Attach</span>
-                        </div>
-                     </div>
-                  </div>
+                <form id="expense-form" class="relative z-10 flex-1 flex flex-col justify-between gap-8">
+                   <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                      
+                      <!-- Left Column: Classification -->
+                      <div class="space-y-5">
+                         <div class="space-y-1.5">
+                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
+                            <select id="exp-category" required class="w-full bg-white/20 dark:bg-[#141414] dark:text-white/80 rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
+                               <option value="">Select Category</option>
+                               ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+                            </select>
+                         </div>
+                         <div class="space-y-1.5">
+                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Purpose</label>
+                            <select id="exp-purpose" required class="w-full bg-white/20 dark:bg-[#141414] text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
+                               <option value="">Select Purpose</option>
+                               ${purposes.map(p => `<option value="${p}">${p}</option>`).join('')}
+                            </select>
+                         </div>
+                         <div id="exp-subcategory-wrap" class="space-y-1.5 hidden">
+                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sub Category</label>
+                            <select id="exp-subcategory" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
+                               <option value="">Select Sub Category</option>
+                            </select>
+                         </div>
+                         <div class="space-y-1.5">
+                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Detail Description</label>
+                            <textarea id="exp-desc" required placeholder="Describe the expense..." rows="2" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all resize-none"></textarea>
+                         </div>
+                      </div>
 
-                  <button type="submit" id="save-exp-btn" class="w-full py-5 bg-slate-900 dark:bg-white dark:text-slate-900 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-xl hover:scale-[1.01] active:scale-95">
-                     Save Transaction to Batch
-                  </button>
-               </form>
-            </div>
+                      <!-- Right Column: Financials & Evidence -->
+                      <div class="space-y-5">
+                         <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                               <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount</label>
+                               <div class="relative">
+                                  <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/60 font-bold text-xs">₱</span>
+                                  <input type="number" id="exp-amount" required step="0.01" placeholder="0.00" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl pl-8 pr-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
+                               </div>
+                            </div>
+                            <div class="space-y-1.5">
+                               <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
+                               <input type="date" id="exp-date" required value="${new Date().toISOString().split('T')[0]}" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
+                            </div>
+                         </div>
+                         <div class="space-y-1.5">
+                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice No. (Optional)</label>
+                            <input type="text" id="exp-invoice" placeholder="e.g. INV-2026-001" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all uppercase">
+                         </div>
+                         <div class="space-y-1.5">
+                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Attachment</label>
+                            <input type="file" id="exp-file" class="hidden" accept="image/*">
+                            <div id="file-dropzone" class="border-2 border-dashed border-white/20 dark:border-white/10 rounded-2xl px-4 py-3.5 flex flex-row items-center justify-center gap-3 hover:bg-[#96588a]/5 hover:border-[#96588a]/40 transition-all cursor-pointer relative overflow-hidden group/zone">
+                               <div id="file-preview" class="hidden absolute inset-0 bg-white dark:bg-slate-900 z-10 flex items-center justify-center">
+                                  <img src="" class="h-full w-auto object-contain">
+                                  <button type="button" id="remove-file" class="absolute top-2 right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                               </div>
+                               <div class="w-8 h-8 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center text-slate-400 group-hover/zone:text-[#96588a] transition-colors">
+                                  <i data-lucide="camera" class="w-4 h-4"></i>
+                                </div>
+                               <span class="text-[9px] font-black text-slate-400 group-hover/zone:text-[#96588a] uppercase tracking-widest">Attach Receipt</span>
+                            </div>
+                         </div>
+                      </div>
+                   </div>
+
+                   <button type="submit" id="save-exp-btn" class="w-full py-5 bg-gradient-to-r from-[#96588a] to-[#7a4671] text-white rounded-2xl font-black uppercase tracking-[0.3em] text-[10px] transition-all shadow-xl shadow-[#96588a]/20 hover:shadow-[#96588a]/40 hover:-translate-y-0.5 active:scale-95">
+                      Confirm & Save Transaction
+                   </button>
+                </form>
+             </div>
 
             <!-- RIGHT COLUMN: Dual Card Stack (1/3) -->
             <div class="lg:col-span-1 flex flex-col gap-4">
                <!-- ATM Card: Deep Onyx Glassmorphism -->
                <div class="relative group aspect-[1.58/1] cursor-pointer">
-                  <div class="relative h-full bg-gradient-to-br from-black via-slate-900/90 to-black backdrop-blur-3xl rounded-[2.5rem] p-8 text-white overflow-hidden flex flex-col justify-between border border-white/5 group-hover:border-white/20 transition-all duration-500 group-hover:scale-[1.02] shadow-inner">
-                     <!-- Minimal Glow -->
-                     <div class="absolute -top-24 -left-24 w-80 h-80 bg-[#96588a]/10 rounded-full blur-[120px] group-hover:bg-[#96588a]/15 transition-all duration-700"></div>
+                  <div class="relative h-full bg-gradient-to-br from-[#050505] via-[#0a0a0a] to-black backdrop-blur-3xl rounded-[2.5rem] p-8 text-white overflow-hidden flex flex-col justify-between border border-white/[0.03] group-hover:border-white/10 transition-all duration-700 group-hover:scale-[1.03] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                     <!-- Concentrated Powerful Glow (Top-Left Only) -->
+                     <div class="absolute -top-40 -left-40 w-[30rem] h-[30rem] bg-[#96588a]/30 rounded-full blur-[110px] group-hover:bg-[#96588a]/40 transition-all duration-700 animate-pulse"></div>
                      
                      <div class="flex justify-between items-start relative z-10">
-                        <!-- Chip: Dark Metallic Look -->
-                        <div class="w-12 h-9 bg-gradient-to-br from-slate-400 via-slate-600 to-slate-500 rounded-lg relative overflow-hidden shadow-inner opacity-80">
-                           <div class="absolute inset-x-0 top-1/2 h-px bg-black/40"></div>
-                           <div class="absolute inset-y-0 left-1/2 w-px bg-black/40"></div>
+                        <div class="flex flex-col gap-4">
+                           <!-- Chip: Polished Gold -->
+                           <div class="w-12 h-9 bg-gradient-to-br from-yellow-200 via-yellow-600 to-yellow-400 rounded-lg relative overflow-hidden shadow-2xl border border-yellow-300/30">
+                              <div class="absolute inset-x-0 top-1/2 h-px bg-black/30"></div>
+                              <div class="absolute inset-y-0 left-1/4 w-px bg-black/30"></div>
+                              <div class="absolute inset-y-0 left-2/4 w-px bg-black/30"></div>
+                              <div class="absolute inset-y-0 left-3/4 w-px bg-black/30"></div>
+                           </div>
+                           <!-- Contactless Icon -->
+                           <div class="text-white/30 group-hover:text-white/60 transition-colors">
+                              <i data-lucide="rss" class="w-5 h-5 rotate-90"></i>
+                           </div>
                         </div>
                         <div class="text-right">
-                           <div class="flex items-center gap-1 justify-end opacity-60 group-hover:opacity-100 transition-opacity">
-                              <div class="w-6 h-6 border-2 border-white/20 rounded-full"></div>
-                              <div class="w-6 h-6 bg-white/20 rounded-full -ml-3 backdrop-blur-md"></div>
+                           <div class="flex items-center gap-1 justify-end">
+                              <div class="w-8 h-8 border-2 border-white/10 rounded-full"></div>
+                              <div class="w-8 h-8 bg-white/5 rounded-full -ml-4 backdrop-blur-md border border-white/10"></div>
                            </div>
-                           <p class="text-[7px] font-black tracking-[0.4em] text-white/30 mt-2 uppercase">${currentBranch}</p>
+                           <p class="text-[8px] font-black tracking-[0.4em] text-white/30 mt-3 uppercase font-mono">${currentBranch}</p>
                         </div>
                      </div>
 
                      <div class="relative z-10">
-                        <p class="text-[9px] font-black text-[#d4afcd] uppercase tracking-[0.5em] mb-2 opacity-80">Fund Balance</p>
+                        <p class="text-[9px] font-black text-[#d4afcd]/60 uppercase tracking-[0.5em] mb-1">Available Balance</p>
                         <div class="flex items-baseline gap-1">
-                           <h2 id="cashier-balance-display" class="text-4xl font-black tracking-tighter tabular-nums text-white">${fmt(baseFund - unliquidatedTotal)}</h2>
+                           <h2 id="cashier-balance-display" class="text-4xl font-black tracking-tighter tabular-nums text-white drop-shadow-[0_4px_3px_rgba(0,0,0,0.8)]">${fmt(baseFund - unliquidatedTotal)}</h2>
                         </div>
+                        <p class="text-[7px] font-mono text-white/20 tracking-[0.2em] mt-2 uppercase italic">Exclusive Ayala Platinum Access</p>
                      </div>
 
                      <!-- Subtle Security Logo Overlay -->
-                     <div class="absolute bottom-6 right-10 opacity-[0.03] group-hover:opacity-5 transition-opacity duration-700 scale-125">
-                        <i data-lucide="verified" class="w-20 h-20 rotate-6"></i>
+                     <div class="absolute bottom-6 right-10 opacity-[0.02] group-hover:opacity-5 transition-all duration-700 scale-150 group-hover:rotate-12">
+                        <i data-lucide="shield-check" class="w-24 h-24"></i>
                      </div>
                   </div>
                </div>
 
-               <!-- Stats Card -->
-               <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm flex-1 flex flex-col justify-center">
-                  <div class="grid grid-cols-3 gap-4">
-                     <div class="text-center space-y-1">
-                        <p class="text-[7px] font-black text-amber-500 uppercase tracking-widest">Pending</p>
-                        <p id="count-pending" class="text-xl font-black text-slate-800 dark:text-white">-</p>
-                     </div>
-                     <div class="text-center space-y-1 border-x border-slate-100 dark:border-slate-800">
-                        <p class="text-[7px] font-black text-emerald-500 uppercase tracking-widest">Approved</p>
-                        <p id="count-approved" class="text-xl font-black text-slate-800 dark:text-white">-</p>
-                     </div>
-                     <div class="text-center space-y-1">
-                        <p class="text-[7px] font-black text-rose-500 uppercase tracking-widest">Rejected</p>
-                        <p id="count-rejected" class="text-xl font-black text-slate-800 dark:text-white">-</p>
+               <!-- Stats Card: Luxury Analytics -->
+               <div class="luxury-card relative bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-8 border-t border-white/60 dark:border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex-1 flex flex-col justify-between overflow-hidden group">
+                  <div class="luxury-shine"></div>
+                  <!-- Subtle corner glow to match Platinum Card -->
+                  <div class="absolute -top-20 -left-20 w-40 h-40 bg-[#96588a]/10 rounded-full blur-[80px]"></div>
+
+                  <div class="relative z-10">
+                     <div class="grid grid-cols-3 gap-3">
+                        <div class="bg-white/20 dark:bg-white/5 rounded-2xl p-3 border border-white/10 text-center transition-all hover:bg-white/30 dark:hover:bg-white/10">
+                           <p class="text-[7px] font-black text-amber-500 uppercase tracking-widest mb-1">Pending</p>
+                           <p id="count-pending" class="text-xl font-black text-slate-800 dark:text-white tabular-nums">-</p>
+                        </div>
+                        <div class="bg-white/20 dark:bg-white/5 rounded-2xl p-3 border border-white/10 text-center transition-all hover:bg-white/30 dark:hover:bg-white/10">
+                           <p class="text-[7px] font-black text-emerald-500 uppercase tracking-widest mb-1">Approved</p>
+                           <p id="count-approved" class="text-xl font-black text-slate-800 dark:text-white tabular-nums">-</p>
+                        </div>
+                        <div class="bg-white/20 dark:bg-white/5 rounded-2xl p-3 border border-white/10 text-center transition-all hover:bg-white/30 dark:hover:bg-white/10">
+                           <p class="text-[7px] font-black text-rose-500 uppercase tracking-widest mb-1">Rejected</p>
+                           <p id="count-rejected" class="text-xl font-black text-slate-800 dark:text-white tabular-nums">-</p>
+                        </div>
                      </div>
                   </div>
-                  <div class="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                     <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Spent this month</p>
-                     <p id="cashier-spent-display" class="text-sm font-black text-slate-800 dark:text-white">${fmt(unliquidatedTotal)}</p>
+
+                  <div class="relative z-10 mt-6">
+                     <div class="flex justify-between items-end mb-2">
+                        <p class="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Spent this month</p>
+                        <p id="cashier-spent-display" class="text-2xl font-black text-[#96588a] dark:text-white tabular-nums">${fmt(unliquidatedTotal)}</p>
+                     </div>
+                     <!-- Micro Progress Bar -->
+                     <div class="h-1 w-full bg-slate-200/50 dark:bg-white/5 rounded-full overflow-hidden">
+                        <div class="h-full bg-gradient-to-r from-[#96588a] to-rose-500 w-2/3 rounded-full opacity-80"></div>
+                     </div>
                   </div>
                </div>
             </div>
          </div>
 
          <!-- MIDDLE ROW: Batch Items -->
-         <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm">
+         <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-8 border-t border-white/60 dark:border-white/10 shadow-xl">
             <div class="flex items-center justify-between mb-8">
                <div class="flex items-center gap-4">
                   <div class="w-10 h-10 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
@@ -313,20 +347,20 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          </div>
 
          <!-- HISTORY SECTION -->
-         <div class="pt-8 border-t border-slate-100 dark:border-slate-800">
+         <div class="pt-8 border-t border-slate-200/30 dark:border-white/10">
             <div class="flex items-center justify-between mb-6">
                <h4 class="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-3"><i data-lucide="clock" class="w-7 h-7 text-[#96588a]"></i> Recent History</h4>
-               <div class="h-px flex-1 mx-8 bg-slate-100 dark:bg-slate-800/50"></div>
+               <div class="h-px flex-1 mx-8 bg-slate-200/50 dark:bg-white/10"></div>
             </div>
-            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
-               <div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
+            <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl border-t border-white/60 dark:border-white/10 shadow-xl overflow-hidden">
+               <div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-200/30 dark:border-white/10 bg-slate-100/30 dark:bg-white/[0.03]">
                   <span class="col-span-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Request ID</span>
                   <span class="col-span-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Period</span>
                   <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Branch</span>
-                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Status</span>
-                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Total</span>
+                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Total Amount</span>
+                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Status</span>
                </div>
-               <div id="history-list-container" class="divide-y divide-slate-50 dark:divide-slate-800"></div>
+               <div id="history-list-container" class="divide-y divide-slate-200/30 dark:divide-white/5"></div>
             </div>
          </div>
       </div>
@@ -1071,99 +1105,104 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             </div>
          </div>
 
-         <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-            <!-- Unified Header with Sub-tabs -->
-            <div class="px-8 py-6 border-b border-slate-50 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-               <div class="flex items-center gap-4 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl w-fit">
-                  <button class="ledger-subtab active px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 bg-white dark:bg-slate-900 shadow-sm text-slate-800 dark:text-white" data-target="petty-view">
-                     <i data-lucide="wallet" class="w-3.5 h-3.5 text-rose-500"></i> Petty Cash
-                  </button>
-                  <button class="ledger-subtab px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 text-slate-400 hover:text-slate-600" data-target="accountant-view">
-                     <i data-lucide="landmark" class="w-3.5 h-3.5 text-blue-500"></i> Accountant
-                  </button>
-               </div>
-               <div class="flex items-center gap-3">
-                  <!-- Accountant Advanced Import (Round) -->
-                  <input type="file" id="import-accountant-file" class="hidden" accept=".xlsx, .xls">
-                  <button id="import-accountant-btn" class="hidden w-10 h-10 flex items-center justify-center bg-[#96588a] text-white rounded-full hover:bg-[#7a4671] transition-all shadow-lg shadow-[#96588a]/20" title="Import Accountant Advanced Excel">
-                     <i data-lucide="file-up" class="w-5 h-5"></i>
-                  </button>
-               </div>
-            </div>
+         <div class="luxury-card relative bg-white/40 dark:bg-[#141414]/60 rounded-[2.5rem] shadow-2xl backdrop-blur-3xl border-t border-white/60 dark:border-white/20 group overflow-hidden">
+            <div class="luxury-shine"></div>
+            <div class="channel-card-accent" style="background-color: #96588a; opacity: 0.15; transform: scale(2.5); filter: blur(100px); top: -20%; left: -10%;"></div>
 
-            <div class="p-8">
-               <!-- Ledger Filters (Search + Date) -->
-               <div class="mb-6">
-                  <div class="flex flex-col lg:flex-row lg:items-end gap-3 justify-between">
-                     <div class="flex-1 flex flex-col sm:flex-row items-end gap-3">
-                        <div class="flex-1 w-full space-y-1">
-                           <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search</label>
-                           <input id="ledger-search" type="text" placeholder="Purpose / Description / Category / Invoice No."
-                             class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
+            <div class="relative z-10 flex flex-col">
+               <!-- Unified Header with Sub-tabs -->
+               <div class="px-8 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                  <div class="flex items-center gap-4 p-1 bg-slate-100 dark:bg-[#444444]/90 backdrop-blur-md rounded-2xl w-fit">
+                     <button class="ledger-subtab active px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 bg-white/60 dark:bg-white/10 backdrop-blur-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_0_15px_rgba(255,255,255,0.05)] border-t border-white/40 dark:border-white/10 text-[#96588a] dark:text-white scale-[1.02] z-10" data-target="petty-view">
+                        <i data-lucide="wallet" class="w-3.5 h-3.5 text-rose-500"></i> Petty Cash
+                     </button>
+                     <button class="ledger-subtab px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 text-slate-500/60 dark:text-white/30 hover:text-[#96588a] dark:hover:text-white hover:bg-white/30 dark:hover:bg-white/5" data-target="accountant-view">
+                        <i data-lucide="landmark" class="w-3.5 h-3.5 text-blue-500"></i> Accountant
+                     </button>
+                  </div>
+                  <div class="flex items-center gap-3">
+                     <!-- Accountant Advanced Import (Round) -->
+                     <input type="file" id="import-accountant-file" class="hidden" accept=".xlsx, .xls">
+                     <button id="import-accountant-btn" class="hidden w-10 h-10 flex items-center justify-center bg-[#96588a] text-white rounded-full hover:bg-[#7a4671] transition-all shadow-lg shadow-[#96588a]/20" title="Import Accountant Advanced Excel">
+                        <i data-lucide="file-up" class="w-5 h-5"></i>
+                     </button>
+                  </div>
+               </div>
+
+               <div class="p-8">
+                  <!-- Ledger Filters (Search + Date) -->
+                  <div class="mb-6">
+                     <div class="flex flex-col lg:flex-row lg:items-end gap-3 justify-between">
+                        <div class="flex-1 flex flex-col sm:flex-row items-end gap-3">
+                           <div class="flex-1 w-full space-y-1">
+                              <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search</label>
+                              <input id="ledger-search" type="text" placeholder="Purpose / Description / Category / Invoice No."
+                                class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
+                           </div>
+                            <div class="w-full sm:w-auto space-y-1">
+                               <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">From</label>
+                               <input id="ledger-from" type="date"
+                                 class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer"
+                                 value="${new Date(Date.now() - 86400000).toISOString().split('T')[0]}">
+                            </div>
+                            <div class="w-full sm:w-auto space-y-1">
+                               <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">To</label>
+                               <input id="ledger-to" type="date"
+                                 class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer"
+                                 value="${new Date(Date.now() - 86400000).toISOString().split('T')[0]}">
+                            </div>
                         </div>
-                         <div class="w-full sm:w-auto space-y-1">
-                            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">From</label>
-                            <input id="ledger-from" type="date"
-                              class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer"
-                              value="${new Date(Date.now() - 86400000).toISOString().split('T')[0]}">
-                         </div>
-                         <div class="w-full sm:w-auto space-y-1">
-                            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">To</label>
-                            <input id="ledger-to" type="date"
-                              class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer"
-                              value="${new Date(Date.now() - 86400000).toISOString().split('T')[0]}">
-                         </div>
-                     </div>
-                     <div class="flex gap-2">
-                        <button id="ledger-apply-btn"
-                          class="px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm">
-                           Apply
-                        </button>
-                        <button id="ledger-clear-btn"
-                          class="px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm">
-                           Clear
-                        </button>
+                        <div class="flex gap-2">
+                           <button id="ledger-apply-btn"
+                             class="px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm">
+                              Apply
+                           </button>
+                           <button id="ledger-clear-btn"
+                             class="px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm">
+                              Clear
+                           </button>
+                        </div>
                      </div>
                   </div>
-               </div>
 
-               <!-- Petty Cash View -->
-               <div id="petty-view" class="ledger-view animate-fade-in">
-                  <div class="overflow-x-auto">
-                     <table class="w-full text-left border-collapse">
-                        <thead class="sticky top-0 z-10">
-                           <tr class="border-b border-slate-50 dark:border-slate-800">
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Purpose & Detail</th>
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
-                           </tr>
-                        </thead>
-                        <tbody id="petty-table-body">
-                           <tr><td colspan="5" class="px-2 py-12 text-center text-[10px] text-slate-300 italic font-black uppercase tracking-widest">Loading records...</td></tr>
-                        </tbody>
-                     </table>
+                  <!-- Petty Cash View -->
+                  <div id="petty-view" class="ledger-view animate-fade-in">
+                     <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                           <thead class="sticky top-0 z-10">
+                              <tr class="border-b border-slate-50 dark:border-slate-800">
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Purpose & Detail</th>
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                              </tr>
+                           </thead>
+                           <tbody id="petty-table-body">
+                              <tr><td colspan="5" class="px-2 py-12 text-center text-[10px] text-slate-300 italic font-black uppercase tracking-widest">Loading records...</td></tr>
+                           </tbody>
+                        </table>
+                     </div>
                   </div>
-               </div>
 
-               <!-- Accountant View -->
-               <div id="accountant-view" class="ledger-view hidden animate-fade-in">
-                  <div class="overflow-x-auto">
-                     <table class="w-full text-left border-collapse">
-                        <thead>
-                           <tr class="border-b border-slate-50 dark:border-slate-800">
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Purpose & Detail</th>
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
-                              <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
-                           </tr>
-                        </thead>
-                        <tbody id="accountant-table-body">
-                           <tr><td colspan="5" class="px-2 py-12 text-center text-[10px] text-slate-300 italic font-black uppercase tracking-widest">Loading records...</td></tr>
-                        </tbody>
-                     </table>
+                  <!-- Accountant View -->
+                  <div id="accountant-view" class="ledger-view hidden animate-fade-in">
+                     <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                           <thead>
+                              <tr class="border-b border-slate-50 dark:border-slate-800">
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Purpose & Detail</th>
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                              </tr>
+                           </thead>
+                           <tbody id="accountant-table-body">
+                              <tr><td colspan="5" class="px-2 py-12 text-center text-[10px] text-slate-300 italic font-black uppercase tracking-widest">Loading records...</td></tr>
+                           </tbody>
+                        </table>
+                     </div>
                   </div>
                </div>
             </div>
@@ -1787,10 +1826,10 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       return `
       <div class="space-y-8 animate-fade-in">
          <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 items-stretch">
-            <div class="xl:col-span-2 flex flex-col gap-5 h-full">
+            <div class="xl:col-span-5 flex flex-col gap-5 h-full">
                <div class="flex items-center justify-between">
                   <div class="flex items-center gap-3">
-                     <div class="w-10 h-10 bg-amber-500 rounded-2xl flex items-center justify-center text-white shadow-md shadow-amber-500/20">
+                     <div class="w-10 h-10 flex items-center justify-center text-amber-700">
                         <i data-lucide="shield-check" class="w-5 h-5"></i>
                      </div>
                      <div>
@@ -1800,8 +1839,8 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                   </div>
                   <span id="audit-queue-count" class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">0 Pending</span>
                </div>
-               <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm shadow-slate-900/5 dark:shadow-black/20 overflow-hidden flex-1 min-h-0">
-                  <div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
+               <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl border-t border-white/60 dark:border-white/20 shadow-xl overflow-hidden flex-1 min-h-0">
+                  <div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-200/30 dark:border-white/10 bg-slate-100/30 dark:bg-white/[0.03]">
                      <span class="col-span-5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Request</span>
                      <span class="col-span-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Branch</span>
                      <span class="col-span-4 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Total</span>
@@ -1811,63 +1850,29 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                   </div>
                </div>
             </div>
-
-            <div class="xl:col-span-3 flex flex-col h-full">
-               <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-                  <div class="flex items-center gap-3">
-                     <div class="w-10 h-10 bg-slate-800 rounded-2xl flex items-center justify-center text-white">
-                        <i data-lucide="scroll-text" class="w-5 h-5"></i>
-                     </div>
-                     <div>
-                        <h4 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Audit Trail</h4>
-                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Full action history</p>
-                     </div>
-                  </div>
-                  <div class="flex items-center gap-2">
-                     <input type="text" id="audit-filter-reqid" placeholder="Request ID..." class="bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-[10px] font-bold w-36 focus:ring-2 focus:ring-purple-500">
-                     <input type="date" id="audit-filter-date" class="bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-[10px] font-bold focus:ring-2 focus:ring-purple-500 cursor-pointer">
-                     <button id="audit-filter-btn" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all">Filter</button>
-                     <button id="audit-clear-btn" class="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Clear</button>
-                  </div>
-               </div>
-               <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm shadow-slate-900/5 dark:shadow-black/20 overflow-hidden flex-1 min-h-0">
-                  <div class="h-[560px] overflow-auto">
-                     <table class="w-full text-left border-collapse">
-                        <thead>
-                           <tr class="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                              <th class="px-4 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Timestamp</th>
-                              <th class="px-4 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Action</th>
-                              <th class="px-4 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Actor</th>
-                              <th class="px-4 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Request ID</th>
-                              <th class="px-4 py-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Comment</th>
-                           </tr>
-                        </thead>
-                        <tbody id="audit-log-body">
-                           <tr><td colspan="5" class="px-4 py-12 text-center text-[10px] text-slate-300 italic">Loading...</td></tr>
-                        </tbody>
-                     </table>
-                  </div>
-               </div>
-            </div>
          </div>
 
          <!-- History in Audit Tab -->
-         <div class="pt-10 border-t border-slate-100 dark:border-slate-800 mt-4">
+         <div class="pt-10 border-t border-slate-200/30 dark:border-white/10 mt-4">
             <div class="flex items-center justify-between mb-6">
                <div>
                   <h4 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-3"><i data-lucide="history" class="w-6 h-6 text-purple-500"></i> Recent History</h4>
                   <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Last 20 processed requests</p>
                </div>
+               <button id="open-audit-logs-btn" class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-white/60 rounded-xl transition-all group shadow-sm">
+                  <i data-lucide="scroll-text" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                  <span class="text-[9px] font-black uppercase tracking-widest">View Audit Logs</span>
+               </button>
             </div>
-            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
-               <div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
-                  <span class="col-span-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Request ID</span>
-                  <span class="col-span-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Period</span>
-                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Branch</span>
-                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Status</span>
-                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Total</span>
+            <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl border-t border-white/60 dark:border-white/10 shadow-xl overflow-hidden">
+               <div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-200/30 dark:border-white/10 bg-slate-100/30 dark:bg-white/[0.03]">
+                  <span class="col-span-3 text-[8px] text-left font-black text-slate-400 uppercase tracking-widest">Request ID</span>
+                  <span class="col-span-3 text-[8px] text-left font-black text-slate-400 uppercase tracking-widest">Period</span>
+                  <span class="col-span-2 text-[8px] text-left font-black text-slate-400 uppercase tracking-widest">Branch</span>
+                  <span class="col-span-2 text-[8px] text-right font-black text-slate-400 uppercase tracking-widest">Amount</span>
+                  <span class="col-span-2 text-[8px] text-right font-black text-slate-400 uppercase tracking-widest">Status</span>
                </div>
-               <div id="history-list-container" class="divide-y divide-slate-50 dark:divide-slate-800"></div>
+               <div id="history-list-container" class="divide-y divide-slate-200/30 dark:divide-white/5"></div>
             </div>
          </div>
       </div>
@@ -1899,18 +1904,22 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             const createdAtMs = data.createdAt?.seconds ? data.createdAt.seconds * 1000 : 0;
             const isNew = createdAtMs && (Date.now() - createdAtMs) < (15 * 60 * 1000);
             return `
-            <div class="view-detail-btn group border-b border-slate-100 dark:border-slate-800 hover:bg-amber-50/50 dark:hover:bg-amber-500/5 transition-all cursor-pointer px-4 py-3" data-id="${data.id}">
-               <div class="grid grid-cols-12 gap-2 items-start">
-                  <div class="col-span-8">
+            <div class="view-detail-btn group border-b border-slate-100 dark:border-white/10 hover:bg-amber-50 dark:hover:bg-[#444444] transition-all cursor-pointer px-4 py-3" data-id="${data.id}">
+               <div class="grid grid-cols-12 gap-2 items-center">
+                  <div class="col-span-5">
                      <div class="flex items-center gap-2 mb-1">
                         <h4 class="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">REQ-${data.id.substring(0, 6).toUpperCase()}</h4>
-                        ${isNew ? '<span class="px-2 py-0.5 rounded-md bg-amber-400 text-white text-[8px] font-black uppercase tracking-wider animate-[pulse_2s_ease-in-out_2]">New</span>' : '<span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 text-[8px] font-black uppercase tracking-wider">Pending</span>'}
+                        ${isNew ? '<span class="px-2 py-0.5 rounded-md bg-amber-400 text-white text-[8px] font-black uppercase tracking-wider animate-[pulse_2s_ease-in-out_2]">New</span>' : '<span class="px-2 py-0.5 rounded-full bg-rose-400 text-white/70 text-[8px] font-black uppercase tracking-wider">Pending</span>'}
                      </div>
                      <p class="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Items: <span class="text-slate-700 dark:text-slate-300">${data.itemCount}</span> • Period: <span class="text-slate-700 dark:text-slate-300">${data.startDate ? data.startDate.split('-').reverse().join('/') : '---'} to ${data.endDate ? data.endDate.split('-').reverse().join('/') : '---'}</span></p>
                      <p class="text-[9px] text-slate-400 mt-1">${data.createdBy || 'jimmiemetapon@gmail.com'} • ${data.createdAt ? new Date(data.createdAt.seconds * 1000).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '') : '---'}</p>
                   </div>
-                  <div class="col-span-4 text-right">
-                     <span class="inline-flex px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-slate-900 text-white mb-2">${data.branchId}</span>
+                  <div class="col-span-4 text-left">
+                     <span class="inline-flex px-2 py-0.5 rounded-full border border-slate-900 dark:border-white text-[12px] font-black uppercase text-slate-900 dark:text-white">
+                        ${data.branchId}
+                     </span>
+                  </div>
+                  <div class="col-span-3 text-right">
                      <p class="text-[8px] font-black text-amber-600 uppercase tracking-widest">Total</p>
                      <p class="text-sm font-black text-slate-900 dark:text-white">₱${data.totalAmount.toLocaleString()}</p>
                   </div>
@@ -1991,8 +2000,8 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       URL.revokeObjectURL(url);
    }
 
-   async function loadAuditLogData(filters = {}) {
-      const logBody = container.querySelector('#audit-log-body');
+   async function loadAuditLogData(filters = {}, targetContainer = null) {
+      const logBody = targetContainer ? targetContainer.querySelector('#audit-log-body') : container.querySelector('#audit-log-body');
       if (!logBody) return;
 
       try {
@@ -2020,7 +2029,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          }
 
          if (logs.length === 0) {
-            logBody.innerHTML = '<tr><td colspan="5" class="px-4 py-12 text-center text-[10px] text-slate-300 font-black uppercase">No audit logs found</td></tr>';
+            logBody.innerHTML = '<div class="flex items-center justify-center py-20 text-slate-400 italic text-[10px] uppercase font-black tracking-widest">No audit logs found</div>';
             return;
          }
 
@@ -2039,19 +2048,22 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          logBody.innerHTML = logs.map(log => {
             const ts = log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '') : '---';
             return `
-               <tr class="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all">
-                  <td class="px-4 py-3 text-[10px] font-bold text-slate-500 whitespace-nowrap">${ts}</td>
-                  <td class="px-4 py-3">${actionBadge(log.action)}</td>
-                  <td class="px-4 py-3 text-[10px] font-bold text-slate-600 dark:text-slate-300">${log.actor || '---'}</td>
-                  <td class="px-4 py-3"><span class="text-[9px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">${log.requestId ? log.requestId.substring(0, 8).toUpperCase() : '---'}</span></td>
-                  <td class="px-4 py-3 text-[10px] font-medium text-slate-500 max-w-[250px] truncate">${log.comment || '---'}</td>
-               </tr>
+               <div class="grid grid-cols-12 gap-2 px-6 py-3 items-center hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-all">
+                  <div class="col-span-2 text-[10px] font-bold text-slate-500 whitespace-nowrap">${ts}</div>
+                  <div class="col-span-2">${actionBadge(log.action)}</div>
+                  <div class="col-span-2 text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate pr-2">${log.actor || '---'}</div>
+                  <div class="col-span-2"><span class="text-[9px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md uppercase">${log.requestId ? log.requestId.substring(0, 8).toUpperCase() : '---'}</span></div>
+                  <div class="col-span-4 text-[10px] font-medium text-slate-500 dark:text-slate-400 line-clamp-1 italic">${log.comment || '---'}</div>
+               </div>
             `;
          }).join('');
       } catch (err) { console.error('Audit log error:', err); }
    }
 
    function attachAuditLogListeners() {
+      const openLogsBtn = container.querySelector('#open-audit-logs-btn');
+      if (openLogsBtn) openLogsBtn.onclick = () => showAuditLogsModal();
+
       const filterBtn = container.querySelector('#audit-filter-btn');
       const clearBtn = container.querySelector('#audit-clear-btn');
 
@@ -2097,11 +2109,9 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          const targetId = subBtn.dataset.target;
          // Toggle Buttons
          container.querySelectorAll('.ledger-subtab').forEach(b => {
-            b.classList.remove('active', 'bg-white', 'dark:bg-slate-900', 'shadow-sm', 'text-slate-800', 'dark:text-white');
-            b.classList.add('text-slate-400', 'hover:text-slate-600');
+            b.className = "ledger-subtab px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 text-slate-500/60 dark:text-white/30 hover:text-[#96588a] dark:hover:text-white hover:bg-white/30 dark:hover:bg-white/5";
          });
-         subBtn.classList.add('active', 'bg-white', 'dark:bg-slate-900', 'shadow-sm', 'text-slate-800', 'dark:text-white');
-         subBtn.classList.remove('text-slate-400', 'hover:text-slate-600');
+         subBtn.className = "ledger-subtab active px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 bg-white/60 dark:bg-white/10 backdrop-blur-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_0_15px_rgba(255,255,255,0.05)] border-t border-white/40 dark:border-white/10 text-[#96588a] dark:text-white scale-[1.02] z-10";
 
          // Toggle Views
          container.querySelectorAll('.ledger-view').forEach(v => v.classList.add('hidden'));
@@ -2408,6 +2418,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       } catch (err) { console.error('Summary cards error:', err); }
    }
 
+   // Load history data Bảng Lịch Sử   
    async function loadHistoryData() {
       const historyContent = document.getElementById('history-list-container');
       const activeBranch = document.getElementById('db-branch')?.value;
@@ -2451,21 +2462,21 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                <div class="grid grid-cols-12 gap-2 items-center px-4 py-3">
                   <div class="col-span-3">
                      <p class="text-[10px] font-black text-slate-800 dark:text-white uppercase">REQ-${data.id.substring(0, 6).toUpperCase()}</p>
-                     <p class="text-[8px] text-slate-400 font-bold mt-0.5">${dateStr}</p>
+                     <p class="text-[10px] text-slate-400 font-bold mt-0.5">${dateStr}</p>
                   </div>
                   <div class="col-span-3">
-                     <p class="text-[9px] font-bold text-slate-600 dark:text-slate-300">${period}</p>
-                     <p class="text-[8px] text-slate-400 font-bold mt-0.5">${data.itemCount || 0} items</p>
+                     <p class="text-[10px] font-bold text-slate-600 dark:text-slate-300">${period}</p>
+                     <p class="text-[10px] text-slate-400 font-bold mt-0.5">${data.itemCount || 0} items</p>
                   </div>
                   <div class="col-span-2">
-                     <span class="px-2 py-0.5 rounded-md bg-slate-900 dark:bg-slate-700 text-white text-[8px] font-black uppercase">${data.branchId || '---'}</span>
-                  </div>
-                  <div class="col-span-2">
-                     <span class="px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${badgeCls}">${statusLabel}</span>
+                     <span class="px-2 py-0.5 text-slate-800 dark:text-white/70 text-[10px] text-left font-black uppercase">${data.branchId || '---'}</span>
                   </div>
                   <div class="col-span-2 text-right">
                      <p class="text-[11px] font-black text-slate-900 dark:text-white">₱${(data.totalAmount || 0).toLocaleString()}</p>
-                     ${isClickable ? `<p class="text-[8px] text-[#96588a] font-black uppercase mt-0.5">View →</p>` : ''}
+                     ${isClickable ? `<p class="text-[8px] text-[#96588a] font-black uppercase mt-0.5">View</p>` : ''}
+                  </div>
+                  <div class="col-span-2 text-right">
+                     <span class="px-2 py-0.5 rounded-full text-[10px] text-right font-black uppercase ${badgeCls}">${statusLabel}</span>
                   </div>
                </div>
             </div>
@@ -2551,6 +2562,71 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             btn.textContent = 'Save Changes';
          }
       };
+   }
+
+   function showAuditLogsModal() {
+      const ov = document.createElement('div');
+      ov.className = "fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in";
+      ov.innerHTML = `
+      <div class="bg-white/90 dark:bg-[#141414]/90 backdrop-blur-3xl w-full max-w-6xl h-[90vh] rounded-[2.5rem] border-t border-white/60 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden animate-slide-up">
+         <div class="p-8 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-white/50 dark:bg-white/[0.02]">
+            <div class="flex items-center gap-4">
+               <div class="w-12 h-12 bg-slate-900 dark:bg-white/10 rounded-2xl flex items-center justify-center text-white">
+                  <i data-lucide="scroll-text" class="w-6 h-6"></i>
+               </div>
+               <div>
+                  <h3 class="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">System Audit Trail</h3>
+                  <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Full sequence of actions and events</p>
+               </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+               <div class="flex items-center gap-2 bg-slate-100/50 dark:bg-[#343434]/80 p-1.5 rounded-2xl">
+                  <input type="text" id="modal-audit-filter-reqid" placeholder="Request ID..." class="bg-transparent border-none px-4 py-2 text-[10px] font-bold w-36 text-slate-700 dark:text-white focus:ring-0">
+                  <input type="date" id="modal-audit-filter-date" class="bg-transparent border-none px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-white focus:ring-0 cursor-pointer">
+                  <button id="modal-audit-filter-btn" class="px-5 py-2.5 bg-[#96588a] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-purple-500/20">Filter</button>
+               </div>
+               <button id="close-audit-modal" class="w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-white/10 hover:bg-rose-500 hover:text-white rounded-full transition-all group">
+                  <i data-lucide="x" class="w-5 h-5 group-hover:rotate-90 transition-transform"></i>
+               </button>
+            </div>
+         </div>
+         
+         <div class="flex-1 overflow-hidden flex flex-col p-8">
+            <div class="bg-white/40 dark:bg-black/20 rounded-2xl border border-slate-100 dark:border-white/5 flex-1 flex flex-col min-h-0 overflow-hidden">
+               <div class="grid grid-cols-12 gap-2 px-6 py-4 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Timestamp</span>
+                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Action</span>
+                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Actor</span>
+                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Request ID</span>
+                  <span class="col-span-4 text-[8px] font-black text-slate-400 uppercase tracking-widest">Comment / Details</span>
+               </div>
+               <div id="audit-log-body" class="flex-1 overflow-y-auto custom-scrollbar divide-y divide-slate-50 dark:divide-white/[0.03]">
+                  <div class="flex items-center justify-center py-20 text-slate-400 italic text-[10px]">Initialising audit logs...</div>
+               </div>
+            </div>
+         </div>
+      </div>
+      `;
+
+      document.body.appendChild(ov);
+      if (window.lucide) window.lucide.createIcons();
+
+      const closeBtn = ov.querySelector('#close-audit-modal');
+      closeBtn.onclick = () => {
+         ov.classList.add('animate-fade-out');
+         ov.querySelector('.animate-slide-up').classList.replace('animate-slide-up', 'animate-slide-down');
+         setTimeout(() => ov.remove(), 400);
+      };
+
+      const filterBtn = ov.querySelector('#modal-audit-filter-btn');
+      filterBtn.onclick = () => {
+         const reqId = ov.querySelector('#modal-audit-filter-reqid').value.trim();
+         const date = ov.querySelector('#modal-audit-filter-date').value;
+         loadAuditLogData({ reqId, date }, ov);
+      };
+
+      loadAuditLogData({}, ov);
    }
 
    // Initialize Page

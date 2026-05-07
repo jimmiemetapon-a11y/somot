@@ -88,6 +88,41 @@ function standardizeDate(val, channelId) {
   return null;
 }
 
+function parseAyalaDate(val) {
+  if (!val) return null;
+  let str = String(val).trim();
+
+  // Case: DD/MM/YYYY HH:mm (Column E in Ayala POS)
+  if (str.includes('/') || str.includes('-')) {
+    const datePart = str.split(' ')[0]; // Strip time if exists
+    const sep = datePart.includes('/') ? '/' : '-';
+    const parts = datePart.split(sep);
+    
+    if (parts.length >= 3) {
+      let d, m, y;
+      if (parts[2].length === 4) { // DD/MM/YYYY
+        d = parts[0]; m = parts[1]; y = parts[2];
+      } else if (parts[0].length === 4) { // YYYY/MM/DD
+        y = parts[0]; m = parts[1]; d = parts[2];
+      }
+      if (y) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+  }
+
+  // Fallback: MMDDYYYY (8 digits) or MDDYYYY (7 digits)
+  if (/^\d{7,8}$/.test(str)) {
+    if (str.length === 7) str = '0' + str;
+    const mm = str.substring(0, 2);
+    const dd = str.substring(2, 4);
+    const yyyy = str.substring(4, 8);
+    const monthVal = parseInt(mm), dayVal = parseInt(dd);
+    if (monthVal >= 1 && monthVal <= 12 && dayVal >= 1 && dayVal <= 31) {
+      return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+    }
+  }
+  return standardizeDate(val);
+}
+
 function cleanNumber(val) {
   if (val === undefined || val === null || val === '') return 0;
   if (typeof val === 'number') return val;
@@ -172,6 +207,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
             </div>
             <div class="flex gap-3 w-full">
                <button id="btn-choose" class="flex-1 h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 bg-[#96588a]">Browse Files</button>
+               <button id="btn-manual" class="flex-1 h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 bg-emerald-600 hidden">Manual Entry</button>
             </div>
           </div>
 
@@ -260,7 +296,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
       const modal = document.createElement('div');
       modal.id = 'detail-modal';
       modal.className = 'fixed inset-0 z-[10000] hidden flex items-center justify-center p-4 animate-fade-in';
-      
+
       // Ghost Glass logic (Minimalist 2026)
       const glassBg = 'rgba(255, 255, 255, 0.08)'; // Pure Ghost Glass
 
@@ -402,7 +438,10 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     };
 
     // --- GLOBAL FILTERS LOGIC ---
-    const refreshData = () => fetchChannelHistory(channelId);
+    const refreshData = () => {
+      fetchChannelHistory(channelId);
+      updateManualBtn();
+    };
 
     // Listen for global header changes
     const branchSelector = document.getElementById('db-branch');
@@ -525,16 +564,22 @@ export function renderChannelPage(channelId, activeTab = 'history') {
 
       let allDataRows = [];
 
+      const branchId = (document.getElementById('db-branch')?.value || 'Pioneer Center').trim();
+      const isAyalaDineIn = (channelId === 'dinein' && branchId === 'Ayala Cloverleaf');
+
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
         const data = await readExcelFile(file);
 
         if (data && data.length > 0) {
+          const dataStartIdx = isAyalaDineIn ? 10 : 1;
+          const headerIdx = isAyalaDineIn ? 9 : 0;
+
           if (i === 0) {
-            allDataRows.push(data[0]); // Giữ lại dòng Header của file đầu tiên
+            allDataRows.push(data[headerIdx]); // Giữ lại dòng Header
           }
-          // Bỏ qua dòng Header, nối phần dữ liệu của các file lại
-          for (let j = 1; j < data.length; j++) {
+          // Nối phần dữ liệu của các file lại
+          for (let j = dataStartIdx; j < data.length; j++) {
             if (data[j] && data[j].length > 0) {
               allDataRows.push(data[j]);
             }
@@ -548,7 +593,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
       }
 
       // Group by Date cho toàn bộ dữ liệu đã gộp
-      const grouped = groupDataByDate(allDataRows, channelId, cfg);
+      const grouped = groupDataByDate(allDataRows, channelId, cfg, branchId);
       currentResults = grouped;
 
       try {
@@ -567,13 +612,16 @@ export function renderChannelPage(channelId, activeTab = 'history') {
   return page;
 }
 
-function groupDataByDate(data, channelId, cfg) {
+function groupDataByDate(data, channelId, cfg, branchId) {
   const dailyData = {};
+  const isAyalaDineIn = (channelId === 'dinein' && (branchId || '').trim() === 'Ayala Cloverleaf');
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i]; if (!row || row.length === 0) continue;
 
-    const dateKey = standardizeDate(row[cfg.colDate], channelId);
+    const dateIdx = isAyalaDineIn ? 4 : cfg.colDate; // Ayala POS date switch to Col E (index 4 - Start Date)
+    const dateKey = isAyalaDineIn ? parseAyalaDate(row[dateIdx]) : standardizeDate(row[dateIdx], channelId);
+
     if (!dateKey) continue;
 
     if (!dailyData[dateKey]) dailyData[dateKey] = [];
@@ -582,10 +630,11 @@ function groupDataByDate(data, channelId, cfg) {
 
   const results = {};
   for (const [date, rows] of Object.entries(dailyData)) {
-    results[date] = (channelId === 'foodpanda') ? calculatePanda(rows, cfg) :
-      (channelId === 'grabfood') ? calculateGrab(rows, cfg) :
-        (channelId === 'dinein') ? calculateDineIn(rows, cfg) :
-          calculateOnline(rows, cfg);
+    results[date] = (isAyalaDineIn) ? calculateAyalaDineIn(rows) :
+      (channelId === 'foodpanda') ? calculatePanda(rows, cfg) :
+        (channelId === 'grabfood') ? calculateGrab(rows, cfg) :
+          (channelId === 'dinein') ? calculateDineIn(rows, cfg) :
+            calculateOnline(rows, cfg);
   }
   return results;
 }
@@ -792,6 +841,49 @@ function calculatePanda(rows, cfg) {
   };
 }
 
+function calculateAyalaDineIn(rows) {
+  let gross = 0, orders = 0, vatAdj = 0, seniorDisc = 0, pwdDisc = 0, otherDisc = 0, voidInv = 0;
+
+  rows.forEach(row => {
+    // Ayala POS specific columns:
+    // B(1)=Date, I(8)=Orders, T(19)=Gross, W(22)=VAT Adj, AA(26)=Senior, AB(27)=PWD, AE(30)=Other Disc, AG(32)=Void
+    orders += cleanNumber(row[8]);
+    gross += cleanNumber(row[19]);
+    vatAdj += cleanNumber(row[22]);
+    seniorDisc += cleanNumber(row[26]);
+    pwdDisc += cleanNumber(row[27]);
+    otherDisc += cleanNumber(row[30]);
+    voidInv += cleanNumber(row[32]);
+  });
+
+  const totalDed = vatAdj + seniorDisc + pwdDisc + otherDisc + voidInv;
+  const net = gross - totalDed;
+
+  const breakdown = {
+    deductions: {
+      vatAdjustment: vatAdj,
+      seniorCitizenDiscount: seniorDisc,
+      pwdDiscount: pwdDisc,
+      otherDiscount: otherDisc,
+      voidInvoice: voidInv
+    },
+    incomes: {}
+  };
+
+  return {
+    net, gross, orders, totalDed, breakdown,
+    details: [
+      { label: 'Gross Sale', val: gross, color: 'text-slate-600' },
+      { label: 'VAT Adjustment', val: vatAdj, color: 'text-rose-500', isDed: true },
+      { label: 'Senior Citizen Disc.', val: seniorDisc, color: 'text-rose-500', isDed: true },
+      { label: 'PWD Discount', val: pwdDisc, color: 'text-rose-500', isDed: true },
+      { label: 'Other Discount', val: otherDisc, color: 'text-rose-500', isDed: true },
+      { label: 'Void Invoice', val: voidInv, color: 'text-rose-500', isDed: true },
+      { label: 'Total Deduction', val: totalDed, color: 'text-rose-700 font-bold', isDed: true }
+    ]
+  };
+}
+
 function calculateDineIn(rows, cfg) {
   let gross = 0, productDisc = 0, invoiceDisc = 0, totalBankTrans = 0, grabDineOut = 0, discount100 = 0;
   const ids = new Set(), invoiceDiscProcessed = new Set(), bankProcessed = new Set();
@@ -948,7 +1040,12 @@ function updateUI(page, dailyResults, channelId) {
     others: 'Others Deductions',
     vendorRefunds: 'Other Incomes',
     grabDineOut: 'Grab Dine Out (Adj)',
-    discount100: '100% Discount (Manager)'
+    discount100: '100% Discount (Manager)',
+    vatAdjustment: 'VAT Adjustment',
+    seniorCitizenDiscount: 'Senior Citizen Discount',
+    pwdDiscount: 'PWD Discount',
+    otherDiscount: 'Other Discount',
+    voidInvoice: 'Void Invoice'
   };
 
   const deductionList = Object.entries(aggDeductions)
@@ -1173,7 +1270,7 @@ function updateSummary(items, channelId, page) {
 }
 
 async function fetchChannelHistory(channelId) {
-  const branchId = document.getElementById('db-branch')?.value || 'Pioneer Center';
+  const branchId = (document.getElementById('db-branch')?.value || 'Pioneer Center').trim();
   const rangeStr = document.getElementById('db-date-range')?.value || '';
   const searchText = (document.getElementById('channel-search')?.value || '').trim().toLowerCase();
 
@@ -1371,7 +1468,7 @@ function showDayDetail(item, channelLabel) {
   const fmt = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 
   modalDate.innerText = `${channelLabel} - ${item.date}`;
-  document.body.style.overflow = 'hidden'; 
+  document.body.style.overflow = 'hidden';
 
   let html = `
     <div class="space-y-4 animate-fade-in [transform:translateZ(0)]">
@@ -1414,7 +1511,12 @@ function showDayDetail(item, channelLabel) {
     others: 'Others Deductions',
     vendorRefunds: 'Other Incomes',
     grabDineOut: 'Grab Dine Out (Adj)',
-    discount100: '100% Discount (Manager)'
+    discount100: '100% Discount (Manager)',
+    vatAdjustment: 'VAT Adjustment',
+    seniorCitizenDiscount: 'Senior Citizen Discount',
+    pwdDiscount: 'PWD Discount',
+    otherDiscount: 'Other Discount',
+    voidInvoice: 'Void Invoice'
   };
 
   if (item.breakdown && item.breakdown.deductions) {
@@ -1448,7 +1550,7 @@ function showDayDetail(item, channelLabel) {
   `;
 
   modalContent.innerHTML = html;
-  
+
   // Show modal AFTER content is ready to prevent flickering
   modal.classList.remove('hidden');
 }
@@ -1458,55 +1560,76 @@ async function showManualEntryModal() {
   const branchId = document.getElementById('db-branch')?.value || 'Ayala Cloverleaf';
 
   const ov = document.createElement('div');
-  ov.className = 'fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in';
+  ov.className = 'fixed inset-0 z-[10000] flex items-center justify-center p-4 animate-fade-in';
   ov.innerHTML = `
-      <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-scale-up">
-        <div class="px-8 pt-8 pb-4 flex items-center justify-between">
-           <div>
-              <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Manual Entry</h3>
-              <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">${branchId} • Dine In</p>
-           </div>
-           <button id="close-manual" class="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-all text-2xl font-light">&times;</button>
+      <style>
+        #m-date::-webkit-calendar-picker-indicator {
+          display: none;
+          -webkit-appearance: none;
+        }
+      </style>
+      <div class="relative w-full max-w-[550px] rounded-[3rem] shadow-2xl overflow-hidden animate-scale-up flex flex-col bg-white/[0.6] dark:bg-white/[0.04] backdrop-blur-[5px] border-t border-white/60 dark:border-white/10">
+        
+        <div class="px-10 pt-10 pb-6 flex flex-col items-center relative z-10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.5em] mb-1">Financial Entry</p>
+           <h3 class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter text-center">Manual Recording</h3>
+           <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 opacity-60">${branchId} • Dine In</p>
+           
+           <button id="close-manual" class="absolute top-8 right-8 w-10 h-10 rounded-full bg-slate-900/5 dark:bg-white/5 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-all backdrop-blur-2xl">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+           </button>
         </div>
 
-        <div class="p-8 space-y-4">
-           <div class="space-y-1">
-              <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
-              <input type="date" id="m-date" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" value="${new Date().toISOString().split('T')[0]}">
-           </div>
-           <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1">
-                 <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Number Order</label>
-                 <input type="number" id="m-orders" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" placeholder="0">
+        <div class="px-10 pb-12 space-y-10 relative z-10">
+           <!-- Form Grid (3x2) -->
+           <div class="grid grid-cols-2 gap-x-8 gap-y-6">
+              <div class="space-y-1.5">
+                 <label class="text-[7px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest ml-1">Transaction Date</label>
+                 <div class="relative">
+                    <input type="date" id="m-date" class="w-full bg-slate-200 dark:bg-[#343434]/80 rounded-2xl pl-4 pr-10 py-3 text-sm font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-[#96588a] transition-all outline-none border-none cursor-pointer" value="${new Date().toISOString().split('T')[0]}">
+                    <div id="m-date-icon" class="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 dark:text-white/40">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    </div>
+                 </div>
               </div>
-              <div class="space-y-1">
-                 <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Net Sale</label>
-                 <input type="number" id="m-net" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" placeholder="0.00">
+              <div class="space-y-1.5">
+                 <label class="text-[8px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest ml-1">Total Orders</label>
+                 <input type="number" id="m-orders" class="w-full bg-slate-200 dark:bg-[#343434]/80 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-[#96588a] transition-all outline-none border-none" placeholder="0">
               </div>
-           </div>
-           <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1">
-                 <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Discount</label>
-                 <input type="number" id="m-discount" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" placeholder="0.00">
+              <div class="space-y-1.5">
+                 <label class="text-[8px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest ml-1">Net Sale</label>
+                 <input type="number" id="m-net" class="w-full bg-slate-200 dark:bg-[#343434]/80 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-[#96588a] transition-all outline-none border-none" placeholder="0.00">
               </div>
-              <div class="space-y-1">
-                 <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Tax Charge</label>
-                 <input type="number" id="m-tax" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-5 py-3.5 text-xs font-bold" placeholder="0.00">
+              <div class="space-y-1.5">
+                 <label class="text-[8px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest ml-1">Discount</label>
+                 <input type="number" id="m-discount" class="w-full bg-slate-200 dark:bg-[#343434]/80 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-[#96588a] transition-all outline-none border-none" placeholder="0.00">
               </div>
-           </div>
-           <div class="p-5 bg-slate-900 rounded-2xl text-center space-y-1">
-              <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Auto-calculated Gross Sale</p>
-              <p id="m-gross-display" class="text-2xl font-black text-emerald-400">₱0.00</p>
+              <div class="space-y-1.5">
+                 <label class="text-[8px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest ml-1">Tax Charge</label>
+                 <input type="number" id="m-tax" class="w-full bg-slate-200 dark:bg-[#343434]/80 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-[#96588a] transition-all outline-none border-none" placeholder="0.00">
+              </div>
+              <div class="space-y-1.5">
+                 <label class="text-[8px] font-black text-emerald-500 uppercase tracking-widest ml-1">Gross Revenue</label>
+                 <div class="w-full bg-emerald-500/50 dark:bg-emerald-500/40 backdrop-blur-md rounded-2xl px-4 py-3 flex items-center justify-center">
+                    <p id="m-gross-display" class="text-sm font-black text-emerald-600 dark:text-emerald-400 tracking-tighter">₱0.00</p>
+                 </div>
+              </div>
            </div>
            
-           <button id="btn-m-save" class="w-full py-4 bg-[#96588a] text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-xl hover:shadow-[#96588a]/30 active:scale-95">
-              Save Manual Entry
+           <button id="btn-m-save" class="w-full h-16 bg-slate-600 dark:bg-[#444444] text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-[11px] transition-all shadow-xl hover:border-white/60  active:scale-95 flex items-center justify-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              Commit Transaction
            </button>
         </div>
       </div>
     `;
 
   document.body.appendChild(ov);
+
+  const mDate = ov.querySelector('#m-date');
+  const mDateIcon = ov.querySelector('#m-date-icon');
+  if (mDateIcon) mDateIcon.onclick = () => mDate.showPicker();
+  mDate.onclick = () => mDate.showPicker();
 
   const inputs = ov.querySelectorAll('input[type="number"]');
   const grossDisplay = ov.querySelector('#m-gross-display');

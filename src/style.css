@@ -64,6 +64,14 @@
     font-family: 'Nunito', sans-serif;
   }
 
+  /* Global Focus Reset: Remove browser outline but ALLOW Tailwind rings (box-shadow) */
+  input:focus,
+  select:focus,
+  textarea:focus,
+  button:focus {
+    outline: none !important;
+  }
+
   .font-nunito {
     font-family: 'Nunito', sans-serif;
   }
