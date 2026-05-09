@@ -147,17 +147,17 @@ async function renderPage(tabId) {
 
   // Show skeleton loader instead of spinner
   contentArea.innerHTML = `
-    <div class="p-8 space-y-6 animate-pulse">
+    <div class="p-8 space-y-6">
       <div class="flex justify-between items-center mb-10">
-        <div class="h-8 bg-slate-200 dark:bg-slate-800 rounded-lg w-48"></div>
-        <div class="h-10 bg-slate-200 dark:bg-slate-800 rounded-full w-32"></div>
+        <div class="h-8 skeleton-loading w-48"></div>
+        <div class="h-10 skeleton-loading w-32 rounded-full"></div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
-        <div class="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
-        <div class="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div class="h-32 skeleton-loading rounded-2xl"></div>
+        <div class="h-32 skeleton-loading rounded-2xl"></div>
+        <div class="h-32 skeleton-loading rounded-2xl"></div>
       </div>
-      <div class="h-64 bg-slate-200 dark:bg-slate-800 rounded-2xl w-full"></div>
+      <div class="h-64 skeleton-loading rounded-2xl w-full"></div>
     </div>
   `;
 
@@ -309,19 +309,19 @@ window.showToast = (message, type = 'info') => {
 window.showConfirmModal = (title, message, confirmText = 'Confirm') => {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-fade-in';
+    overlay.className = 'fixed inset-0 bg-slate-900/40 z-[10000] flex items-center justify-center p-4 animate-fade-in';
     overlay.innerHTML = `
-      <div class="bg-white/90 dark:bg-slate-900/90 border border-white/20 p-8 rounded-[2.5rem] max-w-sm w-full shadow-2xl animate-scale-up text-center space-y-6 backdrop-blur-xl">
+      <div class="bg-white/50 dark:bg-[#343434]/50 p-8 rounded-[2.5rem] backdrop-blur-2xl max-w-sm w-full shadow-2xl animate-scale-up text-center space-y-6 backdrop-blur-xl">
         <div class="w-16 h-16 bg-rose-50 dark:bg-rose-500/10 rounded-full flex items-center justify-center mx-auto text-rose-500">
            <i data-lucide="help-circle" class="w-8 h-8"></i>
         </div>
         <div class="space-y-2">
-           <h3 class="text-xl font-black uppercase tracking-tight dark:text-white">${title}</h3>
-           <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">${message}</p>
+           <h3 class="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">${title}</h3>
+           <p class="text-[11px] font-bold text-slate-800 dark:text-white uppercase tracking-widest leading-relaxed">${message}</p>
         </div>
         <div class="flex gap-3">
-           <button id="modal-cancel" class="flex-1 py-4 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all dark:text-slate-300">Cancel</button>
-           <button id="modal-confirm" class="flex-1 py-4 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl shadow-slate-900/20">${confirmText}</button>
+           <button id="modal-cancel" class="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white bg-rose-500/80 hover:bg-rose-500/70 transition-all dark:text-slate-300">Cancel</button>
+           <button id="modal-confirm" class="flex-1 py-4 bg-green-500/80 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] hover:bg-green-500/70 transition-all">${confirmText}</button>
         </div>
       </div>
     `;

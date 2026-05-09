@@ -1,6 +1,8 @@
 import { db, storage } from '../firebase.js';
 import { collection, getDocs, query, where, orderBy, addDoc, serverTimestamp, doc, getDoc, setDoc, limit, writeBatch, updateDoc, increment, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { animateValue, formatDateDDMMYYYY, standardizeDate, cleanNumber, getLocalDateString } from './expenses/utils.js';
+import { showExcelPreviewModal, showPromptModal } from './expenses/modals.js';
 
 // Module-level cache for master data (Categories, Purposes, etc.)
 let masterCache = {
@@ -9,33 +11,22 @@ let masterCache = {
    timestamp: 0
 };
 
-// Helper for Shimmer-Snap animation
-function animateValue(el, end, formatter) {
-   if (!el) return;
-   const newValue = formatter(end);
-   if (el.textContent === newValue) return;
-
-   el.classList.add('shimmer-text');
-   setTimeout(() => {
-      el.textContent = newValue;
-      el.classList.remove('shimmer-text');
-      el.classList.add('animate-snap');
-      setTimeout(() => el.classList.remove('animate-snap'), 500);
-   }, 250);
-}
-
 export async function renderExpensesPage(activeTab = 'cashier') {
    const APPROVAL_TEMPLATE_URL = '/templates/liquidation-approval-template.xlsx';
    const container = document.createElement('div');
    container.className = 'p-6 space-y-6 pb-20 page-enter';
 
    let currentTab = activeTab;
+   const yesterday = new Date();
+   yesterday.setDate(yesterday.getDate() - 1);
+   const yesterdayStr = yesterday.toISOString().split('T')[0];
    let categories = [];
    let purposes = [];
    let categoryMappings = {};
    let selectedFile = null;
    let currentBranch = document.getElementById('db-branch')?.value || 'Pioneer Center';
    let baseFund = 0;
+   let historyLimit = 10;
    let unliquidatedTotal = 0;
    let pendingTotal = 0;
 
@@ -104,14 +95,14 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          content.innerHTML = `
            <div class="space-y-6 animate-pulse p-2">
              <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-               <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
-               <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
-               <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
-               <div class="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-3xl"></div>
+               <div class="h-24 bg-slate-100 dark:bg-[#343434]/60 rounded-3xl"></div>
+               <div class="h-24 bg-slate-100 dark:bg-[#343434]/60 rounded-3xl"></div>
+               <div class="h-24 bg-slate-100 dark:bg-[#343434]/60 rounded-3xl"></div>
+               <div class="h-24 bg-slate-100 dark:bg-[#343434]/60 rounded-3xl"></div>
              </div>
              <div class="space-y-3">
                ${Array(6).fill(0).map(() => `
-                  <div class="h-16 bg-slate-100 dark:bg-slate-800/40 rounded-2xl w-full"></div>
+                  <div class="h-16 bg-slate-100 dark:bg-[#343434]/40 rounded-2xl w-full"></div>
                `).join('')}
              </div>
            </div>
@@ -121,6 +112,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       try {
          await loadMasterData();
 
+         currentTab = tabName;
          if (tabName === 'cashier') {
             content.innerHTML = renderCashierTab();
             attachCashierListeners();
@@ -142,99 +134,49 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       }
 
       if (window.lucide) window.lucide.createIcons();
+      if (tabName === 'cashier') initAddTransactionModal();
    }
+
 
    function renderCashierTab() {
       const fmt = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
       return `
-      <div class="animate-fade-in space-y-8">
+      <div class="animate-fade-in space-y-3">
          <!-- TOP ROW: Action & Status -->
          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             
-            <!-- Form Center (2/3): Luxury Command Center -->
-             <div class="lg:col-span-2 luxury-card relative bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-8 shadow-2xl border-t border-white/60 dark:border-white/10 group overflow-hidden h-full flex flex-col justify-between min-h-[420px]">
-                <div class="luxury-shine"></div>
-                <div class="channel-card-accent" style="background-color: #96588a; opacity: 0.1; transform: scale(2); filter: blur(80px); top: -10%; left: -5%;"></div>
+            <!-- Current Batch (Restored to Top Left 2/3) -->
+            <div class="lg:col-span-2 bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-8 border-t border-white/60 dark:border-white/10 shadow-xl h-[527px] flex flex-col">
+               <div class="flex items-center justify-between mb-8 shrink-0">
+                  <div class="flex items-center gap-4">
+                     <div class="w-10 h-10 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500">
+                        <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+                     </div>
+                     <div>
+                        <h4 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest">Current Batch</h4>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Draft items for liquidation</p>
+                     </div>
+                  </div>
+                  
+                  <div class="flex items-center gap-6">
+                     <div class="text-right">
+                        <p id="batch-total" class="text-2xl font-black text-slate-900 dark:text-white tabular-nums">₱0.00</p>
+                        <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Total to replenish</p>
+                     </div>
+                     <!-- Add Icon Button Linked to Modal -->
+                     <button id="add-exp-btn" class="w-10 h-10 bg-[#96588a] text-white rounded-full flex items-center justify-center shadow-lg shadow-[#96588a]/20 hover:scale-110 transition-all">
+                        <i data-lucide="plus" class="w-5 h-5"></i>
+                     </button>
+                  </div>
+               </div>
+               
+               <div id="cashier-items-list" class="flex-1 overflow-y-auto pr-2 space-y-3 scrollbar-hide min-h-0"></div>
 
-                <div class="relative z-10 flex items-center gap-3 mb-8">
-                   <div class="w-10 h-10 bg-[#96588a]/20 rounded-2xl flex items-center justify-center text-[#96588a] shadow-lg shadow-[#96588a]/20">
-                      <i data-lucide="plus-circle" class="w-5 h-5"></i>
-                   </div>
-                   <h4 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Add Transaction</h4>
-                </div>
-
-                <form id="expense-form" class="relative z-10 flex-1 flex flex-col justify-between gap-8">
-                   <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                      
-                      <!-- Left Column: Classification -->
-                      <div class="space-y-5">
-                         <div class="space-y-1.5">
-                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
-                            <select id="exp-category" required class="w-full bg-white/20 dark:bg-[#141414] dark:text-white/80 rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-                               <option value="">Select Category</option>
-                               ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
-                            </select>
-                         </div>
-                         <div class="space-y-1.5">
-                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Purpose</label>
-                            <select id="exp-purpose" required class="w-full bg-white/20 dark:bg-[#141414] text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-                               <option value="">Select Purpose</option>
-                               ${purposes.map(p => `<option value="${p}">${p}</option>`).join('')}
-                            </select>
-                         </div>
-                         <div id="exp-subcategory-wrap" class="space-y-1.5 hidden">
-                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sub Category</label>
-                            <select id="exp-subcategory" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-                               <option value="">Select Sub Category</option>
-                            </select>
-                         </div>
-                         <div class="space-y-1.5">
-                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Detail Description</label>
-                            <textarea id="exp-desc" required placeholder="Describe the expense..." rows="2" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all resize-none"></textarea>
-                         </div>
-                      </div>
-
-                      <!-- Right Column: Financials & Evidence -->
-                      <div class="space-y-5">
-                         <div class="grid grid-cols-2 gap-4">
-                            <div class="space-y-1.5">
-                               <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount</label>
-                               <div class="relative">
-                                  <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/60 font-bold text-xs">₱</span>
-                                  <input type="number" id="exp-amount" required step="0.01" placeholder="0.00" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl pl-8 pr-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
-                               </div>
-                            </div>
-                            <div class="space-y-1.5">
-                               <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
-                               <input type="date" id="exp-date" required value="${new Date().toISOString().split('T')[0]}" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-                            </div>
-                         </div>
-                         <div class="space-y-1.5">
-                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice No. (Optional)</label>
-                            <input type="text" id="exp-invoice" placeholder="e.g. INV-2026-001" class="w-full bg-white/20 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all uppercase">
-                         </div>
-                         <div class="space-y-1.5">
-                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Attachment</label>
-                            <input type="file" id="exp-file" class="hidden" accept="image/*">
-                            <div id="file-dropzone" class="border-2 border-dashed border-white/20 dark:border-white/10 rounded-2xl px-4 py-3.5 flex flex-row items-center justify-center gap-3 hover:bg-[#96588a]/5 hover:border-[#96588a]/40 transition-all cursor-pointer relative overflow-hidden group/zone">
-                               <div id="file-preview" class="hidden absolute inset-0 bg-white dark:bg-slate-900 z-10 flex items-center justify-center">
-                                  <img src="" class="h-full w-auto object-contain">
-                                  <button type="button" id="remove-file" class="absolute top-2 right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
-                               </div>
-                               <div class="w-8 h-8 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center text-slate-400 group-hover/zone:text-[#96588a] transition-colors">
-                                  <i data-lucide="camera" class="w-4 h-4"></i>
-                                </div>
-                               <span class="text-[9px] font-black text-slate-400 group-hover/zone:text-[#96588a] uppercase tracking-widest">Attach Receipt</span>
-                            </div>
-                         </div>
-                      </div>
-                   </div>
-
-                   <button type="submit" id="save-exp-btn" class="w-full py-5 bg-gradient-to-r from-[#96588a] to-[#7a4671] text-white rounded-2xl font-black uppercase tracking-[0.3em] text-[10px] transition-all shadow-xl shadow-[#96588a]/20 hover:shadow-[#96588a]/40 hover:-translate-y-0.5 active:scale-95">
-                      Confirm & Save Transaction
-                   </button>
-                </form>
-             </div>
+               <!-- Request Button Restored at Bottom -->
+               <button id="request-liquidation-btn" class="mt-6 shrink-0 w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3 group">
+                  <i data-lucide="send" class="w-4 h-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform"></i> Request Liquidation
+               </button>
+            </div>
 
             <!-- RIGHT COLUMN: Dual Card Stack (1/3) -->
             <div class="lg:col-span-1 flex flex-col gap-4">
@@ -283,22 +225,22 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                </div>
 
                <!-- Stats Card: Luxury Analytics -->
-               <div class="luxury-card relative bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-8 border-t border-white/60 dark:border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex-1 flex flex-col justify-between overflow-hidden group">
+               <div class="luxury-card relative bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-8 border-t border-white/60 dark:border-white/10 shadow-lg flex-1 flex flex-col justify-between overflow-hidden group">
                   <div class="luxury-shine"></div>
                   <!-- Subtle corner glow to match Platinum Card -->
                   <div class="absolute -top-20 -left-20 w-40 h-40 bg-[#96588a]/10 rounded-full blur-[80px]"></div>
 
                   <div class="relative z-10">
                      <div class="grid grid-cols-3 gap-3">
-                        <div class="bg-white/20 dark:bg-white/5 rounded-2xl p-3 border border-white/10 text-center transition-all hover:bg-white/30 dark:hover:bg-white/10">
+                        <div class="bg-slate-200/50 dark:bg-white/5 rounded-2xl p-3 text-center transition-all hover:bg-white/30 dark:hover:bg-white/10">
                            <p class="text-[7px] font-black text-amber-500 uppercase tracking-widest mb-1">Pending</p>
                            <p id="count-pending" class="text-xl font-black text-slate-800 dark:text-white tabular-nums">-</p>
                         </div>
-                        <div class="bg-white/20 dark:bg-white/5 rounded-2xl p-3 border border-white/10 text-center transition-all hover:bg-white/30 dark:hover:bg-white/10">
+                        <div class="bg-slate-200/50 dark:bg-white/5 rounded-2xl p-3 text-center transition-all hover:bg-white/30 dark:hover:bg-white/10">
                            <p class="text-[7px] font-black text-emerald-500 uppercase tracking-widest mb-1">Approved</p>
                            <p id="count-approved" class="text-xl font-black text-slate-800 dark:text-white tabular-nums">-</p>
                         </div>
-                        <div class="bg-white/20 dark:bg-white/5 rounded-2xl p-3 border border-white/10 text-center transition-all hover:bg-white/30 dark:hover:bg-white/10">
+                        <div class="bg-slate-200/50 dark:bg-white/5 rounded-2xl p-3 text-center transition-all hover:bg-white/30 dark:hover:bg-white/10">
                            <p class="text-[7px] font-black text-rose-500 uppercase tracking-widest mb-1">Rejected</p>
                            <p id="count-rejected" class="text-xl font-black text-slate-800 dark:text-white tabular-nums">-</p>
                         </div>
@@ -319,64 +261,67 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             </div>
          </div>
 
-         <!-- MIDDLE ROW: Batch Items -->
-         <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-8 border-t border-white/60 dark:border-white/10 shadow-xl">
-            <div class="flex items-center justify-between mb-8">
-               <div class="flex items-center gap-4">
-                  <div class="w-10 h-10 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
-                     <i data-lucide="shopping-bag" class="w-5 h-5"></i>
-                  </div>
-                  <div>
-                     <h4 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest">Current Batch</h4>
-                     <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Draft items for liquidation</p>
-                  </div>
-               </div>
-               
-               <div class="flex items-center gap-6">
-                  <div class="text-right">
-                     <p id="batch-total" class="text-2xl font-black text-slate-900 dark:text-white tabular-nums">₱0.00</p>
-                     <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">Total to replenish</p>
-                  </div>
-                  <button id="request-liquidation-btn" class="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-emerald-500/20 flex items-center gap-3 group">
-                     <i data-lucide="send" class="w-4 h-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform"></i> Request
-                  </button>
-               </div>
-            </div>
-            
-            <div id="cashier-items-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar min-h-[100px]"></div>
-         </div>
+         <!-- Modal placeholder -->
 
          <!-- HISTORY SECTION -->
-         <div class="pt-8 border-t border-slate-200/30 dark:border-white/10">
-            <div class="flex items-center justify-between mb-6">
-               <h4 class="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-3"><i data-lucide="clock" class="w-7 h-7 text-[#96588a]"></i> Recent History</h4>
-               <div class="h-px flex-1 mx-8 bg-slate-200/50 dark:bg-white/10"></div>
-            </div>
-            <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl border-t border-white/60 dark:border-white/10 shadow-xl overflow-hidden">
-               <div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-200/30 dark:border-white/10 bg-slate-100/30 dark:bg-white/[0.03]">
-                  <span class="col-span-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Request ID</span>
-                  <span class="col-span-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Period</span>
-                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Branch</span>
-                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Total Amount</span>
-                  <span class="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Status</span>
+         <div class="pt-10 border-t border-slate-200/30 dark:border-white/10 mt-8">
+            <div class="flex items-center justify-between mb-8">
+               <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 flex items-center justify-center bg-[#96588a]/10 dark:bg-[#96588a]/20 text-[#96588a] rounded-2xl shadow-sm">
+                     <i data-lucide="clock" class="w-6 h-6"></i>
+                  </div>
+                  <div>
+                     <h4 class="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Recent History</h4>
+                     <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Showing last recorded requests</p>
+                  </div>
                </div>
-               <div id="history-list-container" class="divide-y divide-slate-200/30 dark:divide-white/5"></div>
+               <div class="h-px flex-1 mx-8 bg-slate-200/30 dark:bg-white/5"></div>
+            </div>
+            <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-3xl border border-white/60 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[600px]">
+               <div class="sticky top-0 z-20 grid grid-cols-12 gap-2 px-8 py-6 border-b border-slate-100 dark:border-white/5 bg-white/80 dark:bg-[#1a1a1a]/90 backdrop-blur-md">
+                  <span class="col-span-3 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Request ID</span>
+                  <span class="col-span-3 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Period</span>
+                  <span class="col-span-2 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Branch</span>
+                  <span class="col-span-2 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em] text-right">Total Amount</span>
+                  <span class="col-span-2 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em] text-right">Status</span>
+               </div>
+               <div id="history-list-container" class="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-white/5 scrollbar-hide"></div>
             </div>
          </div>
       </div>
     `;
    }
 
+   // Track editing state
+   let currentEditingId = null;
+
    function attachCashierListeners() {
-      const form = container.querySelector('#expense-form');
-      const dropzone = container.querySelector('#file-dropzone');
-      const fileInput = container.querySelector('#exp-file');
-      const preview = container.querySelector('#file-preview');
-      const categorySelect = container.querySelector('#exp-category');
-      const purposeSelect = container.querySelector('#exp-purpose');
-      const subCategoryWrap = container.querySelector('#exp-subcategory-wrap');
-      const subCategorySelect = container.querySelector('#exp-subcategory');
-      const descInput = container.querySelector('#exp-desc');
+      const form = document.querySelector('#expense-form');
+      const dropzone = document.querySelector('#file-dropzone');
+      const fileInput = document.querySelector('#exp-file');
+      const preview = document.querySelector('#file-preview');
+      const categorySelect = document.querySelector('#exp-category');
+      const purposeSelect = document.querySelector('#exp-purpose');
+      const subCategoryWrap = document.querySelector('#exp-subcategory-wrap');
+      const subCategorySelect = document.querySelector('#exp-subcategory');
+      const descInput = document.querySelector('#exp-desc');
+      const modalTitle = document.querySelector('#expense-modal h4');
+      const submitBtn = document.querySelector('#save-exp-btn');
+      const addModal = document.querySelector('#expense-modal');
+
+      const resetForm = () => {
+         if (form) form.reset();
+         currentEditingId = null;
+         selectedFile = null;
+         if (fileInput) fileInput.value = '';
+         if (preview) preview.classList.add('hidden');
+         if (subCategoryWrap) subCategoryWrap.classList.add('hidden');
+         if (modalTitle) modalTitle.textContent = 'Add Transaction';
+         if (submitBtn) {
+            submitBtn.textContent = 'Confirm & Save Transaction';
+            submitBtn.className = "w-full py-5 bg-gradient-to-r from-[#96588a] to-[#7a4671] text-white rounded-2xl font-black uppercase tracking-[0.3em] text-[10px] transition-all shadow-xl shadow-[#96588a]/20 hover:shadow-[#96588a]/40 hover:-translate-y-0.5 active:scale-95";
+         }
+      };
 
       const normalizeMapping = (raw) => {
          if (!raw || typeof raw !== 'object') return { purposes: [], description: '', subcategories: {}, purposeAutoFill: {} };
@@ -389,6 +334,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       };
 
       const renderPurposeOptions = (options = []) => {
+         if (!purposeSelect) return;
          const unique = [...new Set(options.filter(Boolean))];
          const fallback = purposes || [];
          const source = unique.length ? unique : fallback;
@@ -397,7 +343,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       };
 
       const applyAutoDescription = (text) => {
-         if (!text) return;
+         if (!text || !descInput) return;
          const canOverwrite = !descInput.value.trim() || descInput.dataset.autofilled === 'true';
          if (canOverwrite) {
             descInput.value = text;
@@ -413,8 +359,8 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       };
 
       const getActiveConfig = () => {
-         const cat = categorySelect.value;
-         const sub = subCategorySelect.value;
+         const cat = categorySelect?.value;
+         const sub = subCategorySelect?.value;
          const catCfg = normalizeMapping(categoryMappings?.[cat]);
          if (!sub) return catCfg;
          const subCfg = normalizeMapping(catCfg.subcategories?.[sub]);
@@ -427,20 +373,23 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       };
 
       const applyCategoryRules = () => {
+         if (!categorySelect) return;
          const cat = categorySelect.value;
          const cfg = normalizeMapping(categoryMappings?.[cat]);
          const subKeys = Object.keys(cfg.subcategories || {});
 
          if (subKeys.length) {
-            subCategoryWrap.classList.remove('hidden');
-            subCategorySelect.innerHTML = `<option value="">Select Sub Category</option>${subKeys.map(k => `<option value="${k}">${k}</option>`).join('')}`;
-            subCategorySelect.value = '';
+            if (subCategoryWrap) subCategoryWrap.classList.remove('hidden');
+            if (subCategorySelect) {
+               subCategorySelect.innerHTML = `<option value="">Select Sub Category</option>${subKeys.map(k => `<option value="${k}">${k}</option>`).join('')}`;
+               subCategorySelect.value = '';
+            }
             renderPurposeOptions(cfg.purposes);
             applyAutoDescription(cfg.description);
             applyPurposeAutoFill();
          } else {
-            subCategoryWrap.classList.add('hidden');
-            subCategorySelect.innerHTML = '<option value="">Select Sub Category</option>';
+            if (subCategoryWrap) subCategoryWrap.classList.add('hidden');
+            if (subCategorySelect) subCategorySelect.innerHTML = '<option value="">Select Sub Category</option>';
             renderPurposeOptions(cfg.purposes);
             applyAutoDescription(cfg.description);
             applyPurposeAutoFill();
@@ -456,239 +405,422 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
       const applyPurposeAutoFill = () => {
          const cfg = getActiveConfig();
-         const template = getPurposeTemplate(cfg, purposeSelect.value);
-         if (template) applyAutoDescription(template);
+         if (purposeSelect) {
+            const template = getPurposeTemplate(cfg, purposeSelect.value);
+            if (template) applyAutoDescription(template);
+         }
       };
 
-      descInput.addEventListener('input', () => {
-         descInput.dataset.autofilled = 'false';
-      });
-      categorySelect.addEventListener('change', applyCategoryRules);
-      subCategorySelect.addEventListener('change', applySubCategoryRules);
-      purposeSelect.addEventListener('change', applyPurposeAutoFill);
+      if (descInput) {
+         descInput.addEventListener('input', () => {
+            descInput.dataset.autofilled = 'false';
+         });
+      }
+      if (categorySelect) categorySelect.addEventListener('change', applyCategoryRules);
+      if (subCategorySelect) subCategorySelect.addEventListener('change', applySubCategoryRules);
+      if (purposeSelect) purposeSelect.addEventListener('change', applyPurposeAutoFill);
       applyCategoryRules();
 
-      dropzone.onclick = () => fileInput.click();
+      if (dropzone && fileInput) dropzone.onclick = () => fileInput.click();
 
-      fileInput.onchange = (e) => {
-         const file = e.target.files[0];
-         if (file) {
-            selectedFile = file;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-               preview.querySelector('img').src = ev.target.result;
-               preview.classList.remove('hidden');
-               if (window.lucide) window.lucide.createIcons();
-            };
-            reader.readAsDataURL(file);
-         }
-      };
+      if (fileInput) {
+         fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+               selectedFile = file;
+               const reader = new FileReader();
+               reader.onload = (ev) => {
+                  if (preview) {
+                     const img = preview.querySelector('img');
+                     if (img) img.src = ev.target.result;
+                     preview.classList.remove('hidden');
+                  }
+                  if (window.lucide) window.lucide.createIcons();
+               };
+               reader.readAsDataURL(file);
+            }
+         };
+      }
 
-      container.querySelector('#remove-file').onclick = (e) => {
-         e.stopPropagation();
-         selectedFile = null;
-         fileInput.value = '';
-         preview.classList.add('hidden');
-      };
+      const removeFileBtn = document.querySelector('#remove-file');
+      if (removeFileBtn) {
+         removeFileBtn.onclick = (e) => {
+            e.stopPropagation();
+            selectedFile = null;
+            if (fileInput) fileInput.value = '';
+            if (preview) preview.classList.add('hidden');
+         };
+      }
 
-      form.onsubmit = async (e) => {
-         e.preventDefault();
-         const dateVal = container.querySelector('#exp-date').value;
-         const catVal = container.querySelector('#exp-category').value;
-         const purVal = container.querySelector('#exp-purpose').value;
-         const subCatVal = container.querySelector('#exp-subcategory')?.value || '';
-         const amtVal = parseFloat(container.querySelector('#exp-amount').value);
-         const descVal = container.querySelector('#exp-desc').value;
-         const invoiceVal = (container.querySelector('#exp-invoice')?.value || '').trim().toUpperCase();
+      if (form) {
+         form.onsubmit = async (e) => {
+            e.preventDefault();
+            const dateVal = document.querySelector('#exp-date')?.value;
+            const catVal = document.querySelector('#exp-category')?.value;
+            const purVal = document.querySelector('#exp-purpose')?.value;
+            const subCatVal = document.querySelector('#exp-subcategory')?.value || '';
+            const amtVal = parseFloat(document.querySelector('#exp-amount')?.value || '0');
+            const descVal = document.querySelector('#exp-desc')?.value;
+            const invoiceVal = (document.querySelector('#exp-invoice')?.value || '').trim().toUpperCase();
 
-         if (!amtVal || amtVal <= 0) { window.showToast("Amount must be greater than zero.", "error"); return; }
-         if (!selectedFile) { window.showToast("Please attach a receipt image.", "error"); return; }
+            if (!amtVal || amtVal <= 0) { window.showToast("Amount must be greater than zero.", "error"); return; }
 
-         const btn = container.querySelector('#save-exp-btn');
-         const originalText = btn.innerHTML;
-         const originalClassName = btn.className;
-         btn.disabled = true;
-         btn.innerHTML = `
-            <div class="flex items-center justify-center w-full gap-3">
-              <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span class="font-black">Saving...</span>
-            </div>
-         `;
+            if (!currentEditingId && !selectedFile) {
+               window.showToast("Please attach a receipt image.", "error");
+               return;
+            }
 
-         try {
-            const fileRef = ref(storage, `expenses_receipts/${Date.now()}_${selectedFile.name}`);
-            const uploadSnap = await uploadBytes(fileRef, selectedFile);
-            const downloadUrl = await getDownloadURL(uploadSnap.ref);
-
-            await addDoc(collection(db, 'expenses'), {
-               branchId: currentBranch,
-               date: dateVal,
-               category: catVal,
-               subCategory: subCatVal || null,
-               purpose: purVal,
-               invoiceNo: invoiceVal || null,
-               amount: amtVal,
-               description: descVal,
-               receiptUrl: downloadUrl,
-               fundedBy: 'petty_cash',
-               status: 'pending',
-               createdAt: serverTimestamp()
-            });
-
-            window.showToast('Transaction saved!', 'success');
-
-            // Success: convert the button to green + check icon (do not change DB logic).
-            btn.className = originalClassName;
-            btn.classList.remove('bg-slate-900', 'dark:bg-white', 'dark:text-slate-900');
-            btn.classList.add('bg-emerald-500', 'hover:bg-emerald-600', 'dark:bg-emerald-500');
+            const btn = document.querySelector('#save-exp-btn');
+            if (!btn) return;
+            const originalText = btn.innerHTML;
+            const originalClassName = btn.className;
+            btn.disabled = true;
             btn.innerHTML = `
-              <div class="flex items-center justify-center w-full gap-3">
-                <span class="w-5 h-5 rounded-full bg-white/20 text-white flex items-center justify-center font-black">✓</span>
-                <span class="font-black">Done Saved</span>
-              </div>
+               <div class="flex items-center justify-center w-full gap-3">
+                 <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                 <span class="font-black">Saving...</span>
+               </div>
             `;
 
-            setTimeout(async () => {
-               // 1. Reset Form & Button
-               form.reset();
-               preview.classList.add('hidden');
-               preview.querySelector('img').src = '';
-               selectedFile = null;
+            try {
+               let downloadUrl = null;
+               if (selectedFile) {
+                  const fileRef = ref(storage, `expenses_receipts/${Date.now()}_${selectedFile.name}`);
+                  const uploadSnap = await uploadBytes(fileRef, selectedFile);
+                  downloadUrl = await getDownloadURL(uploadSnap.ref);
+               }
 
-               btn.disabled = false;
-               btn.innerHTML = originalText;
+               const payload = {
+                  branchId: currentBranch,
+                  date: dateVal,
+                  category: catVal,
+                  subCategory: subCatVal || null,
+                  purpose: purVal,
+                  invoiceNo: invoiceVal || null,
+                  amount: amtVal,
+                  description: descVal,
+                  fundedBy: 'petty_cash',
+                  status: 'pending'
+               };
+
+               if (downloadUrl) payload.receiptUrl = downloadUrl;
+
+               if (currentEditingId) {
+                  await updateDoc(doc(db, 'expenses', currentEditingId), payload);
+                  window.showToast('Transaction updated!', 'success');
+               } else {
+                  payload.createdAt = serverTimestamp();
+                  await addDoc(collection(db, 'expenses'), payload);
+                  window.showToast('Transaction saved!', 'success');
+               }
+
                btn.className = originalClassName;
+               btn.classList.remove('bg-slate-900', 'dark:bg-white', 'dark:text-slate-900');
+               btn.classList.add('bg-emerald-500', 'hover:bg-emerald-600', 'dark:bg-emerald-500');
+               btn.innerHTML = `
+                 <div class="flex items-center justify-center w-full gap-3">
+                   <span class="w-5 h-5 rounded-full bg-white/20 text-white flex items-center justify-center font-black">✓</span>
+                   <span class="font-black">Done ${currentEditingId ? 'Updated' : 'Saved'}</span>
+                 </div>
+               `;
 
-               // 2. Refresh Master Data
-               await loadMasterData();
+               setTimeout(async () => {
+                  form.reset();
+                  if (preview) {
+                     preview.classList.add('hidden');
+                     const img = preview.querySelector('img');
+                     if (img) img.src = '';
+                  }
+                  selectedFile = null;
 
-               // 3. Directly update summary figures via ID
-               const balanceEl = container.querySelector('#cashier-balance-display');
-               const spentEl = container.querySelector('#cashier-spent-display');
-               const fmt = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+                  btn.disabled = false;
+                  btn.innerHTML = originalText;
+                  btn.className = originalClassName;
 
-               if (balanceEl) animateValue(balanceEl, (baseFund - unliquidatedTotal), fmt);
-               if (spentEl) animateValue(spentEl, unliquidatedTotal, fmt);
+                  if (addModal) addModal.classList.add('hidden');
 
-               // 4. Silently refresh lists
-               if (typeof loadCashierData === 'function') await loadCashierData();
-               if (typeof loadHistoryData === 'function') await loadHistoryData();
-            }, 1000);
-         } catch (err) {
-            console.error(err);
-            window.showToast("Failed to save: " + err.message, "error");
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-            btn.className = originalClassName;
-         }
+                  await loadMasterData();
+
+                  const balanceEl = document.querySelector('#cashier-balance-display');
+                  const spentEl = document.querySelector('#cashier-spent-display');
+                  const fmt = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+                  if (balanceEl) animateValue(balanceEl, (baseFund - unliquidatedTotal), fmt);
+                  if (spentEl) animateValue(spentEl, unliquidatedTotal, fmt);
+
+                  if (typeof loadCashierData === 'function') await loadCashierData();
+                  if (typeof loadHistoryData === 'function') await loadHistoryData();
+               }, 1000);
+            } catch (err) {
+               console.error(err);
+               window.showToast("Failed to save: " + err.message, "error");
+               if (btn) {
+                  btn.disabled = false;
+                  btn.innerHTML = originalText;
+                  btn.className = originalClassName;
+               }
+            }
+         };
+      }
+
+      const requestLiqBtn = container.querySelector('#request-liquidation-btn');
+      if (requestLiqBtn) {
+         requestLiqBtn.onclick = async () => {
+            if (pendingTotal <= 0) { window.showToast('No pending expenses to liquidate.', 'error'); return; }
+            if (pendingTotal > 4000) {
+               const proceed = await window.showConfirmModal(
+                  'Limit Warning',
+                  `Total ₱${pendingTotal.toLocaleString()} exceeds the ₱4,000 petty cash limit. Proceed anyway?`,
+                  'Proceed'
+               );
+               if (!proceed) return;
+            }
+
+            const confirmed = await window.showConfirmModal(
+               'Request Liquidation',
+               `Submit request for <strong>₱${pendingTotal.toLocaleString()}</strong>?`,
+               'Send Request'
+            );
+            if (!confirmed) return;
+
+            try {
+               const q = query(collection(db, 'expenses'),
+                  where('branchId', '==', currentBranch),
+                  where('status', '==', 'pending'),
+                  where('fundedBy', '==', 'petty_cash')
+               );
+               const snap = await getDocs(q);
+
+               const expenseDates = snap.docs.map(d => d.data().date).sort();
+               const startDate = expenseDates[0] || '---';
+               const endDate = expenseDates[expenseDates.length - 1] || '---';
+
+               const balanceAtRequest = baseFund - unliquidatedTotal;
+
+               const liqRef = await addDoc(collection(db, 'liquidation_requests'), {
+                  branchId: currentBranch,
+                  totalAmount: pendingTotal,
+                  status: 'pending',
+                  itemCount: snap.docs.length,
+                  startDate,
+                  endDate,
+                  balanceAtRequest: balanceAtRequest,
+                  createdAt: serverTimestamp(),
+                  createdBy: 'jimmiemetapon@gmail.com'
+               });
+
+               const batch = writeBatch(db);
+               snap.docs.forEach(d => batch.update(d.ref, { status: 'requested', liquidationId: liqRef.id }));
+               await batch.commit();
+
+               // Audit Log: Submit Request
+               await addDoc(collection(db, 'audit_logs'), {
+                  action: 'submit_request',
+                  requestId: liqRef.id,
+                  branchId: currentBranch,
+                  actor: 'jimmiemetapon@gmail.com',
+                  totalAmount: pendingTotal,
+                  balanceAtRequest: balanceAtRequest,
+                  itemCount: snap.docs.length,
+                  comment: `Submitted liquidation request for ₱${pendingTotal.toLocaleString()}`,
+                  timestamp: serverTimestamp()
+               });
+
+               window.showToast('Liquidation request sent!', 'success');
+               setTimeout(() => loadTabContent('cashier'), 1000);
+            } catch (err) { console.error(err); }
+         };
+      }
+
+      // Modal Triggers
+      const addBtn = container.querySelector('#add-exp-btn');
+      const closeBtn = document.querySelector('#close-exp-modal-btn');
+
+      const closeAddModal = () => {
+         if (!addModal) return;
+         const inner = addModal.querySelector('.relative');
+         addModal.classList.add('animate-fade-out');
+         if (inner) inner.classList.add('animate-scale-down');
+         setTimeout(() => {
+            addModal.classList.add('hidden');
+            addModal.classList.remove('animate-fade-out');
+            if (inner) inner.classList.remove('animate-scale-down');
+            resetForm();
+         }, 200);
       };
 
-      container.querySelector('#request-liquidation-btn').onclick = async () => {
-         if (pendingTotal <= 0) { window.showToast('No pending expenses to liquidate.', 'error'); return; }
-         if (pendingTotal > 4000) {
-            const proceed = await window.showConfirmModal(
-               'Limit Warning',
-               `Total ₱${pendingTotal.toLocaleString()} exceeds the ₱4,000 petty cash limit. Proceed anyway?`,
-               'Proceed'
-            );
-            if (!proceed) return;
-         }
-
-         const confirmed = await window.showConfirmModal(
-            'Request Liquidation',
-            `Submit request for <strong>₱${pendingTotal.toLocaleString()}</strong>?`,
-            'Send Request'
-         );
-         if (!confirmed) return;
-
-         try {
-            const q = query(collection(db, 'expenses'),
-               where('branchId', '==', currentBranch),
-               where('status', '==', 'pending'),
-               where('fundedBy', '==', 'petty_cash')
-            );
-            const snap = await getDocs(q);
-
-            const expenseDates = snap.docs.map(d => d.data().date).sort();
-            const startDate = expenseDates[0] || '---';
-            const endDate = expenseDates[expenseDates.length - 1] || '---';
-
-            const balanceAtRequest = baseFund - unliquidatedTotal;
-
-            const liqRef = await addDoc(collection(db, 'liquidation_requests'), {
-               branchId: currentBranch,
-               totalAmount: pendingTotal,
-               status: 'pending',
-               itemCount: snap.docs.length,
-               startDate,
-               endDate,
-               balanceAtRequest: balanceAtRequest,
-               createdAt: serverTimestamp(),
-               createdBy: 'jimmiemetapon@gmail.com'
-            });
-
-            const batch = writeBatch(db);
-            snap.docs.forEach(d => batch.update(d.ref, { status: 'requested', liquidationId: liqRef.id }));
-            await batch.commit();
-
-            // Audit Log: Submit Request
-            await addDoc(collection(db, 'audit_logs'), {
-               action: 'submit_request',
-               requestId: liqRef.id,
-               branchId: currentBranch,
-               actor: 'jimmiemetapon@gmail.com',
-               totalAmount: pendingTotal,
-               balanceAtRequest: balanceAtRequest,
-               itemCount: snap.docs.length,
-               comment: `Submitted liquidation request for ₱${pendingTotal.toLocaleString()}`,
-               timestamp: serverTimestamp()
-            });
-
-            window.showToast('Liquidation request sent!', 'success');
-            setTimeout(() => loadTabContent('cashier'), 1000);
-         } catch (err) { console.error(err); }
+      if (addBtn) addBtn.onclick = () => {
+         resetForm();
+         if (addModal) addModal.classList.remove('hidden');
       };
+      if (closeBtn) closeBtn.onclick = () => closeAddModal();
+      if (addModal) {
+         addModal.onclick = (e) => {
+            if (e.target === addModal) closeAddModal();
+         };
+      }
+
 
       loadCashierData();
    }
 
+   // Function to initialize and move Add Transaction Modal to body
+   function initAddTransactionModal() {
+      if (document.getElementById('expense-modal')) return;
+      const modalHtml = `
+         <div id="expense-modal" class="fixed inset-0 z-[9999] hidden flex items-start justify-center p-1 sm:p-1 animate-fade-in bg-slate-900/10">
+           <div class="relative w-full max-w-2xl mt-10">
+            <!-- Layer 1: Dark Atmospheric Layer -->
+            <div class="absolute inset-0 rounded-[2.5rem] bg-white/60 dark:bg-[#141414]/60 backdrop-blur-2xl shadow-2xl"></div>
+            <!-- Layer 2: Main Glass Modal -->
+            <div class="relative max-h-[95vh] overflow-y-auto rounded-[2.5rem] bg-white/[0.6] dark:bg-[#343434]/[0.4] backdrop-blur-[40px] backdrop-saturate-150 p-8">
+               <div class="luxury-shine"></div>
+               <button id="close-exp-modal-btn" class="absolute top-6 right-6 w-10 h-10 bg-white/10 hover:bg-rose-500/20 text-slate-400 hover:text-rose-500 rounded-full flex items-center justify-center transition-all z-20">
+                  <i data-lucide="x" class="w-6 h-6"></i>
+               </button>
+               <div class="relative z-10 flex items-center gap-3 mb-8">
+                  <div class="w-10 h-10 bg-[#96588a]/20 rounded-full flex items-center justify-center text-[#96588a]">
+                     <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                  </div>
+                  <h4 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Add Transaction</h4>
+               </div>
+               <form id="expense-form" class="relative z-10 flex-1 flex flex-col justify-between gap-8">
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                     <div class="space-y-5">
+                        <div class="space-y-1.5">
+                           <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
+                           <select id="exp-category" required class="w-full bg-[#343434]/5 dark:bg-[#141414] dark:text-white/80 rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
+                              <option value="">Select Category</option>
+                              ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+                           </select>
+                        </div>
+                        <div class="space-y-1.5">
+                           <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Purpose</label>
+                           <select id="exp-purpose" required class="w-full bg-[#343434]/5 dark:bg-[#141414] text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
+                              <option value="">Select Purpose</option>
+                              ${purposes.map(p => `<option value="${p}">${p}</option>`).join('')}
+                           </select>
+                        </div>
+                        <div id="exp-subcategory-wrap" class="space-y-1.5 hidden">
+                           <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sub Category</label>
+                           <select id="exp-subcategory" class="w-full bg-[#343434]/5 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
+                              <option value="">Select Sub Category</option>
+                           </select>
+                        </div>
+                        <div class="space-y-1.5">
+                           <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Detail Description</label>
+                           <textarea id="exp-desc" required placeholder="Describe the expense..." rows="2" class="w-full bg-[#343434]/5 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all resize-none"></textarea>
+                        </div>
+                     </div>
+                     <div class="space-y-5">
+                        <div class="grid grid-cols-2 gap-4">
+                           <div class="space-y-1.5">
+                              <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount</label>
+                              <div class="relative">
+                                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/60 font-bold text-xs">₱</span>
+                                 <input type="number" id="exp-amount" required step="0.01" placeholder="0.00" class="w-full bg-[#343434]/5 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl pl-8 pr-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
+                              </div>
+                           </div>
+                           <div class="space-y-1.5">
+                              <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
+                              <input type="date" id="exp-date" required value="${new Date().toISOString().split('T')[0]}" class="w-full bg-[#343434]/5 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
+                           </div>
+                        </div>
+                        <div class="space-y-1.5">
+                           <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice No. (Optional)</label>
+                           <input type="text" id="exp-invoice" placeholder="e.g. INV-2026-001" class="w-full bg-[#343434]/5 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all uppercase">
+                        </div>
+                        <div class="space-y-1.5">
+                           <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Receipt Attachment</label>
+                           <input type="file" id="exp-file" class="hidden" accept="image/*">
+                           <div id="file-dropzone" class="border-2 border-dashed border-white/20 dark:border-white/10 rounded-2xl px-4 py-3.5 flex flex-row items-center justify-center gap-3 hover:bg-[#96588a]/5 hover:border-[#96588a]/40 transition-all cursor-pointer relative overflow-hidden group/zone">
+                              <div id="file-preview" class="hidden absolute inset-0 bg-white dark:bg-slate-900 z-10 flex items-center justify-center">
+                                 <img src="" class="h-full w-auto object-contain">
+                                 <button type="button" id="remove-file" class="absolute top-2 right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                              </div>
+                              <div class="w-8 h-8 bg-slate-100 dark:bg-white/5 rounded-full flex items-center justify-center text-slate-400 group-hover/zone:text-[#96588a] transition-colors">
+                                 <i data-lucide="camera" class="w-4 h-4"></i>
+                               </div>
+                              <span class="text-[9px] font-black text-slate-400 group-hover/zone:text-[#96588a] uppercase tracking-widest">Attach Receipt</span>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+                  <button type="submit" id="save-exp-btn" class="w-full py-5 bg-gradient-to-r from-[#96588a] to-[#7a4671] text-white rounded-2xl font-black uppercase tracking-[0.3em] text-[10px] transition-all shadow-xl shadow-[#96588a]/20 hover:shadow-[#96588a]/40 hover:-translate-y-0.5 active:scale-95">
+                     Confirm & Save Transaction
+                  </button>
+               </form>
+            </div>
+         </div>
+         </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      if (window.lucide) window.lucide.createIcons();
+   }
+
+
    async function showLiquidationDetailModal(reqData, onActionDone) {
-      if (document.getElementById('liquidation-detail-overlay')) return; // Prevent double-clicks
+      if (document.getElementById('liquidation-detail-overlay')) return;
 
       const overlay = document.createElement('div');
       overlay.id = 'liquidation-detail-overlay';
-      overlay.className = 'fixed inset-0 z-[9999] bg-slate-900/30 animate-fade-in flex items-center justify-center p-4';
+      overlay.className = 'fixed inset-0 z-[9999] bg-slate-900/20 animate-fade-in flex items-start justify-center p-1 sm:p-4';
 
+      overlay.innerHTML = `
+         <div class="relative w-full max-w-md mt-10 animate-scale-up">
+            <!-- Layer 1: Dark Atmospheric Layer -->
+            <div class="absolute inset-0 rounded-[2.5rem] bg-white/60 dark:bg-[#141414]/60 backdrop-blur-2xl shadow-2xl"></div>
+            <!-- Layer 2: Main Glass Modal -->
+            <div id="liquidation-modal-inner" class="relative max-h-[85vh] flex flex-col overflow-hidden rounded-[2.5rem] bg-white/[0.6] dark:bg-[#343434]/[0.4] backdrop-blur-[40px] backdrop-saturate-150">
+               <!-- Content will be injected here -->
+            </div>
+         </div>
+      `;
+      document.body.appendChild(overlay);
+
+      const modalContainer = overlay.querySelector('#liquidation-modal-inner');
+
+      await renderLiquidationDetailContent(modalContainer, reqData, () => {
+         overlay.remove();
+         if (onActionDone) onActionDone();
+      }, false);
+
+      const closeBtn = modalContainer.querySelector('#detail-close');
+      if (closeBtn) closeBtn.onclick = () => overlay.remove();
+      const dismissBtn = modalContainer.querySelector('#detail-close-btn');
+      if (dismissBtn) dismissBtn.onclick = () => overlay.remove();
+
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+   }
+
+   async function renderLiquidationDetailContent(targetContainer, reqData, onActionDone, isInline = false) {
       // Identify Context
       const isAuditMode = reqData.status === 'pending' && currentTab === 'audit';
       const isEditMode = reqData.status === 'rejected' || reqData.status === 'partially_rejected';
 
-      overlay.innerHTML = `
-         <div class="bg-white/80 dark:bg-slate-950/95 backdrop-blur-3xl w-full max-w-md max-h-[85vh] flex flex-col shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] rounded-[3rem] border-2 border-white/50 dark:border-slate-700/50 animate-scale-up overflow-hidden">
+      targetContainer.innerHTML = `
             <!-- Modal Header -->
-            <div class="px-8 pt-8 pb-4 flex items-center justify-between flex-shrink-0 relative z-20">
-               <div>
-                  <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none">${reqData.branchId}</h3>
-                  <p class="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Financial Breakdown</p>
-               </div>
-               <button id="detail-close" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-rose-500 hover:text-white transition-all text-xl font-light">&times;</button>
-            </div>
-
-            <!-- Summary Grid -->
-            <div class="px-8 pb-4 grid grid-cols-2 gap-3 flex-shrink-0 relative z-20">
-               <div class="p-4 bg-white/50 dark:bg-slate-900/50 rounded-[1.5rem] border border-white dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div class="p-6 flex items-center justify-between dark:bg-transparent flex-shrink-0 relative z-20">
+               <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 flex items-center justify-center text-purple-700 bg-purple-50 dark:bg-purple-500/10 rounded-full">
+                     <i data-lucide="building-2" class="w-4 h-4"></i>
+                  </div>
                   <div>
-                     <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Requested</p>
-                     <h2 class="text-xl font-black text-slate-800 dark:text-white tracking-tighter">₱${reqData.totalAmount?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</h2>
+                     <h3 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none">${reqData.branchId}</h3>
+                     <p class="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-1">Financial Breakdown</p>
                   </div>
-                  <i data-lucide="wallet" class="w-4 h-4 text-purple-400"></i>
                </div>
-               <div class="p-4 bg-[#96588a] rounded-[1.5rem] text-white shadow-lg shadow-[#96588a]/20 flex flex-col justify-center">
-                  <p class="text-[8px] font-black opacity-60 uppercase tracking-widest mb-0.5">Status</p>
-                  <div class="flex items-center gap-2">
-                     <div class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
-                     <h3 class="text-xs font-black uppercase tracking-widest">${reqData.status}</h3>
+               
+               <div class="flex items-center gap-6">
+                  <div class="text-right">
+                     <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Requested</p>
+                     <h2 class="text-base font-black text-[#96588a] dark:text-white tracking-tighter leading-none">₱${reqData.totalAmount?.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</h2>
                   </div>
+                  ${isInline ? '' : `
+                  <button id="detail-close" class="w-8 h-8 rounded-full bg-slate-50 dark:bg-white dark:bg-white/10 flex items-center justify-center text-slate-500 dark:text-white/90 hover:bg-rose-500 hover:text-white transition-all shadow-sm">
+                     <i data-lucide="x" class="w-4 h-4"></i>
+                  </button>
+                  `}
                </div>
             </div>
 
@@ -712,41 +844,34 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             </div>
 
             <!-- Action Footer (Fixed at bottom) -->
-            <div class="px-8 pb-8 pt-4 flex-shrink-0 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-t border-slate-100 dark:border-slate-800/50 relative z-20">
+            <div class="px-8 pb-8 pt-4 flex-shrink-0 bg-transparent dark:bg-transparent backdrop-blur-md relative z-20">
                <div class="flex gap-2">
                   ${(reqData.status === 'pending' && currentTab === 'audit') ? `
-                      <button id="detail-complete-review" class="w-full py-4 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl">Complete Review</button>
+                      <button id="detail-complete-review" class="w-full py-4 rounded-2xl bg-slate-900 dark:bg-white/10 dark:text-white text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 dark:hover:bg-white/20 transition-all shadow-xl">Complete Review</button>
                   ` : (reqData.status === 'pending') ? `
                       <button id="detail-cancel-request" class="w-full py-4 rounded-2xl bg-rose-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-xl">Cancel Request</button>
                   ` : isEditMode ? `
                      <button id="detail-resubmit" class="w-full py-4 rounded-2xl bg-purple-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg">Submit Corrections</button>
                   ` : `
-                     <button id="detail-close-btn" class="w-full py-4 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest">Dismiss Detail</button>
+                     <button id="detail-close-btn" class="w-full py-4 rounded-2xl bg-slate-900 dark:bg-white/10 dark:text-white text-white text-[10px] font-black uppercase tracking-widest">Dismiss Detail</button>
                   `}
                </div>
             </div>
          </div>
-       `;
-      document.body.appendChild(overlay);
-      overlay.querySelector('#detail-close').onclick = () => overlay.remove();
-      const closeBtn = overlay.querySelector('#detail-close-btn');
-      if (closeBtn) closeBtn.onclick = () => overlay.remove();
+         `;
 
-      const detailBody = overlay.querySelector('#detail-body');
+      const detailBody = targetContainer.querySelector('#detail-body');
       try {
          const snap = await getDocs(query(collection(db, 'expenses'), where('liquidationId', '==', reqData.id), limit(500)));
          const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
          const resubmitFiles = {}; // Store new files for resubmission
 
-         // Update header with Bulk Approve if in audit mode
-         const headerContainer = overlay.querySelector('.px-8.py-2');
+         // Expenses List Header
+         const headerContainer = targetContainer.querySelector('.px-8.py-2');
          if (isAuditMode && items.length > 0) {
             headerContainer.innerHTML = `
                <div class="flex items-center gap-4">
                   <p class="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-[0.2em] pl-2 border-l-2 border-purple-500">Expenses List</p>
-                  <button id="bulk-approve-btn" class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded-lg text-[8px] font-black uppercase tracking-widest border border-emerald-100 dark:border-emerald-500/20 hover:bg-emerald-100 transition-all">
-                     <i data-lucide="check-circle" class="w-2.5 h-2.5"></i> Approve All
-                  </button>
                </div>
                <p class="text-[9px] text-slate-500 font-black uppercase tracking-widest italic">ID: ${reqData.id.substring(0, 8).toUpperCase()}</p>
             `;
@@ -763,14 +888,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             detailBody.innerHTML = `
                <div class="animate-fade-in space-y-1">
                   ${items.map(item => `
-                     <div class="item-row group flex items-center gap-3 px-4 py-1.5 rounded-xl transition-all hover:bg-white dark:hover:bg-slate-900 cursor-default border-b border-white/5" data-id="${item.id}">
-                        ${isAuditMode ? `
-                        <div style="width: 28px;" class="flex-shrink-0">
-                           <button class="item-toggle w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black transition-all border-2 border-emerald-300 bg-emerald-50 text-emerald-600" data-id="${item.id}" data-status="approved" title="Click to reject">
-                              ✓
-                           </button>
-                        </div>
-                        ` : ''}
+                     <div class="item-row group flex items-center gap-3 px-4 py-1.5 rounded-xl transition-all hover:bg-black/10 dark:hover:bg-white/10 cursor-default border-b border-white/5" data-id="${item.id}">
                         <div style="width: 45px;" class="flex-shrink-0">
                            <p class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase leading-none">${item.date.split('-').slice(1).join('/')}</p>
                         </div>
@@ -800,7 +918,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                         <input type="text" class="reject-note w-full bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 text-[10px] font-bold text-rose-700 placeholder-rose-300" placeholder="Reason for rejection (required)">
                      </div>` : ''}
                      ${isEditMode && item.auditorNote ? `
-                        <div class="mx-4 mb-4 p-4 bg-white/80 rounded-2xl border border-rose-100 space-y-3 animate-fade-in shadow-sm">
+                        <div class="mx-4 mb-4 p-4 bg-white/80 dark:bg-[#343434]/50 rounded-2xl space-y-3 animate-fade-in shadow-sm">
                            <p class="text-[9px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-1.5">
                               <i data-lucide="message-square" class="w-3 h-3"></i> Feedback: ${item.auditorNote}
                            </p>
@@ -829,40 +947,6 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
          if (window.lucide) window.lucide.createIcons();
 
-         // Bulk Approve Listener
-         const bulkBtn = overlay.querySelector('#bulk-approve-btn');
-         if (bulkBtn) {
-            bulkBtn.onclick = () => {
-               detailBody.querySelectorAll('.item-toggle').forEach(b => {
-                  b.dataset.status = 'approved';
-                  b.textContent = '✓';
-                  b.className = 'item-toggle w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black transition-all border-2 border-emerald-300 bg-emerald-50 text-emerald-600';
-               });
-               detailBody.querySelectorAll('.reject-reason-box').forEach(box => box.classList.add('hidden'));
-               window.showToast('All items approved', 'success');
-            };
-         }
-
-         // Per-item toggle listeners (Audit Mode)
-         detailBody.querySelectorAll('.item-toggle').forEach(btn => {
-            btn.onclick = () => {
-               const currentStatus = btn.dataset.status;
-               const reasonBox = detailBody.querySelector(`.reject-reason-box[data-for="${btn.dataset.id}"]`);
-               if (currentStatus === 'approved') {
-                  btn.dataset.status = 'rejected';
-                  btn.textContent = '✕';
-                  btn.className = 'item-toggle w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black transition-all border-2 border-rose-300 bg-rose-50 text-rose-600';
-                  btn.title = 'Click to approve';
-                  if (reasonBox) reasonBox.classList.remove('hidden');
-               } else {
-                  btn.dataset.status = 'approved';
-                  btn.textContent = '✓';
-                  btn.className = 'item-toggle w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black transition-all border-2 border-emerald-300 bg-emerald-50 text-emerald-600';
-                  btn.title = 'Click to reject';
-                  if (reasonBox) { reasonBox.classList.add('hidden'); reasonBox.querySelector('.reject-note').value = ''; }
-               }
-            };
-         });
 
          detailBody.querySelectorAll('.flag-comment-btn').forEach(btn => {
             btn.onclick = () => {
@@ -871,22 +955,46 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             };
          });
 
-         detailBody.querySelectorAll('.receipt-eye-btn').forEach(btn => {
-            btn.onclick = () => {
-               const lb = document.createElement('div');
-               lb.className = 'fixed inset-0 bg-slate-900/90 z-[10005] flex items-center justify-center p-6 cursor-zoom-out animate-fade-in';
-               lb.innerHTML = `<img src="${btn.dataset.url}" class="max-w-full max-h-full object-contain rounded-3xl shadow-2xl animate-scale-up">`;
-               lb.onclick = () => lb.remove();
-               document.body.appendChild(lb);
+         detailBody.querySelectorAll('.item-row').forEach(row => {
+            row.onclick = (e) => {
+               // If clicking an input or button inside, don't trigger the image
+               if (e.target.closest('button') || e.target.closest('input')) return;
+
+               const eyeBtn = row.querySelector('.receipt-eye-btn');
+               const url = eyeBtn?.dataset.url;
+               if (!url) return;
+
+               // If we are in the Audit Workspace (isInline), show in Sidebar
+               if (isInline && window.showAuditReceiptInSidebar) {
+                  // Highlight row
+                  detailBody.querySelectorAll('.item-row').forEach(r => r.classList.remove('bg-purple-50/50', 'dark:bg-purple-500/5', 'ring-1', 'ring-purple-500/20'));
+                  row.classList.add('bg-purple-50/50', 'dark:bg-purple-500/5', 'ring-1', 'ring-purple-500/20');
+
+                  window.showAuditReceiptInSidebar(url);
+               } else {
+                  // Otherwise (History Modal), show the classic Lightbox
+                  const lb = document.createElement('div');
+                  lb.className = 'fixed inset-0 bg-[#141414]/50 z-[10005] flex items-center justify-center p-6 cursor-zoom-out animate-fade-in';
+                  lb.innerHTML = `<img src="${url}" class="max-w-full max-h-full object-contain rounded-3xl shadow-2xl animate-scale-up">`;
+                  lb.onclick = () => lb.remove();
+                  document.body.appendChild(lb);
+               }
             };
          });
 
-         if (overlay.querySelector('#detail-cancel-request')) {
-            overlay.querySelector('#detail-cancel-request').onclick = async () => {
+         detailBody.querySelectorAll('.receipt-eye-btn').forEach(btn => {
+            btn.onclick = (e) => {
+               e.stopPropagation(); // Stop from doubling the row click
+               // The row click logic above will handle the actual display
+            };
+         });
+
+         if (targetContainer.querySelector('#detail-cancel-request')) {
+            targetContainer.querySelector('#detail-cancel-request').onclick = async () => {
                const confirmed = await window.showConfirmModal('Cancel Request', 'Are you sure you want to cancel this liquidation? Items will be returned to your pending list.');
                if (!confirmed) return;
 
-               const btn = overlay.querySelector('#detail-cancel-request');
+               const btn = targetContainer.querySelector('#detail-cancel-request');
                const originalText = btn.innerHTML;
                btn.disabled = true;
                btn.innerHTML = `<div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>`;
@@ -908,8 +1016,50 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      timestamp: serverTimestamp()
                   });
 
-                  overlay.remove();
-                  onActionDone();
+                  const showSuccessTransition = () => {
+                     const trans = document.createElement('div');
+                     trans.className = 'absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/60 dark:bg-[#0D0D0D]/80 backdrop-blur-md transition-all duration-500 opacity-0';
+                     trans.innerHTML = `
+                        <div class="success-icon-container transform scale-50 opacity-0 transition-all duration-500 ease-out">
+                           <div class="w-20 h-20 bg-rose-500 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-rose-500/20">
+                              <i data-lucide="x-circle" class="w-10 h-10"></i>
+                           </div>
+                        </div>
+                        <div class="success-text mt-4 text-center transform translate-y-4 opacity-0 transition-all duration-700 delay-100">
+                           <h4 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none">Request Cancelled</h4>
+                           <p class="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-1">Items returned to pending list</p>
+                        </div>
+                     `;
+
+                     targetContainer.style.position = 'relative';
+                     targetContainer.appendChild(trans);
+                     if (window.lucide) window.lucide.createIcons();
+
+                     requestAnimationFrame(() => {
+                        trans.classList.remove('opacity-0');
+                        trans.querySelector('.success-icon-container').classList.remove('scale-50', 'opacity-0');
+                        trans.querySelector('.success-text').classList.remove('translate-y-4', 'opacity-0');
+                     });
+
+                     setTimeout(() => {
+                        trans.classList.add('opacity-0');
+                        setTimeout(() => {
+                           if (isInline) {
+                              targetContainer.innerHTML = `
+                                 <div class="flex-1 flex flex-col items-center justify-center text-slate-400 opacity-60">
+                                    <i data-lucide="mouse-pointer-click" class="w-12 h-12 mb-4"></i>
+                                    <h3 class="text-xl font-black uppercase tracking-widest">Review Pane</h3>
+                                    <p class="text-xs font-bold uppercase tracking-tighter">Select a request to start auditing</p>
+                                 </div>
+                              `;
+                              if (window.lucide) window.lucide.createIcons();
+                           }
+                           onActionDone();
+                        }, 500);
+                     }, 1200);
+                  };
+
+                  showSuccessTransition();
                   window.showToast('Request cancelled successfully', 'info');
                } catch (err) {
                   console.error(err);
@@ -920,29 +1070,21 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             };
          }
 
-         if (isAuditMode) {
-            overlay.querySelector('#detail-complete-review').onclick = async () => {
-               // Gather per-item decisions
-               const toggles = detailBody.querySelectorAll('.item-toggle');
+         if (isAuditMode && targetContainer.querySelector('#detail-complete-review')) {
+            targetContainer.querySelector('#detail-complete-review').onclick = async () => {
+               // Gather per-item decisions (Comment = Rejected, No Comment = Approved)
                const approvedItems = [];
                const rejectedItems = [];
 
-               for (const toggle of toggles) {
-                  const itemId = toggle.dataset.id;
-                  const status = toggle.dataset.status;
-                  if (status === 'rejected') {
-                     const reasonBox = detailBody.querySelector(`.reject-reason-box[data-for="${itemId}"]`);
-                     const note = reasonBox?.querySelector('.reject-note')?.value?.trim();
-                     if (!note) {
-                        window.showToast('Please provide a reason for all rejected items.', 'error');
-                        reasonBox?.querySelector('.reject-note')?.focus();
-                        return;
-                     }
-                     rejectedItems.push({ id: itemId, note });
+               items.forEach(item => {
+                  const noteInput = detailBody.querySelector(`.reject-reason-box[data-for="${item.id}"] .reject-note`);
+                  const note = noteInput?.value?.trim();
+                  if (note) {
+                     rejectedItems.push({ id: item.id, note });
                   } else {
-                     approvedItems.push(itemId);
+                     approvedItems.push(item.id);
                   }
-               }
+               });
 
                const batch = writeBatch(db);
                const approvedAmount = items.filter(i => approvedItems.includes(i.id)).reduce((sum, i) => sum + i.amount, 0);
@@ -1001,8 +1143,50 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                   }
                }
 
-               overlay.remove();
-               onActionDone();
+               const showSuccessTransition = () => {
+                  const trans = document.createElement('div');
+                  trans.className = 'absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/60 dark:bg-[#0D0D0D]/80 backdrop-blur-md transition-all duration-500 opacity-0';
+                  trans.innerHTML = `
+                     <div class="success-icon-container transform scale-50 opacity-0 transition-all duration-500 ease-out">
+                        <div class="w-20 h-20 bg-[#96588a] text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-500/20">
+                           <i data-lucide="shield-check" class="w-10 h-10"></i>
+                        </div>
+                     </div>
+                     <div class="success-text mt-4 text-center transform translate-y-4 opacity-0 transition-all duration-700 delay-100">
+                        <h4 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none">Review Processed</h4>
+                        <p class="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-1">Queue updated successfully</p>
+                     </div>
+                  `;
+
+                  targetContainer.style.position = 'relative';
+                  targetContainer.appendChild(trans);
+                  if (window.lucide) window.lucide.createIcons();
+
+                  requestAnimationFrame(() => {
+                     trans.classList.remove('opacity-0');
+                     trans.querySelector('.success-icon-container').classList.remove('scale-50', 'opacity-0');
+                     trans.querySelector('.success-text').classList.remove('translate-y-4', 'opacity-0');
+                  });
+
+                  setTimeout(() => {
+                     trans.classList.add('opacity-0');
+                     setTimeout(() => {
+                        if (isInline) {
+                           targetContainer.innerHTML = `
+                              <div class="flex-1 flex flex-col items-center justify-center text-slate-400 opacity-60">
+                                 <i data-lucide="mouse-pointer-click" class="w-12 h-12 mb-4"></i>
+                                 <h3 class="text-xl font-black uppercase tracking-widest">Review Pane</h3>
+                                 <p class="text-xs font-bold uppercase tracking-tighter">Select a request to start auditing</p>
+                              </div>
+                           `;
+                           if (window.lucide) window.lucide.createIcons();
+                        }
+                        onActionDone();
+                     }, 500);
+                  }, 1200);
+               };
+
+               showSuccessTransition();
                window.showToast(reqStatus === 'approved' ? 'Liquidation approved!' : `Review complete — ${rejectedItems.length} item(s) rejected`, reqStatus === 'approved' ? 'success' : 'info');
             };
          }
@@ -1024,8 +1208,9 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                };
             });
 
-            overlay.querySelector('#detail-resubmit').onclick = async () => {
-               const btn = overlay.querySelector('#detail-resubmit');
+            const resubmitBtn = targetContainer.querySelector('#detail-resubmit');
+            if (resubmitBtn) resubmitBtn.onclick = async () => {
+               const btn = resubmitBtn;
                const originalText = btn.innerText;
                btn.disabled = true;
                btn.innerHTML = `<div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Processing...`;
@@ -1035,7 +1220,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                   let total = 0;
 
                   // Process rows
-                  const rows = Array.from(overlay.querySelectorAll('.item-row'));
+                  const rows = Array.from(detailBody.querySelectorAll('.item-row'));
                   for (const row of rows) {
                      const itemId = row.dataset.id;
                      const amtInput = row.parentElement.querySelector(`.item-row[data-id="${itemId}"] + * .edit-amount`);
@@ -1074,7 +1259,6 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      timestamp: serverTimestamp()
                   });
 
-                  overlay.remove();
                   onActionDone();
                   window.showToast('Request resubmitted!', 'success');
                } catch (err) {
@@ -1086,6 +1270,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             };
          }
 
+         if (window.lucide) window.lucide.createIcons();
       } catch (err) { console.error(err); }
    }
 
@@ -1096,10 +1281,10 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             <h3 class="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Financial Ledgers</h3>
             <div class="flex items-center gap-2">
                <input type="file" id="import-excel-file" class="hidden" accept=".xlsx, .xls">
-               <button id="import-excel-btn" class="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
+               <button id="import-excel-btn" class="px-5 py-2.5 bg-slate-100 dark:bg-[#343434] shadow-sm rounded-full text-[10px] text-blue-500 font-bold uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
                   <i data-lucide="file-up" class="w-4 h-4 text-blue-500"></i> Import Excel
                </button>
-               <button id="export-ledger-btn" class="px-5 py-2.5 bg-[#96588a] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-[#96588a]/20 flex items-center gap-2">
+               <button id="export-ledger-btn" class="px-5 py-2.5 bg-[#96588a] text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-[#96588a]/20 flex items-center gap-2">
                   <i data-lucide="download" class="w-4 h-4"></i> Export
                </button>
             </div>
@@ -1111,15 +1296,9 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
             <div class="relative z-10 flex flex-col">
                <!-- Unified Header with Sub-tabs -->
-               <div class="px-8 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                  <div class="flex items-center gap-4 p-1 bg-slate-100 dark:bg-[#444444]/90 backdrop-blur-md rounded-2xl w-fit">
-                     <button class="ledger-subtab active px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 bg-white/60 dark:bg-white/10 backdrop-blur-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_0_15px_rgba(255,255,255,0.05)] border-t border-white/40 dark:border-white/10 text-[#96588a] dark:text-white scale-[1.02] z-10" data-target="petty-view">
-                        <i data-lucide="wallet" class="w-3.5 h-3.5 text-rose-500"></i> Petty Cash
-                     </button>
-                     <button class="ledger-subtab px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 text-slate-500/60 dark:text-white/30 hover:text-[#96588a] dark:hover:text-white hover:bg-white/30 dark:hover:bg-white/5" data-target="accountant-view">
-                        <i data-lucide="landmark" class="w-3.5 h-3.5 text-blue-500"></i> Accountant
-                     </button>
-                  </div>
+               <!-- Subdued Header Area -->
+               <div class="px-8 pt-8 pb-2 flex justify-between items-center">
+                  <p class="text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Transaction Records</p>
                   <div class="flex items-center gap-3">
                      <!-- Accountant Advanced Import (Round) -->
                      <input type="file" id="import-accountant-file" class="hidden" accept=".xlsx, .xls">
@@ -1134,31 +1313,44 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                   <div class="mb-6">
                      <div class="flex flex-col lg:flex-row lg:items-end gap-3 justify-between">
                         <div class="flex-1 flex flex-col sm:flex-row items-end gap-3">
-                           <div class="flex-1 w-full space-y-1">
-                              <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search</label>
-                              <input id="ledger-search" type="text" placeholder="Purpose / Description / Category / Invoice No."
-                                class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
+                           <div class="w-full sm:w-44 space-y-1">
+                              <label class="text-[9px] font-black text-slate-400 dark:text-white uppercase tracking-widest">Fund Source</label>
+                              <div class="group/fund relative">
+                                 <div id="ledger-type-trigger" class="w-full bg-slate-100 dark:bg-[#343434] border-none rounded-full px-5 py-3 text-[10px] font-black uppercase tracking-[0.1em] text-slate-700 dark:text-white cursor-pointer flex justify-between items-center transition-all hover:bg-slate-200 dark:hover:bg-[#444444]">
+                                    <span id="ledger-type-label">Petty Cash Fund</span>
+                                    <i data-lucide="chevron-down" class="w-3 h-3 opacity-40 group-hover/fund:rotate-180 transition-transform duration-300"></i>
+                                 </div>
+                                 <!-- Bridge padding (pt-2) to prevent "dead zone" gap -->
+                                 <div class="absolute top-full left-0 w-full pt-2 hidden group-hover/fund:block z-50">
+                                    <div class="overflow-hidden rounded-2xl bg-white/70 dark:bg-[#2a2a2a]/90 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-2xl animate-fade-in origin-top">
+                                       <div class="ledger-type-opt px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-white hover:bg-[#96588a] hover:text-white cursor-pointer transition-all" data-value="petty-view">Petty Cash Fund</div>
+                                       <div class="ledger-type-opt px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-white hover:bg-[#96588a] hover:text-white cursor-pointer transition-all border-t border-slate-100 dark:border-white/5" data-value="accountant-view">Accountant (HO)</div>
+                                    </div>
+                                 </div>
+                              </div>
                            </div>
-                            <div class="w-full sm:w-auto space-y-1">
-                               <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">From</label>
-                               <input id="ledger-from" type="date"
-                                 class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer"
-                                 value="${new Date(Date.now() - 86400000).toISOString().split('T')[0]}">
-                            </div>
-                            <div class="w-full sm:w-auto space-y-1">
-                               <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">To</label>
-                               <input id="ledger-to" type="date"
-                                 class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer"
-                                 value="${new Date(Date.now() - 86400000).toISOString().split('T')[0]}">
-                            </div>
+                           <div class="flex-1 w-full space-y-1">
+                              <label class="text-[9px] font-black text-slate-400 dark:text-white uppercase tracking-widest">Search</label>
+                              <input id="ledger-search" type="text" placeholder="Purpose / Description / Category / Invoice No."
+                                class="w-full bg-slate-100 dark:bg-[#343434] border-none rounded-full px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
+                           </div>
+                           <div class="w-full sm:w-44 space-y-1">
+                              <label class="text-[9px] font-black text-slate-400 dark:text-white uppercase tracking-widest">Date Range</label>
+                              <div class="relative group/date">
+                                 <i data-lucide="calendar" class="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#96588a] dark:text-white pointer-events-none"></i>
+                                 <input id="ledger-range" type="text" placeholder="Select Date Range" readonly
+                                   class="w-full bg-slate-100 dark:bg-[#343434] border-none rounded-full pl-11 pr-4 py-3 text-[10px] dark:text-white font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer"
+                                   value="${yesterdayStr} to ${yesterdayStr}">
+                              </div>
+                           </div>
                         </div>
                         <div class="flex gap-2">
                            <button id="ledger-apply-btn"
-                             class="px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm">
+                             class="px-5 py-3 bg-green-500 dark:bg-green-500/50 rounded-full text-[10px] font-black text-white uppercase tracking-widest dark:hover:bg-[#141414] dark:hover:bg-[#141414] transition-all shadow-sm">
                               Apply
                            </button>
                            <button id="ledger-clear-btn"
-                             class="px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm">
+                             class="px-5 py-3 bg-rose-500 dark:bg-rose-500/50 rounded-full text-[10px] font-black text-white uppercase tracking-widest dark:hover:bg-[#141414] dark:hover:bg-[#141414] transition-all shadow-sm">
                               Clear
                            </button>
                         </div>
@@ -1169,17 +1361,17 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                   <div id="petty-view" class="ledger-view animate-fade-in">
                      <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse">
-                           <thead class="sticky top-0 z-10">
-                              <tr class="border-b border-slate-50 dark:border-slate-800">
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Purpose & Detail</th>
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                           <thead>
+                              <tr class="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-transparent">
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Date</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Purpose & Detail</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Category</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-right">Amount</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-center">Actions</th>
                               </tr>
                            </thead>
-                           <tbody id="petty-table-body">
-                              <tr><td colspan="5" class="px-2 py-12 text-center text-[10px] text-slate-300 italic font-black uppercase tracking-widest">Loading records...</td></tr>
+                           <tbody id="petty-table-body" class="divide-y divide-slate-100 dark:divide-white/5">
+                              <tr><td colspan="5" class="px-8 py-12 text-center text-[11px] text-slate-400 italic">Loading records...</td></tr>
                            </tbody>
                         </table>
                      </div>
@@ -1190,16 +1382,16 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse">
                            <thead>
-                              <tr class="border-b border-slate-50 dark:border-slate-800">
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Purpose & Detail</th>
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
-                                 <th class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                              <tr class="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-transparent">
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Date</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Purpose & Detail</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Category</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-right">Amount</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-center">Actions</th>
                               </tr>
                            </thead>
-                           <tbody id="accountant-table-body">
-                              <tr><td colspan="5" class="px-2 py-12 text-center text-[10px] text-slate-300 italic font-black uppercase tracking-widest">Loading records...</td></tr>
+                           <tbody id="accountant-table-body" class="divide-y divide-slate-100 dark:divide-white/5">
+                              <tr><td colspan="5" class="px-8 py-12 text-center text-[11px] text-slate-400 italic">Loading records...</td></tr>
                            </tbody>
                         </table>
                      </div>
@@ -1218,8 +1410,13 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
       try {
          const searchText = (container.querySelector('#ledger-search')?.value || '').trim().toLowerCase();
-         const fromDate = container.querySelector('#ledger-from')?.value || '';
-         const toDate = container.querySelector('#ledger-to')?.value || '';
+         const rangeVal = container.querySelector('#ledger-range')?.value || '';
+         let fromDate = '', toDate = '';
+         if (rangeVal.includes(' to ')) {
+            [fromDate, toDate] = rangeVal.split(' to ');
+         } else if (rangeVal) {
+            fromDate = toDate = rangeVal;
+         }
 
          let docs = [];
          try {
@@ -1235,7 +1432,6 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             const snap = await getDocs(q);
             docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
          } catch (qErr) {
-            // If Firestore composite index for date-range query isn't configured yet, fallback.
             console.warn('Ledger query fallback:', qErr);
             let constraints = [orderBy('date', 'desc'), limit(300)];
             if (currentBranch && currentBranch !== 'All Branches') {
@@ -1246,65 +1442,68 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
          }
 
-         // Client-side filtering (safe + avoids query coupling).
+         // Client-side filtering
          if (fromDate) docs = docs.filter(d => (d.date || '') >= fromDate);
          if (toDate) docs = docs.filter(d => (d.date || '') <= toDate);
          if (searchText) {
             docs = docs.filter(d => {
-               const fields = [
-                  d.purpose,
-                  d.description,
-                  d.category,
-                  d.invoiceNo
-               ];
+               const fields = [d.purpose, d.description, d.category, d.invoiceNo];
                return fields.some(v => (v || '').toString().toLowerCase().includes(searchText));
             });
          }
 
          const renderRows = (data) => data.map(d => `
-            <tr class="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 transition-all group">
-               <td class="px-2 py-4 text-[10px] font-bold text-slate-500">${d.date}</td>
-               <td class="px-2 py-4">
-                  <div class="text-[10px] font-black text-slate-800 dark:text-white uppercase">${d.purpose || '---'}</div>
-                  <div class="text-[8px] text-slate-400 font-bold italic">${d.description || '---'}</div>
+            <tr class="group border-b border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-all">
+               <td class="px-8 py-5">
+                  <p class="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight">${d.date}</p>
                </td>
-               <td class="px-2 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">${d.category}</td>
-               <td class="px-2 py-4 text-[10px] font-black text-slate-900 dark:text-white text-right">₱${(d.amount || 0).toLocaleString()}</td>
-               <td class="px-2 py-4">
-                  <div class="flex items-center justify-center gap-2">
-                     <button class="view-ledger-btn w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 rounded-lg flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm"
+               <td class="px-8 py-5">
+                  <div class="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight">${d.purpose || '---'}</div>
+                  <div class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1 opacity-60 line-clamp-1">${d.description || '---'}</div>
+               </td>
+               <td class="px-8 py-5">
+                  <span class="inline-flex px-3 py-1 rounded-full bg-slate-100 dark:bg-white/5 text-[10px] font-black uppercase text-slate-600 dark:text-white/60">
+                     ${d.category}
+                  </span>
+               </td>
+               <td class="px-8 py-5 text-right">
+                  <p class="text-[11px] font-black text-[#96588a] dark:text-white">₱${(d.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+               </td>
+               <td class="px-8 py-5">
+                  <div class="flex items-center justify-center gap-2.5">
+                     <button class="view-ledger-btn w-8 h-8 flex items-center justify-center rounded-full hover:bg-white dark:hover:bg-white/10 hover:shadow-md transition-all opacity-0 group-hover:opacity-100 text-slate-400"
                        data-id="${d.id}" title="View Details">
                         <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                      </button>
-                     <button class="edit-ledger-btn w-7 h-7 bg-[#96588a]/10 text-[#96588a] rounded-lg flex items-center justify-center hover:bg-[#96588a] hover:text-white transition-all shadow-sm" data-id='${JSON.stringify(d).replace(/'/g, "&#39;")}' title="Edit Entry">
+                     <button class="edit-ledger-btn w-8 h-8 flex items-center justify-center rounded-full bg-indigo-50/50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 dark:hover:bg-indigo-500 hover:text-white transition-all opacity-0 group-hover:opacity-100" data-id='${JSON.stringify(d).replace(/'/g, "&#39;")}' title="Edit Entry">
                         <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                      </button>
-                     <button class="delete-ledger-btn w-7 h-7 bg-rose-50 text-rose-500 rounded-lg flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all shadow-sm" data-id="${d.id}" title="Delete Entry">
+                     <button class="delete-ledger-btn w-8 h-8 flex items-center justify-center rounded-full bg-rose-50/50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400 hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover:opacity-100" data-id="${d.id}" title="Delete Entry">
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                      </button>
                   </div>
                </td>
             </tr>
-            <tr id="ledger-detail-${d.id}" class="ledger-detail-row hidden">
-               <td colspan="5" class="px-2 py-3">
-                  <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/40 p-4">
-                     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                        <div class="space-y-1">
-                           <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoice No.</p>
-                           <p class="text-[12px] font-black text-slate-900 dark:text-white">${d.invoiceNo || '---'}</p>
-                           <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">Receipt</p>
-                           <p class="text-[12px] font-bold text-slate-700 dark:text-slate-200">
-                              ${d.receiptUrl ? `<a href="${d.receiptUrl}" target="_blank" rel="noreferrer" class="text-[#96588a] hover:underline">Open</a>` : '---'}
-                           </p>
+            <tr id="ledger-detail-${d.id}" class="ledger-detail-row hidden bg-slate-50/50 dark:bg-white/[0.01]">
+               <td colspan="5" class="px-8 py-6">
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                     <div class="space-y-4">
+                        <div>
+                           <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1.5">Invoice No.</p>
+                           <p class="text-[11px] font-black text-slate-900 dark:text-white uppercase">${d.invoiceNo || '---'}</p>
                         </div>
-                        <div class="sm:text-right">
-                           <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</p>
-                           <p class="text-[12px] font-black text-slate-900 dark:text-white">${d.status || '---'}</p>
+                        <div>
+                           <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1.5">Receipt</p>
+                           ${d.receiptUrl ? `
+                              <a href="${d.receiptUrl}" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#96588a]/10 text-[#96588a] text-[10px] font-black uppercase tracking-widest hover:bg-[#96588a] hover:text-white transition-all">
+                                 <i data-lucide="external-link" class="w-3 h-3"></i> View Receipt
+                              </a>
+                           ` : '<p class="text-[11px] font-black text-slate-400 uppercase">NO IMAGE</p>'}
                         </div>
                      </div>
-                     <div class="mt-3">
-                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Detail Description</p>
-                        <p class="text-[12px] text-slate-700 dark:text-slate-200">${d.description || '---'}</p>
+                     <div class="md:col-span-2">
+                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1.5">Full Description</p>
+                        <p class="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed">${d.description || 'No detailed description provided.'}</p>
                      </div>
                   </div>
                </td>
@@ -1334,7 +1533,6 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             const detailRow = container.querySelector(`#ledger-detail-${id}`);
             if (!detailRow) return;
 
-            // Close other expanded rows
             container.querySelectorAll('.ledger-detail-row').forEach(r => {
                if (r !== detailRow) r.classList.add('hidden');
             });
@@ -1365,6 +1563,28 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          }
       }
 
+      // Fund Type Dropdown Handler (Custom UI)
+      const typeOpts = container.querySelectorAll('.ledger-type-opt');
+      const typeLabel = container.querySelector('#ledger-type-label');
+      typeOpts.forEach(opt => {
+         opt.onclick = () => {
+            const val = opt.dataset.value;
+            if (typeLabel) typeLabel.textContent = opt.textContent;
+
+            // Toggle Views
+            container.querySelectorAll('.ledger-view').forEach(v => v.classList.add('hidden'));
+            const targetView = container.querySelector(`#${val}`);
+            if (targetView) targetView.classList.remove('hidden');
+
+            // Toggle Accountant Import Button visibility
+            const accImp = container.querySelector('#import-accountant-btn');
+            if (accImp) {
+               if (val === 'accountant-view') accImp.classList.remove('hidden');
+               else accImp.classList.add('hidden');
+            }
+         };
+      });
+
       // Filters
       const ledgerSearch = container.querySelector('#ledger-search');
       const ledgerFrom = container.querySelector('#ledger-from');
@@ -1379,8 +1599,14 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             ledgerDebounce = setTimeout(() => loadLedgerData(), 250);
          };
       }
-      if (ledgerFrom) ledgerFrom.onchange = () => loadLedgerData();
-      if (ledgerTo) ledgerTo.onchange = () => loadLedgerData();
+      const ledgerRange = container.querySelector('#ledger-range');
+      if (ledgerRange && window.flatpickr) {
+         window.flatpickr(ledgerRange, {
+            mode: "range",
+            dateFormat: "Y-m-d",
+            onClose: () => loadLedgerData()
+         });
+      }
       if (ledgerApply) ledgerApply.onclick = () => loadLedgerData();
       if (ledgerClear) {
          ledgerClear.onclick = () => {
@@ -1416,47 +1642,6 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                      const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
-                     // Shared Utilities
-                     function getLocalDateString(dateObj) {
-                        const year = dateObj.getFullYear();
-                        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                        const day = String(dateObj.getDate()).padStart(2, '0');
-                        return `${year}-${month}-${day}`;
-                     }
-                     function standardizeDate(val) {
-                        if (val === undefined || val === null || String(val).trim() === '') return null;
-                        if (typeof val === 'number') {
-                           const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-                           if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
-                        }
-                        const str = String(val).trim();
-                        try {
-                           const datePart = str.split(' ')[0];
-                           if (datePart.includes('-')) {
-                              const parts = datePart.split('-');
-                              if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-                              if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                           }
-                           if (datePart.includes('/')) {
-                              const parts = datePart.split('/');
-                              if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                              if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-                           }
-                           const fallback = new Date(str);
-                           if (!isNaN(fallback.getTime())) return getLocalDateString(fallback);
-                        } catch (e) { return null; }
-                        return null;
-                     }
-                     function cleanNumber(val) {
-                        if (val === undefined || val === null || val === '') return 0;
-                        if (typeof val === 'number') return val;
-                        let str = String(val).trim();
-                        const isParenthesized = str.startsWith('(') && str.endsWith(')');
-                        let cleaned = str.replace(/[^0-9.-]+/g, "");
-                        let num = parseFloat(cleaned);
-                        if (isNaN(num)) return 0;
-                        return isParenthesized ? -Math.abs(num) : num;
-                     }
 
                      // Grouping Logic (Starting from Row 2)
                      const invoiceMap = {};
@@ -1618,8 +1803,8 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                            batchId,
                            timestamp: serverTimestamp(),
                            type: 'ledger_import',
-                           branchId: activeBranch,
-                           rowCount: jsonData.length,
+                           branchId: currentBranch,
+                           rowCount: invoiceIds.length,
                            collections: ["expenses"],
                            status: "active"
                         });
@@ -1667,50 +1852,6 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      if (rawData.length === 0) {
                         window.showToast('No valid data found in Excel', 'error');
                         return;
-                     }
-
-                     function getLocalDateString(dateObj) {
-                        const year = dateObj.getFullYear();
-                        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                        const day = String(dateObj.getDate()).padStart(2, '0');
-                        return `${year}-${month}-${day}`;
-                     }
-
-                     function standardizeDate(val) {
-                        if (val === undefined || val === null || String(val).trim() === '') return null;
-                        if (val instanceof Date) return getLocalDateString(val);
-                        if (typeof val === 'number') {
-                           const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-                           if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
-                        }
-                        const str = String(val).trim();
-                        try {
-                           const datePart = str.split(' ')[0];
-                           if (datePart.includes('-')) {
-                              const parts = datePart.split('-');
-                              if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-                              if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                           }
-                           if (datePart.includes('/')) {
-                              const parts = datePart.split('/');
-                              if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                              if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-                           }
-                           const fallback = new Date(str);
-                           if (!isNaN(fallback.getTime())) return getLocalDateString(fallback);
-                        } catch (e) { return null; }
-                        return null;
-                     }
-
-                     function cleanNumber(val) {
-                        if (val === undefined || val === null || val === '') return 0;
-                        if (typeof val === 'number') return val;
-                        let str = String(val).trim();
-                        const isParenthesized = str.startsWith('(') && str.endsWith(')');
-                        let cleaned = str.replace(/[^0-9.-]+/g, "");
-                        let num = parseFloat(cleaned);
-                        if (isNaN(num)) return 0;
-                        return isParenthesized ? -Math.abs(num) : num;
                      }
 
                      const jsonData = rawData.map(r => {
@@ -1824,55 +1965,99 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
    function renderAuditTab() {
       return `
-      <div class="space-y-8 animate-fade-in">
-         <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 items-stretch">
-            <div class="xl:col-span-5 flex flex-col gap-5 h-full">
-               <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                     <div class="w-10 h-10 flex items-center justify-center text-amber-700">
-                        <i data-lucide="shield-check" class="w-5 h-5"></i>
-                     </div>
-                     <div>
-                        <h4 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">REVIEW QUEUE</h4>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Pending requests for verification</p>
-                     </div>
-                  </div>
-                  <span id="audit-queue-count" class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">0 Pending</span>
-               </div>
-               <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl border-t border-white/60 dark:border-white/20 shadow-xl overflow-hidden flex-1 min-h-0">
-                  <div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-200/30 dark:border-white/10 bg-slate-100/30 dark:bg-white/[0.03]">
-                     <span class="col-span-5 text-[8px] font-black text-slate-400 uppercase tracking-widest">Request</span>
-                     <span class="col-span-3 text-[8px] font-black text-slate-400 uppercase tracking-widest">Branch</span>
-                     <span class="col-span-4 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right">Total</span>
-                  </div>
-                  <div id="audit-queue-container" class="h-[560px] overflow-y-auto pr-1">
-                     <div class="flex items-center justify-center py-20"><div class="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin"></div></div>
-                  </div>
-               </div>
-            </div>
-         </div>
+      <div class="animate-fade-in h-full flex flex-col gap-6">
+         <div class="flex flex-col xl:flex-row bg-white/40 dark:bg-[#141414]/60 backdrop-blur-xl rounded-3xl border-t border-white/20 shadow-2xl overflow-hidden h-[600px]">
+             <!-- Left Side: Sidebar Area (1/4) -->
+             <div id="audit-sidebar" class="w-full xl:w-1/4 flex flex-col border-r border-slate-100 dark:border-white/5 h-full min-h-0 relative overflow-hidden">
+                 
+                 <!-- Layer 1: Queue List -->
+                 <div id="sidebar-queue-layer" class="absolute inset-0 flex flex-col transition-transform duration-300 ease-in-out z-10">
+                    <div class="p-6 flex items-center justify-between dark:bg-transparent flex-shrink-0">
+                       <div class="flex items-center gap-3">
+                          <div class="w-8 h-8 flex items-center justify-center text-amber-700 bg-amber-50 dark:bg-amber-500/10 rounded-full">
+                             <i data-lucide="shield-check" class="w-4 h-4"></i>
+                          </div>
+                          <div>
+                             <h4 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none">QUEUE</h4>
+                             <p class="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-1">Pending verification</p>
+                          </div>
+                       </div>
+                    </div>
+                    <div id="audit-queue-container" class="flex-1 overflow-y-auto scrollbar-hide">
+                       <div class="flex items-center justify-center py-20"><div class="w-10 h-10 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin"></div></div>
+                    </div>
+                 </div>
+
+                 <!-- Layer 2: Receipt Viewer -->
+                 <div id="sidebar-viewer-layer" class="absolute inset-0 flex flex-col translate-x-full transition-transform duration-300 ease-in-out z-20 bg-slate-50/50 dark:bg-black/20 backdrop-blur-md">
+                    <div class="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-white/50 dark:bg-transparent">
+                       <div class="flex items-center gap-2">
+                          <button id="close-sidebar-viewer" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 transition-all">
+                             <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                          </button>
+                          <span class="text-[9px] font-black text-slate-800 dark:text-white uppercase tracking-widest">Receipt View</span>
+                       </div>
+                       <div class="flex items-center gap-1">
+                          <button id="sidebar-full-view" class="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-purple-600 transition-all" title="Open Full Screen">
+                             <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                          </button>
+                          <button id="sidebar-zoom-reset" class="p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-slate-400 transition-all" title="Reset Zoom">
+                             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                          </button>
+                       </div>
+                    </div>
+
+                    <div id="sidebar-display-area" class="flex-1 relative overflow-hidden flex items-center justify-center p-4 cursor-grab active:cursor-grabbing select-none">
+                       <div id="sidebar-img-container" class="w-full h-full flex items-center justify-center transition-transform duration-200 origin-center will-change-transform">
+                          <img id="sidebar-active-img" src="" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl pointer-events-none">
+                       </div>
+                    </div>
+
+                    <div class="p-4 bg-white/50 dark:bg-transparent border-t border-slate-100 dark:border-white/5">
+                       <p class="text-[8px] text-center font-black text-slate-400 uppercase tracking-widest">Click image to zoom • Drag to move</p>
+                    </div>
+                 </div>
+
+             </div>
+
+             <!-- Right Side: Detail Pane (3/4) -->
+             <div id="audit-detail-pane" class="hidden xl:flex w-full xl:w-3/4 flex-col h-full min-h-0 bg-white/10 dark:bg-transparent overflow-y-auto scrollbar-hide">
+                <div class="flex-1 flex flex-col items-center justify-center text-slate-400 opacity-60">
+                   <i data-lucide="mouse-pointer-click" class="w-12 h-12 mb-4"></i>
+                   <h3 class="text-xl font-black uppercase tracking-widest">Review Pane</h3>
+                   <p class="text-xs font-bold uppercase tracking-tighter">Select a request to start auditing</p>
+                </div>
+             </div>
+          </div>
+       </div>
 
          <!-- History in Audit Tab -->
-         <div class="pt-10 border-t border-slate-200/30 dark:border-white/10 mt-4">
-            <div class="flex items-center justify-between mb-6">
-               <div>
-                  <h4 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-3"><i data-lucide="history" class="w-6 h-6 text-purple-500"></i> Recent History</h4>
-                  <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Last 20 processed requests</p>
+         <div class="pt-10 border-t border-slate-200/30 dark:border-white/10 mt-8">
+            <div class="flex items-center justify-between mb-8">
+               <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 flex items-center justify-center bg-[#96588a]/10 dark:bg-[#96588a]/20 text-[#96588a] rounded-2xl shadow-sm">
+                     <i data-lucide="history" class="w-6 h-6"></i>
+                  </div>
+                  <div>
+                     <h4 class="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Recent History</h4>
+                     <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Showing last recorded requests</p>
+                  </div>
                </div>
-               <button id="open-audit-logs-btn" class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-white/60 rounded-xl transition-all group shadow-sm">
+               <button id="open-audit-logs-btn" class="flex items-center gap-2.5 px-5 py-2.5 bg-white dark:bg-white/5 hover:bg-[#96588a] hover:text-white text-slate-600 dark:text-white/60 rounded-2xl transition-all group shadow-sm border border-slate-100 dark:border-white/5">
                   <i data-lucide="scroll-text" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
-                  <span class="text-[9px] font-black uppercase tracking-widest">View Audit Logs</span>
+                  <span class="text-[10px] font-black uppercase tracking-[0.1em]">View Audit Logs</span>
                </button>
             </div>
-            <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl border-t border-white/60 dark:border-white/10 shadow-xl overflow-hidden">
-               <div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-200/30 dark:border-white/10 bg-slate-100/30 dark:bg-white/[0.03]">
-                  <span class="col-span-3 text-[8px] text-left font-black text-slate-400 uppercase tracking-widest">Request ID</span>
-                  <span class="col-span-3 text-[8px] text-left font-black text-slate-400 uppercase tracking-widest">Period</span>
-                  <span class="col-span-2 text-[8px] text-left font-black text-slate-400 uppercase tracking-widest">Branch</span>
-                  <span class="col-span-2 text-[8px] text-right font-black text-slate-400 uppercase tracking-widest">Amount</span>
-                  <span class="col-span-2 text-[8px] text-right font-black text-slate-400 uppercase tracking-widest">Status</span>
+            
+            <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-3xl border border-white/60 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[600px]">
+               <div class="sticky top-0 z-20 grid grid-cols-12 gap-2 px-8 py-6 border-b border-slate-100 dark:border-white/5 bg-white/80 dark:bg-[#1a1a1a]/90 backdrop-blur-md">
+                  <span class="col-span-3 text-[10px] text-left font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Request ID</span>
+                  <span class="col-span-3 text-[10px] text-left font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Period</span>
+                  <span class="col-span-2 text-[10px] text-left font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Branch</span>
+                  <span class="col-span-2 text-[10px] text-right font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Amount</span>
+                  <span class="col-span-2 text-[10px] text-right font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Status</span>
                </div>
-               <div id="history-list-container" class="divide-y divide-slate-200/30 dark:divide-white/5"></div>
+               <div id="history-list-container" class="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-white/5 scrollbar-hide"></div>
             </div>
          </div>
       </div>
@@ -1891,59 +2076,132 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          const pendingDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
          if (pendingDocs.length === 0) {
-            const queueCount = container.querySelector('#audit-queue-count');
-            if (queueCount) queueCount.textContent = '0 Pending';
             auditContent.innerHTML = `<div class="text-center py-20 text-slate-400 font-black uppercase tracking-widest text-[10px]">Queue is empty</div>`;
             return;
          }
 
-         const queueCount = container.querySelector('#audit-queue-count');
-         if (queueCount) queueCount.textContent = `${pendingDocs.length} Pending`;
 
          auditContent.innerHTML = pendingDocs.map(data => {
             const createdAtMs = data.createdAt?.seconds ? data.createdAt.seconds * 1000 : 0;
             const isNew = createdAtMs && (Date.now() - createdAtMs) < (15 * 60 * 1000);
             return `
-            <div class="view-detail-btn group border-b border-slate-100 dark:border-white/10 hover:bg-amber-50 dark:hover:bg-[#444444] transition-all cursor-pointer px-4 py-3" data-id="${data.id}">
-               <div class="grid grid-cols-12 gap-2 items-center">
-                  <div class="col-span-5">
-                     <div class="flex items-center gap-2 mb-1">
-                        <h4 class="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">REQ-${data.id.substring(0, 6).toUpperCase()}</h4>
-                        ${isNew ? '<span class="px-2 py-0.5 rounded-md bg-amber-400 text-white text-[8px] font-black uppercase tracking-wider animate-[pulse_2s_ease-in-out_2]">New</span>' : '<span class="px-2 py-0.5 rounded-full bg-rose-400 text-white/70 text-[8px] font-black uppercase tracking-wider">Pending</span>'}
-                     </div>
-                     <p class="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Items: <span class="text-slate-700 dark:text-slate-300">${data.itemCount}</span> • Period: <span class="text-slate-700 dark:text-slate-300">${data.startDate ? data.startDate.split('-').reverse().join('/') : '---'} to ${data.endDate ? data.endDate.split('-').reverse().join('/') : '---'}</span></p>
-                     <p class="text-[9px] text-slate-400 mt-1">${data.createdBy || 'jimmiemetapon@gmail.com'} • ${data.createdAt ? new Date(data.createdAt.seconds * 1000).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '') : '---'}</p>
+            <div class="audit-item group border-b border-slate-100 dark:border-white/5 hover:bg-amber-50/50 dark:hover:bg-amber-500/[0.02] transition-all cursor-pointer px-6 py-4" data-id="${data.id}">
+               <div class="flex flex-col gap-1">
+                  <div class="flex items-center justify-between">
+                     <h4 class="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight">REQ-${data.id.substring(0, 8).toUpperCase()}</h4>
+                     ${isNew ? '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>' : ''}
                   </div>
-                  <div class="col-span-4 text-left">
-                     <span class="inline-flex px-2 py-0.5 rounded-full border border-slate-900 dark:border-white text-[12px] font-black uppercase text-slate-900 dark:text-white">
-                        ${data.branchId}
-                     </span>
+                  <div class="flex items-center justify-between">
+                     <p class="text-[10px] font-bold text-slate-500 dark:text-white/40 uppercase truncate">${data.branchId}</p>
+                     <p class="text-[11px] font-black text-[#96588a] dark:text-white">₱${data.totalAmount.toLocaleString('en-PH')}</p>
                   </div>
-                  <div class="col-span-3 text-right">
-                     <p class="text-[8px] font-black text-amber-600 uppercase tracking-widest">Total</p>
-                     <p class="text-sm font-black text-slate-900 dark:text-white">₱${data.totalAmount.toLocaleString()}</p>
-                  </div>
+                  <p class="text-[8px] text-slate-400 uppercase tracking-widest font-bold opacity-60">${data.createdBy?.split('@')[0] || 'admin'}</p>
                </div>
             </div>
-         `;
+            `;
          }).join('');
 
-         auditContent.querySelectorAll('.view-detail-btn').forEach(btn => {
-            btn.onclick = () => {
+         auditContent.querySelectorAll('.audit-item').forEach(btn => {
+            btn.onclick = async () => {
+               // Highlight active
+               auditContent.querySelectorAll('.audit-item').forEach(i => i.classList.remove('bg-amber-50', 'dark:bg-amber-500/10', 'border-l-4', 'border-amber-500'));
+               btn.classList.add('bg-amber-50', 'dark:bg-amber-500/10', 'border-l-4', 'border-amber-500');
+
                const req = pendingDocs.find(d => d.id === btn.dataset.id);
-               showLiquidationDetailModal(req, () => loadTabContent('audit'));
+               const detailPane = container.querySelector('#audit-detail-pane');
+               if (detailPane) {
+                  detailPane.classList.remove('hidden');
+                  detailPane.innerHTML = `<div class="flex items-center justify-center h-full"><div class="w-8 h-8 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div></div>`;
+                  await renderLiquidationDetailContent(detailPane, req, () => loadAuditData(), true);
+               }
             };
          });
+         // Sidebar Viewer Setup
+         const sidebar = container.querySelector('#audit-sidebar');
+         if (sidebar) {
+            const queueLayer = sidebar.querySelector('#sidebar-queue-layer');
+            const viewerLayer = sidebar.querySelector('#sidebar-viewer-layer');
+            const closeBtn = sidebar.querySelector('#close-sidebar-viewer');
+            const activeImg = sidebar.querySelector('#sidebar-active-img');
+            const imgContainer = sidebar.querySelector('#sidebar-img-container');
+            const displayArea = sidebar.querySelector('#sidebar-display-area');
+            const zoomReset = sidebar.querySelector('#sidebar-zoom-reset');
+            const fullViewBtn = sidebar.querySelector('#sidebar-full-view');
+
+            let scale = 1, isDragging = false, startX, startY, tx = 0, ty = 0;
+            let dragStarted = false;
+
+            const updateXform = () => imgContainer.style.transform = `scale(${scale}) translate(${tx}px, ${ty}px)`;
+            const resetView = () => { scale = 1; tx = 0; ty = 0; updateXform(); };
+
+            window.showAuditReceiptInSidebar = (url) => {
+               activeImg.src = url;
+               queueLayer.style.transform = 'translateX(-100%)';
+               viewerLayer.style.transform = 'translateX(0)';
+               resetView();
+            };
+
+            const closeViewer = () => {
+               queueLayer.style.transform = 'translateX(0)';
+               viewerLayer.style.transform = 'translateX(100%)';
+            };
+
+            closeBtn.onclick = closeViewer;
+
+            // Full View Logic
+            if (fullViewBtn) {
+               fullViewBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  const url = activeImg.src;
+                  if (!url) return;
+                  const lb = document.createElement('div');
+                  lb.className = 'fixed inset-0 bg-slate-900/90 z-[10005] flex items-center justify-center p-6 cursor-zoom-out animate-fade-in';
+                  lb.innerHTML = `<img src="${url}" class="max-w-full max-h-full object-contain rounded-3xl shadow-2xl animate-scale-up">`;
+                  lb.onclick = () => lb.remove();
+                  document.body.appendChild(lb);
+               };
+            }
+
+            // Pan & Zoom with Drag Detection
+            displayArea.onmousedown = (e) => {
+               dragStarted = false;
+               if (scale > 1) {
+                  isDragging = true;
+                  startX = e.clientX - tx;
+                  startY = e.clientY - ty;
+               }
+            };
+
+            const moveH = (e) => {
+               if (isDragging) {
+                  const dx = Math.abs(e.clientX - (startX + tx));
+                  const dy = Math.abs(e.clientY - (startY + ty));
+                  if (dx > 5 || dy > 5) dragStarted = true;
+                  tx = e.clientX - startX;
+                  ty = e.clientY - startY;
+                  updateXform();
+               }
+            };
+
+            const stopH = () => { isDragging = false; };
+
+            displayArea.onclick = () => {
+               if (dragStarted) return; // Don't zoom if we were dragging
+               scale = (scale === 1) ? 2.5 : 1;
+               if (scale === 1) resetView();
+               updateXform();
+            };
+
+            window.addEventListener('mousemove', moveH);
+            window.addEventListener('mouseup', stopH);
+
+            if (zoomReset) zoomReset.onclick = (e) => { e.stopPropagation(); resetView(); };
+         }
+
          if (window.lucide) window.lucide.createIcons();
       } catch (err) { console.error(err); }
    }
 
-   function formatDateDDMMYYYY(value) {
-      if (!value) return '';
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return value;
-      return d.toLocaleDateString('en-GB');
-   }
 
    async function exportApprovedRequestTemplate(reqData, approvedRows) {
       const res = await fetch(APPROVAL_TEMPLATE_URL);
@@ -2102,28 +2360,6 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          loadTabContent(tabBtn.dataset.tab);
          return;
       }
-
-      // Ledger Sub-tab Switcher
-      const subBtn = e.target.closest('.ledger-subtab');
-      if (subBtn && !subBtn.classList.contains('active')) {
-         const targetId = subBtn.dataset.target;
-         // Toggle Buttons
-         container.querySelectorAll('.ledger-subtab').forEach(b => {
-            b.className = "ledger-subtab px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 text-slate-500/60 dark:text-white/30 hover:text-[#96588a] dark:hover:text-white hover:bg-white/30 dark:hover:bg-white/5";
-         });
-         subBtn.className = "ledger-subtab active px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 bg-white/60 dark:bg-white/10 backdrop-blur-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_0_15px_rgba(255,255,255,0.05)] border-t border-white/40 dark:border-white/10 text-[#96588a] dark:text-white scale-[1.02] z-10";
-
-         // Toggle Views
-         container.querySelectorAll('.ledger-view').forEach(v => v.classList.add('hidden'));
-         container.querySelector(`#${targetId}`).classList.remove('hidden');
-
-         // Toggle Accountant Import Button
-         const accImp = container.querySelector('#import-accountant-btn');
-         if (accImp) {
-            if (targetId === 'accountant-view') accImp.classList.remove('hidden');
-            else accImp.classList.add('hidden');
-         }
-      }
    });
 
    // Global Refresh Handler
@@ -2136,87 +2372,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       }
    }, 100);
 
-   // Removed buggy global event listener for open-liquidation-detail
-
    await loadMasterData();
-   // Initial load happens at the very end
-
-
-   // UI Helpers moved to main.js
-
-
-   function showExcelPreviewModal(data, onConfirm) {
-      return new Promise(res => {
-         const ov = document.createElement('div');
-         ov.className = 'fixed inset-0 bg-transparent z-[10001] flex items-center justify-center p-4 animate-fade-in';
-
-         const total = data.reduce((sum, r) => sum + (parseFloat(r.Amount || 0)), 0);
-
-         ov.innerHTML = `
-         <div class="bg-white/95 dark:bg-slate-900/95 p-8 rounded-[2.5rem] max-w-4xl w-full max-h-[85vh] flex flex-col space-y-6 animate-scale-up shadow-2xl border border-slate-200 dark:border-slate-700/80">
-            <div class="flex items-center justify-between">
-               <div>
-                  <h3 class="text-2xl font-black uppercase tracking-tighter">Import Preview</h3>
-                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Verify ${data.length} records before importing</p>
-               </div>
-               <div class="text-right">
-                  <p class="text-[10px] font-black text-slate-400 uppercase">Total Amount</p>
-                  <p class="text-2xl font-black text-emerald-500">₱${total.toLocaleString()}</p>
-               </div>
-            </div>
-
-            <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar border-y border-slate-50 dark:border-slate-800">
-               <table class="w-full text-left border-collapse">
-                  <thead class="sticky top-0 bg-white dark:bg-slate-900 z-10">
-                     <tr class="border-b border-slate-50 dark:border-slate-800">
-                        <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                        <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
-                        <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Purpose</th>
-                        <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
-                        <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Funded By</th>
-                     </tr>
-                  </thead>
-                  <tbody>
-                     ${data.slice(0, 100).map(r => `
-                        <tr class="border-b border-slate-50 dark:border-slate-800">
-                           <td class="py-3 text-[10px] font-bold text-slate-500">${r.Date || '---'}</td>
-                           <td class="py-3 text-[10px] font-black text-slate-800 dark:text-white uppercase">${r.Category || '---'}</td>
-                           <td class="py-3 text-[10px] font-medium text-slate-500 truncate max-w-[200px]">${r.Purpose || '---'}</td>
-                           <td class="py-3 text-[10px] font-black text-right">₱${(parseFloat(r.Amount || 0)).toLocaleString()}</td>
-                           <td class="py-3 text-center">
-                              <span class="px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${(r['Funded by'] || '').toLowerCase().includes('petty') ? 'bg-rose-100 text-rose-600' : 'bg-blue-100 text-blue-600'}">
-                                 ${r['Funded by'] || '---'}
-                              </span>
-                           </td>
-                        </tr>
-                     `).join('')}
-                     ${data.length > 100 ? `<tr><td colspan="5" class="py-4 text-center text-[10px] font-bold text-slate-400 italic">... and ${data.length - 100} more rows</td></tr>` : ''}
-                  </tbody>
-               </table>
-            </div>
-
-            <div class="flex gap-4">
-               <button id="p-cancel" class="flex-1 py-4 border-2 border-slate-100 dark:border-slate-800 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
-               <button id="p-confirm" class="flex-1 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl">Confirm Import</button>
-            </div>
-         </div>
-      `;
-         document.body.appendChild(ov);
-         ov.querySelector('#p-cancel').onclick = () => { ov.remove(); res(false); };
-         ov.querySelector('#p-confirm').onclick = () => { ov.remove(); res(true); };
-      });
-   }
-
-   function showPromptModal(title, body) {
-      return new Promise(res => {
-         const ov = document.createElement('div');
-         ov.className = 'fixed inset-0 bg-transparent z-[10001] flex items-center justify-center p-4 animate-fade-in';
-         ov.innerHTML = `<div class="bg-white/95 dark:bg-slate-900/95 p-8 rounded-[2.5rem] max-w-sm w-full space-y-6 animate-scale-up shadow-2xl border border-slate-200 dark:border-slate-700/80"><h3 class="text-xl font-black uppercase text-center dark:text-white">${title}</h3><p class="text-slate-500 text-sm font-bold uppercase text-center">${body}</p><textarea id="p-input" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl p-4 text-xs font-bold dark:text-white" rows="3"></textarea><div class="flex gap-3"><button id="p-no" class="flex-1 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase dark:text-slate-200">Cancel</button><button id="p-yes" class="flex-1 py-3 bg-rose-500 text-white rounded-xl text-xs font-black uppercase tracking-widest">Flag Item</button></div></div>`;
-         document.body.appendChild(ov);
-         ov.querySelector('#p-no').onclick = () => { ov.remove(); res(null); };
-         ov.querySelector('#p-yes').onclick = () => { const v = ov.querySelector('#p-input').value; ov.remove(); res(v); };
-      });
-   }
 
    // Global functions for separate scopes
    async function loadCashierData() {
@@ -2236,156 +2392,97 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
          if (items.length === 0) {
-            listContainer.innerHTML = `<div class="text-center py-12 text-slate-300 text-[10px] font-black uppercase">Empty Batch</div>`;
+            listContainer.innerHTML = `<div class="text-center py-12 text-slate-300 dark:text-white text-[10px] font-black uppercase">Empty Batch</div>`;
             if (batchTotalEl) batchTotalEl.innerText = '₱0.00';
          } else {
             const pendingTotal = items.filter(i => i.status === 'pending').reduce((acc, i) => acc + (i.amount || 0), 0);
             if (batchTotalEl) batchTotalEl.innerText = '₱' + pendingTotal.toLocaleString();
 
-            const batchResubmitFiles = {};
-
             listContainer.innerHTML = items.map(item => `
-            <div class="batch-item-wrapper group border-b border-slate-100 dark:border-slate-800 last:border-0" data-id="${item.id}">
-               <!-- Item Header (Trigger) -->
-               <div class="batch-item-header flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-all rounded-xl">
+            <div class="batch-item-wrapper group bg-white/30 dark:bg-white/[0.02] rounded-2xl border border-white/50 dark:border-white/5 transition-all hover:bg-white/50 dark:hover:bg-white/[0.05] hover:border-[#96588a]/30 mb-1" data-id="${item.id}">
+               <div class="flex items-center justify-between px-4 py-3.5 transition-all">
                   <div class="flex items-center gap-3">
                      <div class="w-8 h-8 rounded-lg bg-[#96588a]/10 flex items-center justify-center text-[#96588a]">
                         <i data-lucide="receipt" class="w-4 h-4"></i>
                      </div>
                      <div>
-                        <p class="text-[10px] font-black text-slate-800 dark:text-white uppercase truncate max-w-[150px]">${item.purpose}</p>
-                        <p class="text-[8px] font-bold text-slate-400 uppercase tracking-widest">${item.status === 'requested' ? 'Awaiting Audit' : item.date}${item.invoiceNo ? ` • ${item.invoiceNo}` : ''}</p>
+                        <p class="text-[10px] font-black text-slate-800 dark:text-white uppercase truncate max-w-[120px]">${item.purpose}</p>
+                        <p class="text-[8px] font-bold text-slate-400 uppercase tracking-widest">${item.status === 'requested' ? 'Awaiting Audit' : item.date}</p>
                      </div>
                   </div>
+                  
                   <div class="flex items-center gap-4">
-                     <div class="text-right">
+                     <!-- Hover Actions (Edit/Delete) -->
+                     <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        ${item.status !== 'requested' ? `
+                           <button class="edit-item-btn p-2 hover:bg-[#96588a]/10 text-[#96588a] rounded-lg transition-colors" title="Edit Transaction">
+                              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                           </button>
+                           <button class="delete-item-btn p-2 hover:bg-rose-500/10 text-rose-500 rounded-lg transition-colors" title="Remove Item">
+                              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                           </button>
+                        ` : ''}
+                     </div>
+
+                     <div class="text-right dark:text-white">
                         <p class="text-xs font-black">₱${(item.amount || 0).toLocaleString()}</p>
                         ${item.auditorNote ? `<p class="text-[7px] font-black text-rose-500 uppercase tracking-tighter">Needs Correction</p>` : ''}
                      </div>
-                     <i data-lucide="chevron-down" class="w-4 h-4 text-slate-300 transition-transform group-[.is-expanded]:rotate-180"></i>
-                  </div>
-               </div>
-
-               <!-- Item Drawer (Expandable) -->
-               <div class="batch-item-drawer overflow-hidden max-h-0 transition-all duration-300 ease-in-out">
-                  <div class="px-4 pb-5 pt-2 space-y-4">
-                     ${item.auditorNote ? `
-                     <div class="p-3 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-100 dark:border-rose-500/20 mb-3">
-                        <p class="text-[9px] font-bold text-rose-600 uppercase flex items-center gap-2">
-                           <i data-lucide="info" class="w-3 h-3"></i> Auditor: ${item.auditorNote}
-                        </p>
-                     </div>
-                     ` : ''}
-
-                     <div class="grid grid-cols-2 gap-3">
-                        <div class="space-y-1">
-                           <label class="text-[8px] font-black text-slate-400 uppercase ml-1">Amount</label>
-                           <input type="number" step="0.01" class="edit-batch-amount w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-xs font-black" value="${item.amount}" ${item.status === 'requested' ? 'disabled' : ''}>
-                        </div>
-                        <div class="space-y-1">
-                           <label class="text-[8px] font-black text-slate-400 uppercase ml-1">Purpose</label>
-                           <input type="text" class="edit-batch-purpose w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-xs font-black" value="${item.purpose}" ${item.status === 'requested' ? 'disabled' : ''}>
-                        </div>
-                        <div class="space-y-1 col-span-2">
-                           <label class="text-[8px] font-black text-slate-400 uppercase ml-1">Invoice No.</label>
-                           <input type="text" class="edit-batch-invoice w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-2 text-xs font-black uppercase" value="${item.invoiceNo || ''}" placeholder="INV-..." ${item.status === 'requested' ? 'disabled' : ''}>
-                        </div>
-                     </div>
-
-                     ${item.status === 'pending' ? `
-                     <div class="flex items-center gap-2">
-                        <input type="file" class="edit-batch-file hidden" accept="image/*" data-id="${item.id}">
-                        <button class="edit-batch-file-btn flex-1 py-2.5 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-black uppercase text-slate-400 hover:border-purple-300 hover:text-[#96588a] transition-all flex items-center justify-center gap-2">
-                           <i data-lucide="camera" class="w-3 h-3"></i> Change Receipt
-                        </button>
-                        <button class="delete-batch-item w-10 h-10 bg-rose-50 dark:bg-rose-500/10 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all shadow-sm" data-id="${item.id}" title="Delete Item">
-                           <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                     </div>
-                     <p class="batch-file-name hidden text-[8px] text-[#96588a] font-bold text-center truncate mt-1"></p>
-                     
-                     <button class="save-batch-item w-full py-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg" data-id="${item.id}">
-                        Save Changes
-                     </button>
-                     ` : `
-                     <p class="text-[9px] font-black text-slate-400 uppercase text-center py-2 italic">Awaiting auditor review — editing locked</p>
-                     `}
                   </div>
                </div>
             </div>
          `).join('');
 
             // Attach Listeners
+            if (window.lucide) window.lucide.createIcons();
+
             listContainer.querySelectorAll('.batch-item-wrapper').forEach(wrapper => {
-               const header = wrapper.querySelector('.batch-item-header');
-               const drawer = wrapper.querySelector('.batch-item-drawer');
                const itemId = wrapper.dataset.id;
+               const item = items.find(i => i.id === itemId);
 
-               header.onclick = () => {
-                  const isExp = wrapper.classList.contains('is-expanded');
-                  // Close others
-                  listContainer.querySelectorAll('.batch-item-wrapper').forEach(w => {
-                     w.classList.remove('is-expanded');
-                     w.querySelector('.batch-item-drawer').style.maxHeight = '0';
-                  });
-                  if (!isExp) {
-                     wrapper.classList.add('is-expanded');
-                     drawer.style.maxHeight = drawer.scrollHeight + 'px';
-                  }
-               };
-
-               // File selection
-               const fileBtn = wrapper.querySelector('.edit-batch-file-btn');
-               const fileInput = wrapper.querySelector('.edit-batch-file');
-               const fileName = wrapper.querySelector('.batch-file-name');
-               if (fileBtn) {
-                  fileBtn.onclick = (e) => { e.stopPropagation(); fileInput.click(); };
-                  fileInput.onchange = (e) => {
-                     const file = e.target.files[0];
-                     if (file) {
-                        batchResubmitFiles[itemId] = file;
-                        fileName.textContent = `New: ${file.name}`;
-                        fileName.classList.remove('hidden');
-                        fileBtn.classList.add('border-purple-300', 'text-[#96588a]');
-                     }
-                  };
-               }
-
-               // Save changes
-               const saveBtn = wrapper.querySelector('.save-batch-item');
-               if (saveBtn) {
-                  saveBtn.onclick = async (e) => {
+               // Edit Item
+               const editBtn = wrapper.querySelector('.edit-item-btn');
+               if (editBtn) {
+                  editBtn.onclick = (e) => {
                      e.stopPropagation();
-                     const amt = parseFloat(wrapper.querySelector('.edit-batch-amount').value);
-                     const pur = wrapper.querySelector('.edit-batch-purpose').value;
-                     const invoiceNo = wrapper.querySelector('.edit-batch-invoice')?.value?.trim()?.toUpperCase() || '';
-                     if (!amt || amt <= 0) { window.showToast('Invalid amount', 'error'); return; }
+                     currentEditingId = itemId;
 
-                     saveBtn.disabled = true;
-                     saveBtn.innerHTML = `<div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>`;
-
-                     try {
-                        const updateData = { amount: amt, purpose: pur, invoiceNo, auditorNote: null };
-                        if (batchResubmitFiles[itemId]) {
-                           const file = batchResubmitFiles[itemId];
-                           const fileRef = ref(storage, `expenses_receipts/${Date.now()}_${file.name}`);
-                           const uploadSnap = await uploadBytes(fileRef, file);
-                           updateData.receiptUrl = await getDownloadURL(uploadSnap.ref);
-                        }
-                        await updateDoc(doc(db, 'expenses', itemId), updateData);
-                        window.showToast('Item updated', 'success');
-                        loadCashierData();
-                     } catch (err) {
-                        console.error(err);
-                        window.showToast('Update failed', 'error');
-                        saveBtn.disabled = false;
-                        saveBtn.textContent = 'Save Changes';
+                     // Populate Modal Inputs
+                     const modal = document.querySelector('#expense-modal');
+                     if (!modal) {
+                        console.error('Expense modal not found in body');
+                        return;
                      }
+
+                     modal.querySelector('#exp-amount').value = item.amount || '';
+                     modal.querySelector('#exp-category').value = item.category || '';
+                     modal.querySelector('#exp-date').value = item.date || '';
+                     modal.querySelector('#exp-invoice').value = item.invoiceNo || '';
+                     modal.querySelector('#exp-desc').value = item.description || '';
+
+                     // Trigger category change logic to load subcategories
+                     const catSelect = modal.querySelector('#exp-category');
+                     if (catSelect) catSelect.dispatchEvent(new Event('change'));
+
+                     // Set subcategory and purpose after a brief delay
+                     setTimeout(() => {
+                        const subSelect = modal.querySelector('#exp-subcategory');
+                        if (subSelect) subSelect.value = item.subCategory || '';
+                        const purSelect = modal.querySelector('#exp-purpose');
+                        if (purSelect) purSelect.value = item.purpose || '';
+                     }, 50);
+
+                     // Update Modal UI
+                     const modalTitle = modal.querySelector('h4');
+                     const submitBtn = modal.querySelector('#save-exp-btn');
+                     if (modalTitle) modalTitle.textContent = 'Edit Transaction';
+                     if (submitBtn) submitBtn.textContent = 'Update Transaction';
+                     modal.classList.remove('hidden');
                   };
                }
 
-               // Delete item
-               const delBtn = wrapper.querySelector('.delete-batch-item');
+               // Delete Item
+               const delBtn = wrapper.querySelector('.delete-item-btn');
                if (delBtn) {
                   delBtn.onclick = async (e) => {
                      e.stopPropagation();
@@ -2425,7 +2522,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       if (!historyContent) return;
 
       try {
-         let constraints = [where('status', 'in', ['pending', 'approved', 'rejected', 'partially_rejected', 'cancelled']), orderBy('createdAt', 'desc'), limit(20)];
+         let constraints = [where('status', 'in', ['pending', 'approved', 'rejected', 'partially_rejected', 'cancelled']), orderBy('createdAt', 'desc'), limit(historyLimit)];
          if (activeBranch && activeBranch !== 'All Branches') constraints.unshift(where('branchId', '==', activeBranch));
 
          const q = query(collection(db, 'liquidation_requests'), ...constraints);
@@ -2437,7 +2534,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             return;
          }
 
-         historyContent.innerHTML = docs.map(data => {
+         let rowsHtml = docs.map(data => {
             const isApp = data.status === 'approved';
             const isPartial = data.status === 'partially_rejected';
             const isPending = data.status === 'pending';
@@ -2458,29 +2555,51 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             const isClickable = isRejected || isPartial || isPending || isApp;
 
             return `
-            <div class="history-row ${isClickable ? 'history-detail-btn cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50' : 'cursor-default'} transition-all" data-id="${data.id}">
-               <div class="grid grid-cols-12 gap-2 items-center px-4 py-3">
+            <div class="history-row ${isClickable ? 'history-detail-btn cursor-pointer hover:bg-slate-50/50 dark:hover:bg-white/[0.02]' : 'cursor-default'} group border-b border-slate-100 dark:border-white/5 transition-all" data-id="${data.id}">
+               <div class="grid grid-cols-12 gap-2 items-center px-8 py-5">
                   <div class="col-span-3">
-                     <p class="text-[10px] font-black text-slate-800 dark:text-white uppercase">REQ-${data.id.substring(0, 6).toUpperCase()}</p>
-                     <p class="text-[10px] text-slate-400 font-bold mt-0.5">${dateStr}</p>
+                     <p class="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight">REQ-${data.id.substring(0, 8).toUpperCase()}</p>
+                     <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1 opacity-60">${dateStr}</p>
                   </div>
                   <div class="col-span-3">
-                     <p class="text-[10px] font-bold text-slate-600 dark:text-slate-300">${period}</p>
-                     <p class="text-[10px] text-slate-400 font-bold mt-0.5">${data.itemCount || 0} items</p>
+                     <p class="text-[10px] font-bold text-slate-800 dark:text-white/80 uppercase tracking-tight">${period}</p>
+                     <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1 opacity-60">${data.itemCount || 0} ITEMS</p>
                   </div>
                   <div class="col-span-2">
-                     <span class="px-2 py-0.5 text-slate-800 dark:text-white/70 text-[10px] text-left font-black uppercase">${data.branchId || '---'}</span>
+                     <span class="inline-flex px-3 py-1 rounded-full bg-slate-100 dark:bg-white/5 text-[10px] font-black uppercase text-slate-600 dark:text-white/60">
+                        ${data.branchId || '---'}
+                     </span>
                   </div>
                   <div class="col-span-2 text-right">
-                     <p class="text-[11px] font-black text-slate-900 dark:text-white">₱${(data.totalAmount || 0).toLocaleString()}</p>
-                     ${isClickable ? `<p class="text-[8px] text-[#96588a] font-black uppercase mt-0.5">View</p>` : ''}
+                     <p class="text-[11px] font-black text-slate-900 dark:text-white">₱${(data.totalAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
                   </div>
                   <div class="col-span-2 text-right">
-                     <span class="px-2 py-0.5 rounded-full text-[10px] text-right font-black uppercase ${badgeCls}">${statusLabel}</span>
+                     <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${badgeCls}">${statusLabel}</span>
                   </div>
                </div>
             </div>
          `}).join('');
+
+         // Load More Button
+         if (docs.length >= historyLimit) {
+            rowsHtml += `
+               <div class="p-6 text-center">
+                  <button id="load-more-history-btn" class="px-6 py-2.5 bg-slate-100 dark:bg-white/5 hover:bg-[#96588a] hover:text-white text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-sm">
+                     Load More Records
+                  </button>
+               </div>
+            `;
+         }
+
+         historyContent.innerHTML = rowsHtml;
+
+         const loadMoreBtn = historyContent.querySelector('#load-more-history-btn');
+         if (loadMoreBtn) {
+            loadMoreBtn.onclick = () => {
+               historyLimit += 10;
+               loadHistoryData();
+            };
+         }
 
          historyContent.querySelectorAll('.history-detail-btn').forEach(btn => {
             btn.onclick = () => {
@@ -2496,31 +2615,33 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
 
    async function showEditLedgerModal(item) {
-      const ov = document.createElement('div');
-      ov.className = 'fixed inset-0 bg-transparent z-[10001] flex items-center justify-center p-4 animate-fade-in';
-      ov.innerHTML = `
-         <div class="bg-white/95 dark:bg-slate-900/95 p-8 rounded-[2.5rem] max-w-md w-full space-y-6 animate-scale-up shadow-2xl border border-slate-200 dark:border-slate-700/80">
+      const editModal = document.createElement('div');
+      editModal.id = 'edit-expense-modal';
+      editModal.className = 'fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-fade-in bg-slate-900/20';
+
+      editModal.innerHTML = `
+         <div class="bg-white/50 dark:bg-[#343434]/60 p-8 rounded-[2.5rem] max-w-md w-full space-y-6 animate-scale-up shadow-2xl backdrop-blur-xl">
             <div class="flex items-center justify-between">
-               <h3 class="text-xl font-black uppercase tracking-tighter">Edit Transaction</h3>
+               <h3 class="text-xl font-black dark:text-white uppercase tracking-tighter">Edit Transaction</h3>
                <button id="close-edit-modal" class="text-slate-400 hover:text-slate-600 transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             
             <div class="space-y-4">
                <div class="space-y-1">
                   <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
-                  <input type="date" id="edit-date" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold" value="${item.date}">
+                  <input type="date" id="edit-date" class="w-full bg-slate-50 dark:bg-[#343434] border-none rounded-xl px-4 py-3 text-slate-400 dark:text-white text-xs font-bold" value="${item.date}">
                </div>
                <div class="space-y-1">
                   <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Purpose</label>
-                  <input type="text" id="edit-purpose" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold" value="${item.purpose || ''}">
+                  <input type="text" id="edit-purpose" class="w-full bg-slate-50 dark:bg-[#343434] border-none rounded-xl px-4 py-3 text-slate-400 dark:text-white text-xs font-bold" value="${item.purpose || ''}">
                </div>
                <div class="space-y-1">
                   <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount</label>
-                  <input type="number" id="edit-amount" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold" value="${item.amount}">
+                  <input type="number" id="edit-amount" class="w-full bg-slate-50 dark:bg-[#343434] border-none rounded-xl px-4 py-3 text-slate-400 dark:text-white text-xs font-bold" value="${item.amount}">
                </div>
                <div class="space-y-1">
                   <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
-                  <select id="edit-category" class="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-xs font-bold">
+                  <select id="edit-category" class="w-full bg-slate-50 dark:bg-[#343434] border-none rounded-xl px-4 py-3 text-slate-400 dark:text-white text-xs font-bold">
                      ${categories.map(c => `<option value="${c}" ${c === item.category ? 'selected' : ''}>${c}</option>`).join('')}
                   </select>
                </div>
@@ -2531,17 +2652,24 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             </button>
          </div>
       `;
-      document.body.appendChild(ov);
+      document.body.appendChild(editModal);
       if (window.lucide) window.lucide.createIcons();
 
-      ov.querySelector('#close-edit-modal').onclick = () => ov.remove();
+      const closeEditModal = () => {
+         const inner = editModal.querySelector('.bg-white\\/95') || editModal.firstElementChild;
+         editModal.classList.add('animate-fade-out');
+         if (inner) inner.classList.add('animate-scale-down');
+         setTimeout(() => editModal.remove(), 200);
+      };
 
-      ov.querySelector('#save-edit-btn').onclick = async () => {
-         const btn = ov.querySelector('#save-edit-btn');
-         const date = ov.querySelector('#edit-date').value;
-         const purpose = ov.querySelector('#edit-purpose').value;
-         const amount = parseFloat(ov.querySelector('#edit-amount').value);
-         const category = ov.querySelector('#edit-category').value;
+      editModal.querySelector('#close-edit-modal').onclick = () => closeEditModal();
+
+      editModal.querySelector('#save-edit-btn').onclick = async () => {
+         const btn = editModal.querySelector('#save-edit-btn');
+         const date = editModal.querySelector('#edit-date').value;
+         const purpose = editModal.querySelector('#edit-purpose').value;
+         const amount = parseFloat(editModal.querySelector('#edit-amount').value);
+         const category = editModal.querySelector('#edit-category').value;
 
          if (!date || isNaN(amount)) { window.showToast('Please fill required fields', 'error'); return; }
 
@@ -2553,7 +2681,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                date, purpose, amount: amount, category
             });
             window.showToast('Transaction updated', 'success');
-            ov.remove();
+            closeEditModal();
             loadLedgerData();
          } catch (err) {
             console.error(err);
@@ -2562,6 +2690,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             btn.textContent = 'Save Changes';
          }
       };
+
    }
 
    function showAuditLogsModal() {

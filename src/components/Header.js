@@ -26,9 +26,9 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-1.5">
         ${(isDashboard || !logoUrl) ? `
-          <h1 class="text-sm font-black text-white/60 uppercase tracking-widest ml-2">${title}</h1>
+          <h1 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest ml-2">${title}</h1>
         ` : `
-          <div class="h-6 flex items-center border-r border-slate-200 dark:border-slate-800/60 pr-4 ml-1">
+          <div class="h-6 flex items-center pr-4 ml-1">
              <img src="/src/assets/${logoUrl}" class="h-full w-auto object-contain ${darkLogoUrl ? 'dark:hidden' : 'dark:brightness-0 dark:invert'}" alt="${title} Logo" />
              ${darkLogoUrl ? `<img src="/src/assets/${darkLogoUrl}" class="h-full w-auto object-contain hidden dark:block" alt="${title} Logo" />` : ''}
           </div>
@@ -37,11 +37,11 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
         <!-- Sub Tabs Breadcrumbs -->
         ${subTabs.length > 0 ? `
           <div class="flex items-center gap-3 ml-2">
-            <span class="text-slate-300 dark:text-slate-600 font-medium text-sm">/</span>
-            <div class="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 px-4 py-1.5 rounded-full border border-slate-100 dark:border-slate-800/50">
+            <span class="text-slate-900 dark:text-white/20 font-medium text-sm">/</span>
+            <div class="flex items-center gap-4 bg-slate-200 dark:bg-[#242424] px-4 py-1.5 rounded-full border border-slate-400/20 dark:border-white/5 shadow-inner">
               ${subTabs.map((tab, idx) => `
-                ${idx > 0 ? '<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>' : ''}
-                <button class="sub-tab-link text-[10px] font-black uppercase tracking-[0.15em] transition-all ${activeSubTab === tab.id ? 'text-[#96588a]' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}" 
+                ${idx > 0 ? '<span class="w-1 h-1 rounded-full bg-slate-400 dark:bg-white/20"></span>' : ''}
+                <button class="sub-tab-link text-[10px] font-black uppercase tracking-[0.15em] transition-all ${activeSubTab === tab.id ? 'text-[#96588a]' : 'text-slate-900 dark:text-white hover:opacity-70'}" 
                         data-tab-id="${tab.id}">
                   ${tab.label}
                 </button>
@@ -58,17 +58,17 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
       <div class="relative h-10 group" id="branch-dropdown-wrapper">
         <input type="hidden" id="db-branch" value="${branch}">
         
-        <div id="branch-display" class="h-full pl-4 pr-10 rounded-full text-[11px] font-black bg-[#96588a] dark:bg-[#141414] text-white flex items-center cursor-pointer hover:bg-[#834d78] dark:hover:bg-white/5 transition-all shadow-md relative border-none">
-          <span id="current-branch-text" class="uppercase dark:text-white/60 transition-colors">${branch}</span>
+        <div id="branch-display" class="h-full pl-4 pr-10 rounded-full text-[11px] font-black bg-[#96588a] dark:bg-white/10 text-white flex items-center cursor-pointer hover:bg-[#834d78] dark:hover:bg-white/5 transition-all shadow-md relative border-none">
+          <span id="current-branch-text" class="uppercase dark:text-white transition-colors">${branch}</span>
           <div class="absolute right-3">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-opacity="0.6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-opacity="0.8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" class="text-white"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </div>
         </div>
 
         <div id="branch-options" class="absolute top-full left-0 mt-2 w-52 bg-white/60 dark:bg-black/60 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[70] overflow-hidden ultra-blur border-none">
           <div class="py-2">
             ${allowedBranches.map(b => `
-              <div class="branch-item px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/60 uppercase tracking-[0.15em] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" 
+              <div class="branch-item px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white uppercase tracking-[0.15em] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" 
                    onclick="document.getElementById('db-branch').value='${b}'; document.getElementById('current-branch-text').innerText='${b}'; document.getElementById('db-branch').dispatchEvent(new Event('change'));">
                 ${b}
               </div>
@@ -78,12 +78,12 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
       </div>
       
       <!-- Pill 2: Date Picker -->
-      <div class="flex items-center h-10 bg-white/60 dark:bg-[#141414] rounded-full px-5 hover:bg-white dark:hover:bg-white/5 transition-all shadow-md group relative cursor-pointer border-none" id="custom-preset-container">
+      <div class="flex items-center h-10 bg-white dark:bg-white/10 rounded-full px-5 hover:bg-slate-50 dark:hover:bg-white/20 transition-all shadow-md group relative cursor-pointer border-none" id="custom-preset-container">
          <i data-lucide="calendar" class="w-3.5 h-3.5 text-[#96588a] mr-2.5"></i>
          <input type="text" id="db-date-range" class="absolute inset-0 opacity-0 pointer-events-none" value="${dateRange || ''}">
          
          <div class="flex items-center gap-2.5">
-            <span id="preset-label" class="text-[11px] font-black text-slate-700 dark:text-white/60 uppercase tracking-tight">Yesterday</span>
+            <span id="preset-label" class="text-[11px] font-black text-slate-800 dark:text-white uppercase tracking-tight">Yesterday</span>
             <i data-lucide="chevron-down" id="preset-chevron" class="w-3 h-3 text-slate-400 dark:text-white/60 transition-transform duration-300 group-hover:rotate-180"></i>
          </div>
 

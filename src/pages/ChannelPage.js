@@ -8,7 +8,7 @@ const CHANNEL_CONFIG = {
   },
   grabfood: {
     label: 'GrabFood', icon: 'GrabFood.svg', color: 'emerald', hex: '#96588a',
-    colGross: 29, colMerchantDisc: 35, colDeliveryDisc: 36, colComm: 46, colMarketing: 44, colAds: 52, colOrderComm: 47, colCategory: 7, colDesc: 62, colDate: 5, colId: 15
+    colGross: 29, colMerchantDisc: 35, colDeliveryDisc: 36, colComm: 46, colMarketing: 44, colAds: 52, colOrderComm: 47, colCategory: 7, colDesc: 62, colDate: 4, colId: 15
   },
   foodpanda: {
     label: 'FoodPanda', icon: 'Foodpanda.svg', color: 'pink', hex: '#96588a',
@@ -41,7 +41,6 @@ function standardizeDate(val, channelId) {
 
   // 1. Nếu Excel đọc ra dưới dạng Serial Number (ví dụ: 45404)
   if (typeof val === 'number') {
-    // Serial Number trong Excel luôn tính từ gốc UTC, nên dùng toISOString là đúng cho case này
     const date = new Date(Math.round((val - 25569) * 86400 * 1000));
     if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
   }
@@ -54,11 +53,8 @@ function standardizeDate(val, channelId) {
     // 2. Định dạng có dấu gạch ngang (-)
     if (datePart.includes('-')) {
       const parts = datePart.split('-');
-      // Nếu năm đứng trước: YYYY-MM-DD
       if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-      // Nếu năm đứng sau: DD-MM-YYYY
       if (parts[2].length === 4) {
-        // Có thể là dạng 23-Apr-2026 -> Hàm Date của JS tự parse (nhưng phải dùng Local Time)
         if (isNaN(parts[1])) {
           const d = new Date(datePart);
           if (!isNaN(d.getTime())) return getLocalDateString(d);
@@ -70,18 +66,12 @@ function standardizeDate(val, channelId) {
     // 3. Định dạng có dấu gạch chéo (/)
     if (datePart.includes('/')) {
       const parts = datePart.split('/');
-      // Giả sử DD/MM/YYYY
       if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      // Giả sử YYYY/MM/DD
       if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
     }
 
-    // 4. Fallback cuối cùng: Để Javascript tự đoán (Dùng Local Time)
     const fallbackDate = new Date(str);
     if (!isNaN(fallbackDate.getTime())) return getLocalDateString(fallbackDate);
-
-    const fallbackDate2 = new Date(datePart);
-    if (!isNaN(fallbackDate2.getTime())) return getLocalDateString(fallbackDate2);
 
   } catch (e) { return null; }
 
@@ -97,7 +87,7 @@ function parseAyalaDate(val) {
     const datePart = str.split(' ')[0]; // Strip time if exists
     const sep = datePart.includes('/') ? '/' : '-';
     const parts = datePart.split(sep);
-    
+
     if (parts.length >= 3) {
       let d, m, y;
       if (parts[2].length === 4) { // DD/MM/YYYY
@@ -160,7 +150,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl overflow-hidden shadow-xl border-t border-white/60 dark:border-white/10 transition-all">
           <!-- Subdued Table Header Action Area -->
           <div class="px-8 pt-6 pb-2 flex justify-between items-center">
-             <p class="text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Historical Data</p>
+             <p class="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-[0.2em]">Historical Data</p>
              <button id="btn-export-csv" class="flex items-center gap-2 text-[9px] font-black text-slate-400 hover:text-[#96588a] dark:text-white/30 dark:hover:text-white uppercase tracking-widest transition-all group">
                 <i data-lucide="file-spreadsheet" class="w-3 h-3 group-hover:scale-110 transition-transform"></i>
                 Export Report
@@ -301,7 +291,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
       const glassBg = 'rgba(255, 255, 255, 0.08)'; // Pure Ghost Glass
 
       modal.innerHTML = `
-          <div class="relative w-full max-w-[500px] rounded-[3rem] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.5)] overflow-hidden animate-fade-in flex flex-col min-h-[400px] max-h-[85vh] bg-white/70 dark:bg-white/[0.04] backdrop-blur-[40px] [transform:translateZ(0)] contain-paint isolation-isolate">
+          <div class="relative w-full max-w-[500px] rounded-[3rem] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.5)] overflow-hidden animate-fade-in flex flex-col min-h-[400px] max-h-[87vh] bg-white/70 dark:bg-white/[0.04] backdrop-blur-[40px] [transform:translateZ(0)] contain-paint isolation-isolate">
              <div class="px-10 pt-12 pb-6 flex flex-col items-center relative z-10">
                 <p id="modal-title-prefix" class="text-[9px] font-black text-slate-500 dark:text-white/50 uppercase tracking-[0.5em] mb-1">Financial Report</p>
                 <h3 id="modal-date" class="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter text-center">Date Details</h3>
@@ -503,6 +493,17 @@ export function renderChannelPage(channelId, activeTab = 'history') {
       const branchId = document.getElementById('db-branch').value;
       const heroBtn = page.querySelector('#hero-save-btn');
 
+      const datesInFile = Object.keys(currentResults);
+      const conflictDates = await checkConflicts(channelId, branchId, datesInFile);
+
+      let saveMode = 'overwrite'; // mặc định
+
+      if (conflictDates.length > 0) {
+        const resolution = await showConflictResolutionModal(conflictDates);
+        if (resolution === 'cancel') return;
+        saveMode = resolution;
+      }
+
       // Loading State
       btnSave.disabled = true;
       if (heroBtn) {
@@ -511,10 +512,10 @@ export function renderChannelPage(channelId, activeTab = 'history') {
       }
 
       try {
-        await saveToDatabase(channelId, branchId, currentResults);
+        await saveToDatabase(channelId, branchId, currentResults, saveMode);
 
         // Success State
-        if (window.showToast) window.showToast('Data synced to database successfully!', 'success');
+        if (window.showToast) window.showToast(`Data ${saveMode === 'merge' ? 'merged' : 'synced'} successfully!`, 'success');
 
         if (heroBtn) {
           heroBtn.style.background = "#10b981";
@@ -542,6 +543,46 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         }
       }
     };
+
+    async function showConflictResolutionModal(dates) {
+      return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in';
+        modal.innerHTML = `
+             <div class="luxury-card bg-white dark:bg-[#141414] w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl animate-scale-up border-t border-white/60 dark:border-white/10">
+                <div class="flex flex-col items-center text-center gap-4 mb-8">
+                   <div class="w-16 h-16 rounded-3xl bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center text-amber-500">
+                      <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+                   </div>
+                   <h3 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Data Conflict</h3>
+                   <p class="text-xs text-slate-500 dark:text-white/60 leading-relaxed font-bold">
+                      Data for <span class="text-amber-500">${dates.length} date(s)</span> already exists in the database. How would you like to proceed?
+                   </p>
+                </div>
+                
+                <div class="space-y-3">
+                   <button id="res-overwrite" class="w-full py-4 rounded-2xl bg-rose-500 text-white text-[11px] font-black uppercase tracking-widest shadow-lg shadow-rose-500/20 hover:scale-[1.02] active:scale-95 transition-all flex flex-col items-center">
+                      <span>Overwrite Existing Data</span>
+                      <span class="text-[8px] opacity-60 font-bold mt-1">Replace with new file content</span>
+                   </button>
+                   <button id="res-merge" class="w-full py-4 rounded-2xl bg-emerald-600 text-white text-[11px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 transition-all flex flex-col items-center">
+                      <span>Accumulate / Merge</span>
+                      <span class="text-[8px] opacity-60 font-bold mt-1">Add new values to existing records</span>
+                   </button>
+                   <button id="res-cancel" class="w-full py-4 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-400 text-[11px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">
+                      Cancel Import
+                   </button>
+                </div>
+             </div>
+          `;
+        document.body.appendChild(modal);
+        if (window.lucide) window.lucide.createIcons();
+
+        modal.querySelector('#res-overwrite').onclick = () => { modal.remove(); resolve('overwrite'); };
+        modal.querySelector('#res-merge').onclick = () => { modal.remove(); resolve('merge'); };
+        modal.querySelector('#res-cancel').onclick = () => { modal.remove(); resolve('cancel'); };
+      });
+    }
 
     async function readExcelFile(file) {
       const XLSX = await import('xlsx');
@@ -597,8 +638,12 @@ export function renderChannelPage(channelId, activeTab = 'history') {
       currentResults = grouped;
 
       try {
-        updateUI(page, grouped, channelId);
-        renderPreviewTable(allDataRows.slice(0, 15), previewArea, `Combined (${fileList.length} files)`);
+        // Kiểm tra xem những ngày này đã có dữ liệu chưa
+        const conflictDates = await checkConflicts(channelId, branchId, Object.keys(grouped));
+
+        updateUI(page, grouped, channelId, conflictDates);
+        renderPreviewTable(allDataRows.slice(0, 15), previewArea, `Combined (${fileList.length} files)`, conflictDates);
+
         btnSave.classList.remove('hidden');
         btnSave.innerText = "Save to Database";
         btnSave.disabled = false;
@@ -606,6 +651,20 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         console.error("UI Update Error:", err);
         previewArea.innerHTML = `<p class="text-rose-500 text-sm">UI Error: ${err.message}</p>`;
       }
+    }
+
+    async function checkConflicts(channelId, branchId, dates) {
+      const conflicts = [];
+      const safeBranchName = branchId.replace(/\s+/g, '');
+
+      const promises = dates.map(async (date) => {
+        const docId = `${channelId}_${safeBranchName}_${date}`;
+        const snap = await getDocs(query(collection(db, "daily_sales"), where("__name__", "==", docId)));
+        if (!snap.empty) conflicts.push(date);
+      });
+
+      await Promise.all(promises);
+      return conflicts;
     }
   }, 0);
 
@@ -619,7 +678,7 @@ function groupDataByDate(data, channelId, cfg, branchId) {
   for (let i = 1; i < data.length; i++) {
     const row = data[i]; if (!row || row.length === 0) continue;
 
-    const dateIdx = isAyalaDineIn ? 4 : cfg.colDate; // Ayala POS date switch to Col E (index 4 - Start Date)
+    const dateIdx = isAyalaDineIn ? 4 : cfg.colDate;
     const dateKey = isAyalaDineIn ? parseAyalaDate(row[dateIdx]) : standardizeDate(row[dateIdx], channelId);
 
     if (!dateKey) continue;
@@ -639,16 +698,20 @@ function groupDataByDate(data, channelId, cfg, branchId) {
   return results;
 }
 
-async function saveToDatabase(channelId, branchId, results) {
+async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') {
   const batchId = `BATCH_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
   let totalRows = 0;
+  const { doc, getDoc, writeBatch } = await import('firebase/firestore');
 
-  const promises = Object.entries(results).map(([date, res]) => {
+  const safeBranchName = branchId.replace(/\s+/g, '');
+
+  // Use a batch or individual updates? Since we might need to read first for merge, we'll process with a loop
+  const promises = Object.entries(results).map(async ([date, res]) => {
     totalRows += (res.orders || 0);
-    const safeBranchName = branchId.replace(/\s+/g, '');
     const docId = `${channelId}_${safeBranchName}_${date}`;
+    const docRef = doc(db, "daily_sales", docId);
 
-    const dataToSave = {
+    let dataToSave = {
       channelId,
       branchId,
       date,
@@ -659,11 +722,33 @@ async function saveToDatabase(channelId, branchId, results) {
         totalDeductions: res.totalDed
       },
       breakdown: res.breakdown,
-      importBatchId: batchId, // Tracking ID
+      importBatchId: batchId,
       updatedAt: serverTimestamp()
     };
 
-    return setDoc(doc(db, "daily_sales", docId), dataToSave);
+    if (mode === 'merge') {
+      const existingSnap = await getDoc(docRef);
+      if (existingSnap.exists()) {
+        const old = existingSnap.data();
+
+        // Merge Financials
+        dataToSave.orders = (old.orders || 0) + res.orders;
+        dataToSave.financials.gross = (old.financials?.gross || 0) + res.gross;
+        dataToSave.financials.net = (old.financials?.net || 0) + res.net;
+        dataToSave.financials.totalDeductions = (old.financials?.totalDeductions || 0) + res.totalDed;
+
+        // Merge Breakdown Deductions
+        if (res.breakdown && res.breakdown.deductions) {
+          const mergedDeductions = { ...(old.breakdown?.deductions || {}) };
+          Object.entries(res.breakdown.deductions).forEach(([k, v]) => {
+            mergedDeductions[k] = (mergedDeductions[k] || 0) + v;
+          });
+          dataToSave.breakdown.deductions = mergedDeductions;
+        }
+      }
+    }
+
+    return setDoc(docRef, dataToSave);
   });
 
   // Create log entry
@@ -1202,18 +1287,15 @@ function updateSummary(items, channelId, page) {
   const dedVal = `₱${Math.round(totalDed).toLocaleString()}`;
 
   summaryContainer.innerHTML = `
-    <div class="channel-card-premium" style="--channel-accent: ${accent}">
+    <div class="channel-card-premium group" style="--channel-accent: ${accent}">
       <div class="channel-card-accent"></div>
+      <div class="absolute -bottom-4 -right-4 opacity-[0.08] dark:opacity-[0.15] -rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+         <i data-lucide="banknote" class="w-24 h-24 text-slate-900 dark:text-white"></i>
+      </div>
       <div class="relative z-10 flex flex-col h-full">
-        <div class="flex justify-between items-start">
-          <div>
-            <p class="text-[10px] font-black text-slate-400 dark:text-white/70 uppercase tracking-widest mb-1">Net Revenue</p>
-            <h3 id="summary-net" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${netVal}</h3>
-          </div>
-          <div class="p-2 w-10 h-10 rounded-full bg-white/50 dark:bg-white/90 flex items-center justify-center shadow-sm">
-            <i data-lucide="trending-up" class="w-5 h-5" style="color: ${accent}"></i>
-          </div>
-        </div>
+        <p class="text-[10px] font-black text-slate-400 dark:text-white/70 uppercase tracking-widest mb-1">Net Revenue</p>
+        <h3 id="summary-net" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${netVal}</h3>
+        <p class="text-[9px] text-slate-400 dark:text-white/70 font-bold mt-2 uppercase tracking-widest">Total Earnings After Fees</p>
       </div>
       
       <div class="sparkline-container">
@@ -1223,7 +1305,10 @@ function updateSummary(items, channelId, page) {
       </div>
     </div>
 
-    <div class="channel-card-premium">
+    <div class="channel-card-premium group">
+       <div class="absolute -bottom-4 -right-4 opacity-[0.08] dark:opacity-[0.15] -rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+          <i data-lucide="shopping-bag" class="w-24 h-24 text-slate-900 dark:text-white"></i>
+       </div>
        <div class="relative z-10">
           <p class="text-[10px] font-black text-slate-400 dark:text-white/70 uppercase tracking-widest mb-1">Order Volume</p>
           <h3 id="summary-orders" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${ordersVal}</h3>
@@ -1231,7 +1316,10 @@ function updateSummary(items, channelId, page) {
        </div>
     </div>
 
-    <div class="channel-card-premium">
+    <div class="channel-card-premium group">
+       <div class="absolute -bottom-4 -right-4 opacity-[0.08] dark:opacity-[0.15] -rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+          <i data-lucide="calculator" class="w-24 h-24 text-slate-900 dark:text-white"></i>
+       </div>
        <div class="relative z-10">
           <p class="text-[10px] font-black text-slate-400 dark:text-white/70 uppercase tracking-widest mb-1">Average Order</p>
           <h3 id="summary-avg" class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter transition-all duration-300">${avgVal}</h3>
@@ -1239,7 +1327,10 @@ function updateSummary(items, channelId, page) {
        </div>
     </div>
 
-    <div class="channel-card-premium">
+    <div class="channel-card-premium group">
+       <div class="absolute -bottom-4 -right-4 opacity-[0.08] dark:opacity-[0.15] -rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+          <i data-lucide="receipt" class="w-24 h-24 text-slate-900 dark:text-white"></i>
+       </div>
        <div class="relative z-10">
           <p class="text-[10px] font-black text-slate-400 dark:text-white/70 uppercase tracking-widest mb-1">Total Deduction</p>
           <h3 id="summary-ded" class="text-2xl font-black text-rose-500 tracking-tighter transition-all duration-300">${dedVal}</h3>
@@ -1314,7 +1405,7 @@ async function fetchChannelHistory(channelId) {
 
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
-      if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-xs text-slate-400 italic">No historical data found for <span class="font-bold text-slate-600">${branchId}</span> on this channel. <br><span class="text-[10px] mt-2 block">Try importing a file in the "Import Data" tab and click "Save to Database".</span></td></tr>`;
+      if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-xs text-slate-400 dark:text-white italic">No historical data found for <span class="font-bold text-slate-600 dark:text-white">${branchId}</span> on this channel. <br><span class="text-[10px] mt-2 block dark:text-white/80">Try importing a file in the "Import Data" tab and click "Save to Database".</span></td></tr>`;
       return;
     }
 
@@ -1473,7 +1564,7 @@ function showDayDetail(item, channelLabel) {
   let html = `
     <div class="space-y-4 animate-fade-in [transform:translateZ(0)]">
       <!-- Revenue Hub: Merged Gross & Net -->
-      <div class="p-8 bg-slate-900/[0.03] dark:bg-white/[0.05] backdrop-blur-[40px] rounded-[2.5rem] flex items-center justify-between relative overflow-hidden group">
+      <div class="p-6 bg-slate-900/[0.03] dark:bg-white/[0.05] backdrop-blur-[40px] rounded-[2.5rem] flex items-center justify-between relative overflow-hidden group">
          <div class="flex-1 border-r border-slate-900/5 dark:border-white/5 pr-6">
             <p class="text-[9px] font-black text-slate-500 dark:text-white/40 uppercase tracking-[0.4em] mb-1 text-center">Gross Sale</p>
             <p class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter text-center">${fmt.format(item.financials.gross)}</p>
@@ -1700,25 +1791,60 @@ async function showManualEntryModal() {
   };
 }
 
-function renderPreviewTable(data, container, fileName) {
+function renderPreviewTable(data, container, fileName, conflictDates = []) {
   container.className = 'chart-card md:col-span-2 flex flex-col h-full overflow-hidden p-0';
   const excelHeaders = data[0].map((_, i) => getExcelColumnName(i));
+
+  // Lấy danh sách ngày hạch toán để highlight (giả sử cột ngày là 5 hoặc 4 cho Ayala)
+  // Lưu ý: data ở đây là raw Excel rows
+
   container.innerHTML = `
-    <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
-      <p class="text-[10px] font-bold text-slate-400 uppercase truncate">Preview: ${fileName}</p>
+    <div class="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-transparent">
+      <div class="flex items-center gap-3">
+         <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Preview: ${fileName}</p>
+         ${conflictDates.length > 0 ? `
+            <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[8px] font-black uppercase tracking-widest animate-pulse">
+               ${conflictDates.length} Conflicts Detected
+            </span>
+         ` : ''}
+      </div>
     </div>
-    <div class="flex-1 overflow-auto">
+    <div class="flex-1 overflow-auto scrollbar-hide">
       <table class="w-full text-[9px] text-left border-collapse">
         <thead class="sticky top-0 z-10">
-          <tr class="bg-indigo-50 text-indigo-600 font-bold">${excelHeaders.map(h => `<th class="px-3 py-1 border-b border-slate-200 text-center">${h}</th>`).join('')}</tr>
-          <tr class="bg-white border-b border-slate-100">${data[0].map(c => `<th class="px-3 py-2 font-bold text-slate-600 whitespace-nowrap">${c || ''}</th>`).join('')}</tr>
+          <tr class="bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-white/40 font-black uppercase tracking-widest">
+            ${excelHeaders.map(h => `<th class="px-4 py-2 border-b border-slate-200 dark:border-white/10 text-center font-black">${h}</th>`).join('')}
+          </tr>
+          <tr class="bg-white dark:bg-[#1a1a1a] border-b border-slate-100 dark:border-white/5 shadow-sm">
+            ${data[0].map(c => `<th class="px-4 py-3 font-black text-slate-800 dark:text-white whitespace-nowrap uppercase tracking-tighter">${c || ''}</th>`).join('')}
+          </tr>
         </thead>
-        <tbody class="divide-y divide-slate-50">
-          ${data.slice(1).map(row => `<tr>${row.map(c => `<td class="px-3 py-1.5 text-slate-500 whitespace-nowrap">${c ?? ''}</td>`).join('')}</tr>`).join('')}
+        <tbody class="divide-y divide-slate-100 dark:divide-white/5">
+          ${data.slice(1, 20).map(row => {
+    // Thử đoán xem dòng này có phải là ngày bị trùng không (Check mờ)
+    const hasConflict = row.some(cell => conflictDates.includes(String(cell).split(' ')[0]));
+    return `
+              <tr class="${hasConflict ? 'bg-amber-500/[0.03]' : ''} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all">
+                ${row.map(c => `
+                  <td class="px-4 py-2.5 text-slate-500 dark:text-slate-400 whitespace-nowrap font-bold">
+                    ${hasConflict && conflictDates.includes(String(c).split(' ')[0]) ? `
+                       <span class="flex items-center gap-1 text-amber-600">
+                          <i data-lucide="alert-circle" class="w-2.5 h-2.5"></i> ${c ?? ''}
+                       </span>
+                    ` : (c ?? '')}
+                  </td>
+                `).join('')}
+              </tr>
+             `;
+  }).join('')}
         </tbody>
       </table>
+      <div class="p-4 text-center bg-slate-50/50 dark:bg-transparent border-t border-slate-100 dark:border-white/5">
+         <p class="text-[8px] text-slate-400 font-black uppercase tracking-[0.2em]">Showing first 20 rows for preview</p>
+      </div>
     </div>
   `;
+  if (window.lucide) window.lucide.createIcons();
 }
 
 function showChannelEditModal(item, channelId) {
@@ -1755,7 +1881,7 @@ function showChannelEditModal(item, channelId) {
          </div>
 
          <div class="pt-4 flex justify-center">
-            <button id="save-channel-edit-btn" class="w-full h-14 bg-white text-[#141414] rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-xl hover:bg-white/90 active:scale-95 flex items-center justify-center gap-3">
+            <button id="save-channel-edit-btn" class="w-full h-14 bg-green-500/70 hover:bg-green-400/70 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-xl hover:bg-white/90 active:scale-95 flex items-center justify-center gap-3">
                Update Database Record
             </button>
          </div>

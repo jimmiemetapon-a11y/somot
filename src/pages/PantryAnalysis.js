@@ -5,7 +5,6 @@ import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
 
 let chartTrend = null;
-let chartPie = null;
 
 // Helper for Shimmer-Snap animation
 function animateValue(el, end, formatter) {
@@ -25,95 +24,147 @@ function animateValue(el, end, formatter) {
 export function renderPantryAnalysis() {
   // Reset global chart instances for the new page instance
   if (chartTrend) { chartTrend.destroy(); chartTrend = null; }
-  if (chartPie) { chartPie.destroy(); chartPie = null; }
 
   const page = document.createElement('div');
-  page.className = 'p-5 space-y-5 page-enter min-h-full';
+  page.className = 'p-5 space-y-4 page-enter min-h-full';
 
   page.innerHTML = `
     <!-- Top Stats Row -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0 4px 10px rgba(0,0,0,0.3)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
-        <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Total Spend</p>
-        <h2 id="pa-total-spend" class="text-2xl font-black text-rose-500">₱0.00</h2>
-        <div id="pa-spend-trend" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold w-max">0%</div>
+      <div class="channel-card-premium group">
+        <div class="channel-card-accent" style="background-color: #f43f5e; opacity: 0.1;"></div>
+        <div class="absolute -bottom-4 -right-4 opacity-[0.08] dark:opacity-[0.15] -rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+           <i data-lucide="wallet" class="w-24 h-24 text-slate-900 dark:text-white"></i>
+        </div>
+        <div class="relative z-10 flex flex-col h-full">
+           <p class="text-[10px] font-black text-slate-400 dark:text-white/60 uppercase tracking-[0.15em] mb-1">Total Spend</p>
+           <h2 id="pa-total-spend" class="text-2xl font-black text-rose-500 tracking-tighter">₱0.00</h2>
+           <div id="pa-spend-trend" class="mt-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-slate-100 dark:bg-white/5 text-slate-500 w-max">0%</div>
+        </div>
       </div>
-      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
-        <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Transactions</p>
-        <h2 id="pa-total-trans" class="text-2xl font-black text-blue-500">0</h2>
-        <p class="text-[10px] text-slate-400 font-medium">In selected period</p>
+
+      <div class="channel-card-premium group">
+        <div class="channel-card-accent" style="background-color: #3b82f6; opacity: 0.1;"></div>
+        <div class="absolute -bottom-4 -right-4 opacity-[0.08] dark:opacity-[0.15] -rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+           <i data-lucide="shopping-cart" class="w-24 h-24 text-slate-900 dark:text-white"></i>
+        </div>
+        <div class="relative z-10 flex flex-col h-full">
+           <p class="text-[10px] font-black text-slate-400 dark:text-white/60 uppercase tracking-[0.15em] mb-1">Transactions</p>
+           <h2 id="pa-total-trans" class="text-2xl font-black text-blue-500 tracking-tighter">0</h2>
+           <p class="text-[9px] text-slate-400 dark:text-white/40 font-bold mt-auto uppercase tracking-widest">In Selected Period</p>
+        </div>
       </div>
-      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
-        <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Unique Items</p>
-        <h2 id="pa-total-items" class="text-2xl font-black text-[#96588a]">0</h2>
-        <p class="text-[10px] text-slate-400 font-medium">Purchased</p>
+
+      <div class="channel-card-premium group">
+        <div class="channel-card-accent" style="background-color: #96588a; opacity: 0.1;"></div>
+        <div class="absolute -bottom-4 -right-4 opacity-[0.08] dark:opacity-[0.15] -rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+           <i data-lucide="package" class="w-24 h-24 text-slate-900 dark:text-white"></i>
+        </div>
+        <div class="relative z-10 flex flex-col h-full">
+           <p class="text-[10px] font-black text-slate-400 dark:text-white/60 uppercase tracking-[0.15em] mb-1">Unique Items</p>
+           <h2 id="pa-total-items" class="text-2xl font-black text-[#96588a] tracking-tighter">0</h2>
+           <p class="text-[9px] text-slate-400 dark:text-white/40 font-bold mt-auto uppercase tracking-widest">Purchased</p>
+        </div>
       </div>
-      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
-        <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Top Purpose</p>
-        <h2 id="pa-top-purpose" class="text-lg font-black text-slate-800 dark:text-white truncate" title="">-</h2>
-        <p id="pa-top-purpose-val" class="text-[10px] text-slate-400 font-medium font-bold">₱0.00</p>
+
+      <div class="channel-card-premium group">
+        <div class="channel-card-accent" style="background-color: #8b5cf6; opacity: 0.1;"></div>
+        <div class="absolute -bottom-4 -right-4 opacity-[0.08] dark:opacity-[0.15] -rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+           <i data-lucide="tag" class="w-24 h-24 text-slate-900 dark:text-white"></i>
+        </div>
+        <div class="relative z-10 flex flex-col h-full">
+           <p class="text-[10px] font-black text-slate-400 dark:text-white/60 uppercase tracking-[0.15em] mb-1">Top Purpose</p>
+           <h2 id="pa-top-purpose" class="text-lg font-black text-slate-800 dark:text-white truncate tracking-tight" title="">-</h2>
+           <p id="pa-top-purpose-val" class="text-[10px] text-slate-400 dark:text-white/60 font-black mt-auto uppercase tracking-widest">₱0.00</p>
+        </div>
       </div>
-      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] flex flex-col space-y-2">
-        <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Top Item</p>
-        <h2 id="pa-top-item" class="text-lg font-black text-emerald-500 truncate" title="">-</h2>
-        <p id="pa-top-item-val" class="text-[10px] text-slate-400 font-medium font-bold">₱0.00</p>
+
+      <div class="channel-card-premium group">
+        <div class="channel-card-accent" style="background-color: #10b981; opacity: 0.1;"></div>
+        <div class="absolute -bottom-4 -right-4 opacity-[0.08] dark:opacity-[0.15] -rotate-12 transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-6">
+           <i data-lucide="star" class="w-24 h-24 text-slate-900 dark:text-white"></i>
+        </div>
+        <div class="relative z-10 flex flex-col h-full">
+           <p class="text-[10px] font-black text-slate-400 dark:text-white/60 uppercase tracking-[0.15em] mb-1">Top Item</p>
+           <h2 id="pa-top-item" class="text-lg font-black text-emerald-500 truncate tracking-tight" title="">-</h2>
+           <p id="pa-top-item-val" class="text-[10px] text-slate-400 dark:text-white/60 font-black mt-auto uppercase tracking-widest">₱0.00</p>
+        </div>
       </div>
     </div>
 
     <!-- Charts Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] lg:col-span-2">
-        <div class="mb-4">
-         <div class="flex items-center gap-3">
-           <div class="bg-emerald-100 dark:bg-emerald-500/10 p-2 rounded-full flex items-center justify-center"><i data-lucide="chart-bar-big" class="w-5 h-5 text-emerald-600 dark:text-emerald-400"></i></div>
-            <div class="flex flex-col">
-              <p class="font-bold text-slate-800 dark:text-white text-sm">15-Day Spending Trend</p>
-              <p class="text-[10px] text-slate-400 mt-1">Fixed to 15 days ending at selected end date</p>
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div class="glass-panel p-6 lg:col-span-3">
+         <div class="flex justify-between items-center mb-6">
+           <div class="flex items-center gap-3">
+             <div class="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center shadow-inner">
+                <i data-lucide="chart-bar-big" class="w-5 h-5 text-emerald-500"></i>
+             </div>
+             <div>
+               <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em] mb-0.5">Spending Dynamics</p>
+               <h3 class="text-base font-black text-slate-800 dark:text-white uppercase tracking-tighter">15-Day Spending Trend</h3>
+             </div>
+           </div>
+        </div>
+        <div class="h-64"><canvas id="pa-chart-trend"></canvas></div>
+      </div>
+
+      <div class="glass-panel p-6 lg:col-span-2">
+         <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center shadow-inner">
+               <i data-lucide="receipt-text" class="w-5 h-5 text-indigo-500"></i>
+            </div>
+            <div>
+              <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em] mb-0.5">F&B Management</p>
+              <h3 class="text-base font-black text-slate-800 dark:text-white uppercase tracking-tighter">Cost Of Good Sold</h3>
             </div>
          </div>
-        </div>
-        <div class="h-56"><canvas id="pa-chart-trend"></canvas></div>
-      </div>
-      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626]">
-        <div class="mb-4">
-         <div class="flex items-center gap-3">
-           <div class="bg-indigo-100 dark:bg-indigo-500/10 p-2 rounded-full flex items-center justify-center"><i data-lucide="wallet" class="w-5 h-5 text-indigo-500"></i></div>
-           <div class="flex flex-col">
-             <p class="font-bold text-slate-800 dark:text-white text-sm">Spend by Purpose</p>
-             <p class="text-[10px] text-slate-400 mt-1">Purpose that most spent on</p>
-           </div>
+         
+         <!-- 3-Column Header -->
+         <div class="grid grid-cols-3 px-3 mb-2 border-b border-slate-100 dark:border-white/5 pb-2">
+            <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</span>
+            <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount (PHP)</span>
+            <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">% Net Sale</span>
          </div>
-        </div>
-        <div class="h-44 flex items-center justify-center"><canvas id="pa-chart-pie"></canvas></div>
+
+         <div id="pa-cogs-list" class="space-y-1 mb-4">
+            <div class="py-12 text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest animate-pulse">Calculating...</div>
+         </div>
+
+         <div class="pt-4 border-t border-slate-100 dark:border-white/5">
+            <p class="text-[9px] font-bold text-slate-400 dark:text-white/30 italic">Note: COGS excludes beginning and ending inventory</p>
+         </div>
       </div>
     </div>
 
     <!-- Tables Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
       
       <!-- Detailed Items Table -->
-      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] border border-slate-50 dark:border-[#262626] lg:col-span-2 overflow-hidden flex flex-col">
-        <div class="p-4 border-b border-slate-100 dark:border-[#262626] bg-slate-50/50 dark:bg-slate-800/30">
-         <div class="flex items-center gap-3">
-             <div class="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-full flex items-center justify-center"><i data-lucide="list-ordered" class="w-5 h-5 text-blue-500"></i></div>
-             <div class="flex flex-col">              
-                <p class="font-bold text-slate-800 dark:text-white text-sm">Item Breakdown</p>
-                <p class="text-[10px] text-slate-400 mt-1">Sorted by total spend</p>
-             </div>
-          </div>
+      <div class="glass-panel lg:col-span-3 flex flex-col overflow-hidden">
+         <div class="px-6 py-4 flex justify-between items-center border-b border-slate-100 dark:border-white/5 bg-slate-50/30 dark:bg-white/[0.02]">
+           <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center shadow-inner">
+                 <i data-lucide="list-ordered" class="w-4 h-4 text-blue-500"></i>
+              </div>
+              <div>
+                 <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em] mb-0.5">Inventory Breakdown</p>
+                 <h3 class="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">Item Performance</h3>
+              </div>
+           </div>
         </div>
-        <div class="flex-1 overflow-auto max-h-[400px] scrollbar-thin">
-          <table class="w-full text-left border-collapse text-xs">
-            <thead class="sticky top-0 bg-white dark:bg-[#2A2A2A] shadow-sm z-10">
-              <tr class="border-b border-slate-100 dark:border-[#262626] text-[12px]">
-                <th class="w-full px-4 py-3 uppercase font-black text-slate-400 tracking-wider">Item Name</th>
-                <th class="w-20 px-4 py-3 font-black text-slate-400 uppercase tracking-wider text-right">Qty</th>
-                <th class="whitespace-nowrap w-24 px-4 py-3 uppercase font-black text-slate-400 uppercase tracking-wider text-center">Unit</th>
-                <th class="whitespace-nowrap w-44 px-4 py-3 font-black text-slate-400 uppercase tracking-wider text-right">Price</th>
-                <th class="whitespace-nowrap w-44 px-4 py-3 font-black text-slate-400 uppercase tracking-wider text-right">Total Spend</th>
+        <div class="flex-1 overflow-auto max-h-[500px] scrollbar-hide">
+          <table class="w-full text-left border-collapse">
+            <thead class="sticky top-0 z-20 bg-white/90 dark:bg-[#141414]/90 backdrop-blur-md shadow-sm">
+              <tr class="border-b border-slate-100 dark:border-white/5">
+                <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em]">Item Name</th>
+                <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em] text-right">Qty</th>
+                <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em] text-center">Unit</th>
+                <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em] text-right">Avg Price</th>
+                <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em] text-right">Total Spend</th>
               </tr>
             </thead>
-            <tbody id="pa-items-tbody">
+            <tbody id="pa-items-tbody" class="divide-y divide-slate-100 dark:divide-white/5">
               <!-- Rendered via JS -->
             </tbody>
           </table>
@@ -121,25 +172,27 @@ export function renderPantryAnalysis() {
       </div>
 
       <!-- Price Alerts Table -->
-      <div class="bg-white dark:bg-[#2A2A2A] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col">
-        <div class="p-4 border-b border-rose-100 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-500/5">
+      <div class="glass-panel lg:col-span-2 flex flex-col overflow-hidden border-rose-500/20">
+        <div class="px-6 py-4 border-b border-rose-500/10 bg-rose-500/5">
           <div class="flex items-center gap-3">
-             <i data-lucide="trending-up" class="w-4 h-4 text-rose-500"></i>
-             <div class="flex flex-col">              
-                <p class="font-bold text-rose-600 dark:text-rose-400 text-sm">Price Alerts</p>
-             <p class="text-[10px] text-rose-400/80 mt-1">Items with unit price increases</p>
+             <div class="w-9 h-9 rounded-xl bg-rose-500/10 flex items-center justify-center shadow-inner">
+                <i data-lucide="trending-up" class="w-4 h-4 text-rose-500"></i>
+             </div>
+             <div>
+                <p class="text-[9px] font-black text-rose-500/60 uppercase tracking-[0.2em] mb-0.5">Critical Updates</p>
+                <h3 class="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider">Price Alerts</h3>
              </div>
           </div>
         </div>
-        <div class="flex-1 overflow-auto max-h-[400px] scrollbar-thin">
-          <table class="w-full text-left border-collapse text-[12px]">
-            <thead class="sticky top-0 bg-white dark:bg-[#2A2A2A] shadow-sm z-10">
-              <tr class="border-b border-slate-100 dark:border-slate-800 text-[12px]">
-                <th class="px-4 py-3 font-black text-slate-400 uppercase tracking-wider">Item</th>
-                <th class="px-4 py-3 font-black text-slate-400 uppercase tracking-wider text-right">Old → New</th>
+        <div class="flex-1 overflow-auto max-h-[500px] scrollbar-hide">
+          <table class="w-full text-left border-collapse">
+            <thead class="sticky top-0 z-20 bg-rose-50 dark:bg-rose-900/10 backdrop-blur-md">
+              <tr class="border-b border-rose-500/10">
+                <th class="px-6 py-3 text-[10px] font-black text-rose-400 uppercase tracking-[0.15em]">Item</th>
+                <th class="px-6 py-3 text-[10px] font-black text-rose-400 uppercase tracking-[0.15em] text-right">Market Shift</th>
               </tr>
             </thead>
-            <tbody id="pa-alerts-tbody">
+            <tbody id="pa-alerts-tbody" class="divide-y divide-rose-500/5">
               <!-- Rendered via JS -->
             </tbody>
           </table>
@@ -186,7 +239,6 @@ export function renderPantryAnalysis() {
     const cleanup = () => {
       window.removeEventListener('global-filter-changed', handleUpdate);
       if (chartTrend) { chartTrend.destroy(); chartTrend = null; }
-      if (chartPie) { chartPie.destroy(); chartPie = null; }
     };
     window.addEventListener('cleanup-page', cleanup, { once: true });
 
@@ -253,6 +305,13 @@ async function loadData(branch, fromDate, toDate) {
     let chartExpenses = snapChart.docs.map(d => d.data());
     chartExpenses = chartExpenses.filter(filterPantry);
 
+    // 5. Fetch Net Sales for % COGS Calculation
+    let qSalesConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
+    if (branch !== 'All Branches') qSalesConstr.push(where('branchId', '==', branch));
+    const qSales = query(collection(db, 'daily_sales'), ...qSalesConstr);
+    const snapSales = await getDocs(qSales);
+    const totalNetSales = snapSales.docs.reduce((sum, d) => sum + (parseFloat(d.data()?.financials?.net) || 0), 0);
+
     // --- Processing Top Stats ---
     const totalSpend = expenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
     const prevSpend = prevExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
@@ -311,7 +370,7 @@ async function loadData(branch, fromDate, toDate) {
     const purposeMap = {};
     expenses.forEach(e => {
       const p = e.purpose || 'Uncategorized';
-      purposeMap[p] = (purposeMap[p] || 0) + (e.amount || 0);
+      purposeMap[p] = (purposeMap[p] || 0) + (parseFloat(e.amount) || 0);
     });
     const sortedPurposes = Object.entries(purposeMap).sort((a, b) => b[1] - a[1]);
     const topPurposeEl = document.getElementById('pa-top-purpose');
@@ -356,16 +415,11 @@ async function loadData(branch, fromDate, toDate) {
     }
 
     // Price Alerts
-    // We need to check if an item's most recent price is significantly higher than its previous price
-    // Since we only fetched `fromDate` to `toDate`, the alert is contextual to the selected period.
-    // For a deeper alert, we could fetch historical, but let's compare within the fetched data first.
     const alerts = [];
     sortedItems.forEach(it => {
       if (it.prices.length > 1) {
-        // Sort by date asc
         it.prices.sort((a, b) => new Date(a.date) - new Date(b.date));
         const latestPrice = it.prices[it.prices.length - 1].price;
-        // Find the earliest different price to show the jump, or just the previous price
         let prevPrice = latestPrice;
         for (let i = it.prices.length - 2; i >= 0; i--) {
           if (it.prices[i].price !== latestPrice) {
@@ -373,7 +427,6 @@ async function loadData(branch, fromDate, toDate) {
             break;
           }
         }
-
         if (latestPrice > prevPrice && prevPrice > 0) {
           const increasePct = ((latestPrice - prevPrice) / prevPrice) * 100;
           alerts.push({ name: it.name, old: prevPrice, new: latestPrice, pct: increasePct });
@@ -381,18 +434,18 @@ async function loadData(branch, fromDate, toDate) {
       }
     });
 
-    alerts.sort((a, b) => b.pct - a.pct); // Highest increase first
+    alerts.sort((a, b) => b.pct - a.pct);
     const tbodyAlerts = document.getElementById('pa-alerts-tbody');
     if (tbodyAlerts) {
       if (alerts.length > 0) {
         tbodyAlerts.innerHTML = alerts.map((al, idx) => `
           <tr class="border-b border-rose-50 dark:border-rose-900/10 bg-rose-50/30 dark:bg-rose-500/5 animate-fade-in" style="animation-delay: ${idx * 0.1}s">
-            <td class="px-4 py-3 font-bold text-slate-700 dark:text-slate-300 truncate max-w-[120px]" title="${al.name}">${al.name}</td>
-            <td class="px-4 py-3 text-right">
+            <td class="px-4 py-2.5 font-bold text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[120px]" title="${al.name}">${al.name}</td>
+            <td class="px-4 py-2.5 text-right">
                <div class="flex flex-col items-end">
-                  <span class="text-[10px] text-slate-400 line-through">₱${al.old.toLocaleString('en-PH', { maximumFractionDigits: 2 })}</span>
-                  <span class="font-black text-rose-500">₱${al.new.toLocaleString('en-PH', { maximumFractionDigits: 2 })}</span>
-                  <span class="text-[9px] font-bold text-rose-600 bg-rose-100 px-1 rounded mt-0.5">+${al.pct.toFixed(0)}%</span>
+                  <span class="text-[9px] text-slate-400 line-through">₱${al.old.toLocaleString('en-PH', { maximumFractionDigits: 2 })}</span>
+                  <span class="font-black text-[11px] text-rose-500">₱${al.new.toLocaleString('en-PH', { maximumFractionDigits: 2 })}</span>
+                  <span class="text-[8px] font-black text-rose-600 bg-rose-100 px-1 rounded mt-0.5">+${al.pct.toFixed(0)}%</span>
                </div>
             </td>
           </tr>
@@ -406,7 +459,6 @@ async function loadData(branch, fromDate, toDate) {
 
     // 1. Line Chart (15 Days)
     const dailyMap = {};
-    // Initialize 15 days
     for (let i = 0; i < 15; i++) {
       const d = new Date(chartFromDate);
       d.setDate(d.getDate() + i);
@@ -414,7 +466,7 @@ async function loadData(branch, fromDate, toDate) {
     }
     chartExpenses.forEach(e => {
       if (dailyMap[e.date] !== undefined) {
-        dailyMap[e.date] += (e.amount || 0);
+        dailyMap[e.date] += (parseFloat(e.amount) || 0);
       }
     });
 
@@ -436,7 +488,7 @@ async function loadData(branch, fromDate, toDate) {
             datasets: [{
               label: 'Daily Spend',
               data: values,
-              backgroundColor: '#f43f5e', // rose-500
+              backgroundColor: '#f43f5e', 
               borderRadius: 4
             }]
           },
@@ -456,52 +508,77 @@ async function loadData(branch, fromDate, toDate) {
       }
     }
 
-    // 2. Pie Chart
-    const ctxPie = document.getElementById('pa-chart-pie');
-    if (ctxPie) {
-      // Limit to top 5 purposes, group rest into "Others"
-      let pieLabels = [];
-      let pieData = [];
-      if (sortedPurposes.length > 5) {
-        pieLabels = sortedPurposes.slice(0, 4).map(p => p[0]);
-        pieData = sortedPurposes.slice(0, 4).map(p => p[1]);
-        const others = sortedPurposes.slice(4).reduce((sum, p) => sum + p[1], 0);
-        pieLabels.push('Others');
-        pieData.push(others);
-      } else {
-        pieLabels = sortedPurposes.map(p => p[0]);
-        pieData = sortedPurposes.map(p => p[1]);
+    // --- COGS List Processing (Fuzzy Matching) ---
+    const cogsListEl = document.getElementById('pa-cogs-list');
+    if (cogsListEl) {
+      const cogsTargets = [
+        { keys: ['process products'], display: 'Process products' },
+        { keys: ['vegetables', 'vegtables'], display: 'Vegetables' },
+        { keys: ['beverages'], display: 'Beverages' },
+        { keys: ['groceries'], display: 'Groceries' },
+        { keys: ['condiments'], display: 'Condiments' },
+        { keys: ['take out materials'], display: 'Take out materials' },
+        { keys: ['cleaning materials'], display: 'Cleaning Materials' }
+      ];
+
+      // Sum by Fuzzy Matching
+      const cogsData = cogsTargets.map(t => ({ ...t, value: 0 }));
+      let otherCogsValue = 0;
+
+      expenses.forEach(e => {
+        const p = (e.purpose || '').trim().toLowerCase();
+        const amt = parseFloat(e.amount) || 0;
+        
+        let matched = false;
+        for (const target of cogsData) {
+          if (target.keys.some(k => p.includes(k))) {
+            target.value += amt;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) otherCogsValue += amt;
+      });
+
+      let totalCogsValue = 0;
+      let html = '';
+
+      cogsData.forEach(target => {
+        totalCogsValue += target.value;
+        const pct = totalNetSales > 0 ? (target.value / totalNetSales) * 100 : 0;
+        
+        html += `
+          <div class="grid grid-cols-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-white/[0.02] rounded-lg transition-colors items-center">
+             <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase">${target.display}</span>
+             <span class="text-[11px] font-black text-slate-900 dark:text-white text-right tabular-nums">${fmt(target.value)}</span>
+             <span class="text-[11px] font-black text-indigo-500 text-right">${pct.toFixed(1)}%</span>
+          </div>
+        `;
+      });
+
+      // Show Other if exists
+      if (otherCogsValue > 0) {
+        totalCogsValue += otherCogsValue;
+        const otherPct = totalNetSales > 0 ? (otherCogsValue / totalNetSales) * 100 : 0;
+        html += `
+          <div class="grid grid-cols-3 px-3 py-2 opacity-50 items-center">
+             <span class="text-[10px] font-bold text-slate-400 uppercase italic">Other Purposes</span>
+             <span class="text-[11px] font-bold text-slate-500 text-right tabular-nums">${fmt(otherCogsValue)}</span>
+             <span class="text-[11px] font-bold text-slate-400 text-right">${otherPct.toFixed(1)}%</span>
+          </div>
+        `;
       }
 
-      if (chartPie) {
-        chartPie.data.labels = pieLabels;
-        chartPie.data.datasets[0].data = pieData;
-        chartPie.update();
-      } else {
-        chartPie = new Chart(ctxPie, {
-          type: 'doughnut',
-          data: {
-            labels: pieLabels,
-            datasets: [{
-              data: pieData,
-              backgroundColor: ['#96588a', '#3b82f6', '#10b981', '#f59e0b', '#64748b', '#cbd5e1'],
-              borderWidth: 0
-            }]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false, cutout: '70%',
-            plugins: {
-              legend: { position: 'right', labels: { font: { size: 10, family: 'Nunito' }, boxWidth: 10 } }
-            },
-            animation: {
-              animateScale: true,
-              animateRotate: true,
-              duration: 1000,
-              easing: 'easeOutQuart'
-            }
-          }
-        });
-      }
+      const totalCogsPct = totalNetSales > 0 ? (totalCogsValue / totalNetSales) * 100 : 0;
+      
+      html += `
+        <div class="mt-4 pt-4 border-t-2 border-dashed border-slate-100 dark:border-white/5 flex items-center justify-between px-3">
+           <span class="text-[12px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Total COGS</span>
+           <span class="text-xl font-black text-indigo-600 dark:text-indigo-400 tracking-tighter">${totalCogsPct.toFixed(1)}%</span>
+        </div>
+      `;
+
+      cogsListEl.innerHTML = html;
     }
 
   } catch (error) {
