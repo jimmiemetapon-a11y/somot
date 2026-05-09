@@ -27,13 +27,30 @@ export function getLocalDateString(dateObj) {
    return `${year}-${month}-${day}`;
 }
 
+export function getUTCDateString(dateObj) {
+   const year = dateObj.getUTCFullYear();
+   const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+   const day = String(dateObj.getUTCDate()).padStart(2, '0');
+   return `${year}-${month}-${day}`;
+}
+
 export function standardizeDate(val) {
    if (val === undefined || val === null || String(val).trim() === '') return null;
-   if (val instanceof Date) return getLocalDateString(val);
-   if (typeof val === 'number') {
-      const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-      if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
+   
+   let d = null;
+   if (val instanceof Date) {
+      d = val;
+   } else if (typeof val === 'number') {
+      // Excel serial date conversion
+      d = new Date(Math.round((val - 25569) * 86400 * 1000));
    }
+
+   // Robust date extraction: Add 12 hours to handle timezone shifts up to 12h
+   if (d && !isNaN(d.getTime())) {
+      const midDay = new Date(d.getTime() + (12 * 60 * 60 * 1000));
+      return midDay.toISOString().split('T')[0];
+   }
+
    const str = String(val).trim();
    try {
       const datePart = str.split(' ')[0];
@@ -47,8 +64,12 @@ export function standardizeDate(val) {
          if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
          if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
       }
+      
       const fallback = new Date(str);
-      if (!isNaN(fallback.getTime())) return getLocalDateString(fallback);
+      if (!isNaN(fallback.getTime())) {
+         const fbMid = new Date(fallback.getTime() + (12 * 60 * 60 * 1000));
+         return fbMid.toISOString().split('T')[0];
+      }
    } catch (e) { return null; }
    return null;
 }

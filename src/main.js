@@ -6,6 +6,7 @@ import { renderDashboard } from './pages/Dashboard.js';
 import { renderChannelPage } from './pages/ChannelPage.js';
 import { renderExpensesPage } from './pages/Expenses.js';
 import { renderPantryAnalysis } from './pages/PantryAnalysis.js';
+import { renderOPEX } from './pages/OPEX.js';
 import { renderSettings } from './pages/Settings.js';
 import { renderLoginPage } from './pages/Login.js';
 import { auth, db } from './firebase.js';
@@ -25,6 +26,7 @@ const PAGE_TITLES = {
   online: ['Online Order', 'Direct online orders', 'WooCommerce.svg', 'woo_dark.svg'],
   expenses: ['Expenses', 'Petty cash & liquidation tracking', null, null],
   pantry_analysis: ['Pantry Analysis', 'Deep dive into ingredient costs & usage', null, null],
+  opex: ['Operating Expenses', 'Monthly fixed costs & overheads tracking', null, null],
   settings: ['Settings', 'App configuration & preferences', null, null],
 };
 
@@ -60,6 +62,7 @@ const PAGE_MAP = {
   online: () => renderChannelPage('online', activeSubTab),
   expenses: () => renderExpensesPage(activeSubTab),
   pantry_analysis: () => renderPantryAnalysis(),
+  opex: () => renderOPEX(),
   settings: () => renderSettings(),
 };
 

@@ -24,7 +24,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
    let purposes = [];
    let categoryMappings = {};
    let selectedFile = null;
-   let currentBranch = document.getElementById('db-branch')?.value || 'Pioneer Center';
+   let currentBranch = document.getElementById('exp-header-branch')?.value || document.getElementById('db-branch')?.value || 'Pioneer Center';
    let baseFund = 0;
    let historyLimit = 10;
    let unliquidatedTotal = 0;
@@ -34,11 +34,143 @@ export async function renderExpensesPage(activeTab = 'cashier') {
     <div id="expense-content" class="min-h-[400px]"></div>
   `;
 
+   // --- Inject Local Filter into Header ---
+   setTimeout(() => {
+      const anchor = document.getElementById('header-local-filters');
+      if (anchor) {
+         anchor.innerHTML = `
+         <div class="flex items-center gap-4 pl-4 border-l border-slate-200 dark:border-white/10">
+           <!-- Branch -->
+           <div class="relative group cursor-pointer flex items-center gap-1.5 h-6">
+             <input type="hidden" id="exp-header-branch" value="Pioneer Center">
+             <span id="exp-header-branch-text" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">Pioneer Center</span>
+             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
+             
+             <div class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[90] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
+               <div class="py-2">
+                 ${['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'].map(b => `
+                   <div class="px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" 
+                        onclick="document.getElementById('exp-header-branch').value='${b}'; document.getElementById('exp-header-branch-text').innerText='${b}'; document.getElementById('exp-header-branch').dispatchEvent(new Event('change'));">
+                     ${b}
+                   </div>
+                 `).join('')}
+               </div>
+             </div>
+           </div>
+
+           <div class="w-1 h-1 rounded-full bg-slate-300 dark:bg-white/20"></div>
+
+           <!-- Date Range -->
+           <div class="relative group cursor-pointer flex items-center gap-1.5 h-6" id="exp-preset-container">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
+              <span id="exp-preset-label" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">This Month</span>
+              <i data-lucide="chevron-down" id="exp-preset-chevron" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
+              
+              <input type="text" id="exp-header-date-range" class="absolute inset-0 opacity-0 pointer-events-none" value="thisMonthInit">
+              
+              <div id="exp-preset-menu" class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[80] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
+                 <div class="py-2">
+                    <div class="exp-preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-value="yesterday">Yesterday</div>
+                    <div class="exp-preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-value="last7">Last 7 Days</div>
+                    <div class="exp-preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-value="thisMonth">This Month</div>
+                    <div class="exp-preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all border-t border-slate-100 dark:border-white/5 cursor-pointer" data-value="custom">Custom Range...</div>
+                 </div>
+              </div>
+           </div>
+         </div>
+       `;
+      }
+
+      if (window.lucide) window.lucide.createIcons();
+
+      const handleUpdate = () => {
+         const branchSelect = document.getElementById('exp-header-branch');
+         if (branchSelect) currentBranch = branchSelect.value;
+
+         // Force a silent refresh of the current tab so it uses new filter criteria
+         loadTabContent(currentTab, true);
+      };
+
+      const branchEl = document.getElementById('exp-header-branch');
+      if (branchEl) branchEl.addEventListener('change', handleUpdate);
+
+      const rangeInput = document.getElementById('exp-header-date-range');
+      const container = document.getElementById('exp-preset-container');
+      const label = document.getElementById('exp-preset-label');
+
+      const getRange = (type) => {
+         const d = new Date();
+         const fmt = (date) => {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+         };
+         switch (type) {
+            case 'yesterday':
+               const yest = new Date(); yest.setDate(yest.getDate() - 1);
+               return `${fmt(yest)} to ${fmt(yest)}`;
+            case 'last7':
+               const start7 = new Date(); start7.setDate(start7.getDate() - 6);
+               return `${fmt(start7)} to ${fmt(d)}`;
+            case 'thisMonth':
+               const startM = new Date(d.getFullYear(), d.getMonth(), 1);
+               return `${fmt(startM)} to ${fmt(d)}`;
+            default: return '';
+         }
+      };
+
+      if (window.flatpickr && rangeInput && container) {
+         const fp = window.flatpickr(rangeInput, {
+            mode: "range",
+            dateFormat: "Y-m-d",
+            onClose: (selectedDates) => {
+               if (selectedDates.length === 2) {
+                  const start = fp.formatDate(selectedDates[0], "Y-m-d");
+                  const end = fp.formatDate(selectedDates[1], "Y-m-d");
+                  const rangeStr = `${start} to ${end}`;
+                  label.textContent = rangeStr;
+                  rangeInput.value = rangeStr;
+                  handleUpdate();
+               }
+            }
+         });
+
+         container.querySelectorAll('.exp-preset-option').forEach(opt => {
+            opt.onclick = (e) => {
+               e.stopPropagation();
+               const val = opt.dataset.value;
+               if (val === 'custom') {
+                  fp.open();
+               } else {
+                  const range = getRange(val);
+                  label.textContent = opt.textContent;
+                  rangeInput.value = range;
+                  handleUpdate();
+               }
+            };
+         });
+      }
+
+      if (rangeInput && rangeInput.value === 'thisMonthInit') {
+         rangeInput.value = getRange('thisMonth');
+      }
+
+      // Listen for global filter changes
+      window.addEventListener('global-filter-changed', handleUpdate);
+
+      const cleanup = () => {
+         window.removeEventListener('global-filter-changed', handleUpdate);
+      };
+      window.addEventListener('cleanup-page', cleanup, { once: true });
+
+   }, 0);
+
    // Initial Load
    loadTabContent(currentTab);
 
    async function loadMasterData() {
-      const freshBranch = document.getElementById('db-branch')?.value;
+      const freshBranch = document.getElementById('exp-header-branch')?.value || document.getElementById('db-branch')?.value;
       if (freshBranch && freshBranch !== 'All Branches') {
          currentBranch = freshBranch;
       }

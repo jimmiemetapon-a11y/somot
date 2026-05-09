@@ -16,6 +16,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   header.className = 'topbar transition-all duration-300';
 
   const isDashboard = title === 'Dashboard';
+  const hideGlobalFilters = ['Expenses', 'Pantry Analysis', 'Operating Expenses', 'Settings'].includes(title);
 
   // Define options based on user permissions
   const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
@@ -49,11 +50,15 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
             </div>
           </div>
         ` : ''}
+
+        <!-- Local Filters Anchor -->
+        <div id="header-local-filters" class="flex items-center gap-4 ml-2"></div>
       </div>
     </div>
 
     <!-- Right: Profile & Theme -->
     <div class="flex items-center gap-3">
+      ${hideGlobalFilters ? '' : `
       <!-- Pill 1: Branch Picker -->
       <div class="relative h-10 group" id="branch-dropdown-wrapper">
         <input type="hidden" id="db-branch" value="${branch}">
@@ -96,6 +101,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
             </div>
          </div>
       </div>
+      `}
       
       <!-- Pill 3: Refresh -->
       <button id="db-refresh" class="w-10 h-10 flex items-center justify-center rounded-full bg-[#96588a] hover:bg-[#7a4671] text-white shadow-lg shadow-purple-200 dark:shadow-none transition-all active:scale-90 group">
@@ -179,7 +185,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
       }
     };
 
-    if (window.flatpickr) {
+    if (window.flatpickr && rangeInput && container) {
       const fp = window.flatpickr(rangeInput, {
         mode: "range",
         dateFormat: "Y-m-d",
