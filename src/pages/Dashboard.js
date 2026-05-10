@@ -1,6 +1,6 @@
 import { Chart, registerables } from 'chart.js';
 import { db } from '../firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 Chart.register(...registerables);
 
 // ── SVG Icons ─────────────────────────────────────────
@@ -118,8 +118,8 @@ export function renderDashboard(user) {
 
         <div class="w-full">
           <div class="flex justify-between items-end mb-2">
-            <p id="hero-net-pct" class="text-[8px] text-slate-400 dark:text-white/40 font-black uppercase tracking-widest">0% of daily target</p>
-            <span class="text-[8px] text-orange-600 dark:text-orange-500 font-black uppercase tracking-tighter">Target: ₱1.125M</span>
+            <p id="hero-net-pct" class="text-[8px] text-slate-400 dark:text-white/40 font-black uppercase tracking-widest">0% of period target</p>
+            <span id="hero-net-target" class="text-[8px] text-orange-600 dark:text-orange-500 font-black uppercase tracking-tighter">Target: ₱0.00</span>
           </div>
           <div class="w-full h-2 bg-slate-200/50 dark:bg-white/10 rounded-full relative overflow-hidden">
             <div id="hero-net-bar" class="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-1000 relative rounded-full" style="width:0%">
@@ -339,14 +339,15 @@ async function loadAndRender(page, branch, fromDate, toDate) {
     const prevTo = prevToDate.toISOString().split('T')[0];
     const prevFrom = prevFromDate.toISOString().split('T')[0];
 
-    const [salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs] = await Promise.all([
+    const [salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs, kpiData] = await Promise.all([
       fetchSalesData(branch, fromDate, toDate),
       fetchSalesData(branch, prevFrom, prevTo),
       fetchExpenseData(branch, fromDate, toDate),
-      fetchExpenseData(branch, prevFrom, prevTo)
+      fetchExpenseData(branch, prevFrom, prevTo),
+      fetchKPISettings(branch)
     ]);
 
-    updateCards(page, salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs);
+    updateCards(page, salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs, days, kpiData);
     updateCharts(salesDocs);
   } catch (err) {
     console.error('Dashboard error:', err);
@@ -377,11 +378,37 @@ async function fetchExpenseData(branch, fromDate, toDate) {
   return snap.docs.map(d => d.data());
 }
 
+async function fetchKPISettings(branch) {
+  if (branch && branch !== 'All Branches') {
+    const docSnap = await getDoc(doc(db, 'kpi_settings', branch));
+    if (docSnap.exists()) return docSnap.data();
+    return null;
+  } else {
+    // Sum KPIs for all branches
+    try {
+      const snap = await getDocs(collection(db, 'kpi_settings'));
+      let total = { daily_net: 0, daily_dinein: 0, daily_grab: 0, daily_panda: 0, daily_online: 0 };
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        total.daily_net += (data.daily_net || 0);
+        total.daily_dinein += (data.daily_dinein || 0);
+        total.daily_grab += (data.daily_grab || 0);
+        total.daily_panda += (data.daily_panda || 0);
+        total.daily_online += (data.daily_online || 0);
+      });
+      return total;
+    } catch (e) {
+      console.error("Error summing KPIs:", e);
+      return null;
+    }
+  }
+}
+
 function getNet(d) { return d.financials ? d.financials.net : (d.net || 0); }
 function getGross(d) { return d.financials ? d.financials.gross : (d.gross || 0); }
 function getDed(d) { return d.financials ? d.financials.totalDeductions : (d.totalDeductions || 0); }
 
-function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = []) {
+function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [], days = 1, kpiData = null) {
   const fmt = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtAbbr = n => '₱' + formatAbbreviated(n);
   const fmtNum = n => n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -463,13 +490,18 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
 
 
 
-  // Card 1 KPI bar
-  const totalKpi = Object.values(CHANNELS).reduce((acc, c) => acc + c.kpi, 0);
-  const kpiPct = totalKpi > 0 ? (totalNet / totalKpi) * 100 : 0;
+  // Card 1 KPI bar (Overall Net)
+  const baseDailyKpi = kpiData?.daily_net || Object.values(CHANNELS).reduce((acc, c) => acc + c.kpi, 0);
+  const totalKpiForPeriod = baseDailyKpi * days;
+  const kpiPct = totalKpiForPeriod > 0 ? (totalNet / totalKpiForPeriod) * 100 : 0;
+  
   const heroBar = page.querySelector('#hero-net-bar');
   const heroPct = page.querySelector('#hero-net-pct');
+  const heroTargetEl = page.querySelector('#hero-net-target');
+
   if (heroBar) heroBar.style.width = Math.min(kpiPct, 100) + '%';
-  if (heroPct) heroPct.textContent = Math.round(kpiPct) + '% OF KPI (₱' + formatAbbreviated(totalKpi) + ')';
+  if (heroPct) heroPct.textContent = Math.round(kpiPct) + '% OF TARGET (' + days + ' DAYS)';
+  if (heroTargetEl) heroTargetEl.textContent = 'Target: ' + fmtAbbr(totalKpiForPeriod);
 
   // Animate Channels
   Object.entries(CHANNELS).forEach(([id, cfg]) => {
@@ -478,9 +510,22 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
     animateValue(page.querySelector(`#card-${id}-gross`), data.gross, fmtAbbr);
     page.querySelector(`#card-${id}-ded`).textContent = '-' + fmt(data.ded);
 
-    const pct = cfg.kpi > 0 ? (data.net / cfg.kpi) * 100 : 0;
+    // Map channel IDs to KPI setting fields
+    const kpiFieldMap = {
+      dinein: 'daily_dinein',
+      grabfood: 'daily_grab',
+      foodpanda: 'daily_panda',
+      online: 'daily_online'
+    };
+    const baseKpi = kpiData?.[kpiFieldMap[id]] || cfg.kpi;
+    const periodKpi = baseKpi * days;
+    const pct = periodKpi > 0 ? (data.net / periodKpi) * 100 : 0;
     const barEl = page.querySelector(`#card-${id}-bar`);
     const pctText = page.querySelector(`#card-${id}-pct`);
+    const kpiLabel = page.querySelector(`#card-${id}-kpi`);
+
+    if (kpiLabel) kpiLabel.textContent = fmtNum(periodKpi);
+
     setTimeout(() => {
       if (barEl) barEl.style.width = Math.min(pct, 100) + '%';
       if (pctText) pctText.textContent = Math.round(pct) + '% achieved';

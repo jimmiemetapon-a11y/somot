@@ -146,15 +146,22 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     <div id="section-history" class="tab-content ${activeTab === 'history' ? '' : 'hidden'} space-y-4 page-enter">
        <div id="channel-summary-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"></div>
 
-       <!-- Optimized Action Bar: Exclusive Export -->
+       <!-- Optimized Action Bar: Exclusive Export & Import -->
        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl overflow-hidden shadow-xl border-t border-white/60 dark:border-white/10 transition-all">
           <!-- Subdued Table Header Action Area -->
           <div class="px-8 pt-6 pb-2 flex justify-between items-center">
              <p class="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-[0.2em]">Historical Data</p>
-             <button id="btn-export-csv" class="flex items-center gap-2 text-[9px] font-black text-slate-400 hover:text-[#96588a] dark:text-white/30 dark:hover:text-white uppercase tracking-widest transition-all group">
-                <i data-lucide="file-spreadsheet" class="w-3 h-3 group-hover:scale-110 transition-transform"></i>
-                Export Report
-             </button>
+             <div class="flex items-center gap-6">
+                <button id="btn-goto-import" class="flex items-center gap-2 text-[9px] font-black text-slate-400 hover:text-[#96588a] dark:text-white/30 dark:hover:text-white uppercase tracking-widest transition-all group">
+                   <i data-lucide="file-up" class="w-3 h-3 group-hover:scale-110 transition-transform"></i>
+                   Import Data
+                </button>
+                <div class="w-px h-3 bg-slate-200 dark:bg-white/10"></div>
+                <button id="btn-export-csv" class="flex items-center gap-2 text-[9px] font-black text-slate-400 hover:text-[#96588a] dark:text-white/30 dark:hover:text-white uppercase tracking-widest transition-all group">
+                   <i data-lucide="file-spreadsheet" class="w-3 h-3 group-hover:scale-110 transition-transform"></i>
+                   Export Report
+                </button>
+             </div>
           </div>
 
           <table class="w-full text-left border-collapse">
@@ -181,6 +188,14 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         <div id="results-summary" class="w-full"></div>
         <div id="breakdown-area" class="hidden"></div>
         
+        <!-- Import Header Actions -->
+        <div class="flex justify-between items-center px-2">
+           <button id="btn-back-to-history" class="flex items-center gap-2 text-[10px] font-black text-[#96588a] hover:text-[#7a4671] dark:text-[#d4afcd] uppercase tracking-widest transition-all group">
+              <i data-lucide="arrow-left" class="w-4 h-4 group-hover:-translate-x-1 transition-transform"></i>
+              Back to History
+           </button>
+        </div>
+
         <!-- Upload Interface Row -->
         <div id="upload-controls-row" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <!-- Left: Modernized Upload Zone -->
@@ -241,6 +256,22 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     };
 
     updateManualBtn();
+    
+    // Navigation Listeners
+    const btnGotoImport = page.querySelector('#btn-goto-import');
+    if (btnGotoImport) {
+       btnGotoImport.onclick = () => {
+          window.dispatchEvent(new CustomEvent('switch-sub-tab', { detail: { tabId: 'import' } }));
+       };
+    }
+
+    const btnBackToHistory = page.querySelector('#btn-back-to-history');
+    if (btnBackToHistory) {
+       btnBackToHistory.onclick = () => {
+          window.dispatchEvent(new CustomEvent('switch-sub-tab', { detail: { tabId: 'history' } }));
+       };
+    }
+
     btnChoose.onclick = () => fileInput.click();
     if (btnManual) btnManual.onclick = () => showManualEntryModal();
     fileInput.onchange = (e) => { if (e.target.files.length > 0) processFiles(e.target.files); };
@@ -266,7 +297,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         fileInput.value = '';
 
         // Switch to History tab and reload
-        page.querySelector('#tab-history').click();
+        window.dispatchEvent(new CustomEvent('switch-sub-tab', { detail: { tabId: 'history' } }));
         fetchChannelHistory(channelId);
       } catch (error) {
         console.error("Save Error:", error);
@@ -527,8 +558,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         setTimeout(() => {
           btnSave.classList.add('hidden');
           if (heroBtn) heroBtn.style.background = "";
-          const historyTab = page.querySelector('#tab-history');
-          if (historyTab) historyTab.click();
+          window.dispatchEvent(new CustomEvent('switch-sub-tab', { detail: { tabId: 'history' } }));
           fetchChannelHistory(channelId);
         }, 1500);
 
@@ -644,8 +674,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         updateUI(page, grouped, channelId, conflictDates);
         renderPreviewTable(allDataRows.slice(0, 15), previewArea, `Combined (${fileList.length} files)`, conflictDates);
 
-        btnSave.classList.remove('hidden');
-        btnSave.innerText = "Save to Database";
+        // btnSave stays hidden, logic is triggered by hero-save-btn
         btnSave.disabled = false;
       } catch (err) {
         console.error("UI Update Error:", err);
@@ -1063,7 +1092,7 @@ function calculateDineIn(rows, cfg) {
   };
 }
 
-function updateUI(page, dailyResults, channelId) {
+function updateUI(page, dailyResults, channelId, conflictDates = []) {
   const summaryArea = page.querySelector('#results-summary');
   const breakdownArea = page.querySelector('#breakdown-area');
 

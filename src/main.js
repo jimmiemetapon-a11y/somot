@@ -32,24 +32,7 @@ const PAGE_TITLES = {
   settings: ['Settings', 'App configuration & preferences', null, null],
 };
 
-const SUB_TABS_CONFIG = {
-  dinein: [
-    { id: 'history', label: 'History' },
-    { id: 'import', label: 'Import' }
-  ],
-  grabfood: [
-    { id: 'history', label: 'History' },
-    { id: 'import', label: 'Import' }
-  ],
-  foodpanda: [
-    { id: 'history', label: 'History' },
-    { id: 'import', label: 'Import' }
-  ],
-  online: [
-    { id: 'history', label: 'History' },
-    { id: 'import', label: 'Import' }
-  ]
-};
+const SUB_TABS_CONFIG = {};
 
 const PAGE_MAP = {
   dashboard: () => renderDashboard(currentUser),

@@ -161,7 +161,7 @@ export function renderPantryAnalysis() {
                 <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em] text-right">Qty</th>
                 <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em] text-center">Unit</th>
                 <th class="px-6 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em] text-right">Avg Price</th>
-                <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em] text-right">Total Spend</th>
+                <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/30 uppercase tracking-[0.15em] text-right">Total</th>
               </tr>
             </thead>
             <tbody id="pa-items-tbody" class="divide-y divide-slate-100 dark:divide-white/5">
