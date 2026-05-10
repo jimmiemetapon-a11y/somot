@@ -102,7 +102,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                const tab = opt.dataset.tab;
                const label = document.getElementById('exp-tab-label');
                if (label) label.textContent = opt.textContent.replace(' Dashboard', '').replace(' Ledger', '').replace(' & Verification', '');
-               loadTabContent(tab);
+               window.dispatchEvent(new CustomEvent('switch-sub-tab', { detail: { tabId: tab } }));
             };
          });
       }

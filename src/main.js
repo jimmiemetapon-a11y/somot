@@ -12,11 +12,13 @@ import { renderLoginPage } from './pages/Login.js';
 import { auth, db } from './firebase.js';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { Router } from './utils/Router.js';
 
 let currentUser = null;
 let isSidebarCollapsed = false;
 let currentTab = 'dashboard';
 let activeSubTab = null;
+const router = new Router();
 
 const PAGE_TITLES = {
   dashboard: ['Dashboard', 'Revenue overview across all channels', null, null],
@@ -62,8 +64,17 @@ const PAGE_MAP = {
 };
 
 window.addEventListener('switch-sub-tab', (e) => {
-  activeSubTab = e.detail.tabId;
-  buildShell();
+  const subTabId = e.detail.tabId;
+  let path = `/${currentTab}/${subTabId}`;
+
+  // Special handling for Channel paths
+  if (['dinein', 'grabfood', 'foodpanda', 'online'].includes(currentTab)) {
+    path = `/channels/${currentTab}/${subTabId}`;
+  } else if (currentTab === 'dashboard') {
+    path = `/${subTabId}`;
+  }
+  
+  router.navigate(path);
 });
 
 const yesterdayDate = new Date();
@@ -87,9 +98,11 @@ function buildShell() {
     return;
   }
 
-  // 1. If shell already exists, don't recreate it (prevents flickering)
+  // 1. Initialize Shell Containers (ONCE)
   let sidebarContainer = document.getElementById('sidebar-container');
   let mainContentContainer = document.getElementById('main-container');
+  let contentArea = document.getElementById('page-content');
+  let headerContainer = document.getElementById('header-container');
 
   if (!sidebarContainer || !mainContentContainer) {
     app.innerHTML = '';
@@ -102,36 +115,37 @@ function buildShell() {
     mainContentContainer.id = 'main-container';
     mainContentContainer.className = 'main-content';
     app.appendChild(mainContentContainer);
-  }
 
-  // 2. Update Sidebar (only if tab changed or first load)
-  sidebarContainer.innerHTML = '';
-  const sidebar = renderSidebar(currentTab, navigateTo, isSidebarCollapsed, toggleSidebar);
-  sidebarContainer.appendChild(sidebar);
-
-  // 3. Update Header
-  const [title, subtitle, logoUrl, darkLogoUrl] = PAGE_TITLES[currentTab] || ['Dashboard', '', null, null];
-  const headerContainer = document.getElementById('header-container') || document.createElement('div');
-  headerContainer.id = 'header-container';
-  headerContainer.innerHTML = '';
-
-  const currentRange = document.getElementById('db-date-range')?.value || filterState.dateRange;
-  const header = renderHeader(title, subtitle, toggleDarkMode, logoUrl, filterState.branch, currentRange, currentUser, handleSignOut, SUB_TABS_CONFIG[currentTab] || [], activeSubTab, darkLogoUrl);
-  headerContainer.appendChild(header);
-
-  if (!mainContentContainer.contains(headerContainer)) {
+    headerContainer = document.createElement('div');
+    headerContainer.id = 'header-container';
     mainContentContainer.appendChild(headerContainer);
-  }
 
-  // 4. Content Area
-  let contentArea = document.getElementById('page-content');
-  if (!contentArea) {
     contentArea = document.createElement('div');
     contentArea.id = 'page-content';
     contentArea.className = 'flex-1 overflow-auto';
     mainContentContainer.appendChild(contentArea);
   }
 
+  // 2. Persistent Sidebar (Update active state without full re-render if possible)
+  // For now, we update it to ensure active tab classes match
+  sidebarContainer.innerHTML = '';
+  const sidebar = renderSidebar(currentTab, navigateTo, isSidebarCollapsed, toggleSidebar);
+  sidebarContainer.appendChild(sidebar);
+
+  // 3. Update Header
+  const [title, subtitle, logoUrl, darkLogoUrl] = PAGE_TITLES[currentTab] || ['Dashboard', '', null, null];
+  headerContainer.innerHTML = '';
+  
+  const currentRange = document.getElementById('db-date-range')?.value || filterState.dateRange;
+  const header = renderHeader(
+    title, subtitle, toggleDarkMode, logoUrl, 
+    filterState.branch, currentRange, currentUser, 
+    handleSignOut, SUB_TABS_CONFIG[currentTab] || [], 
+    activeSubTab, darkLogoUrl
+  );
+  headerContainer.appendChild(header);
+
+  // 4. Trigger Page Rendering
   renderPage(currentTab);
   attachFilterListeners();
 }
@@ -198,11 +212,19 @@ function attachFilterListeners() {
   }
 }
 
-function navigateTo(tabId) {
-  if (currentTab === tabId) return;
-  currentTab = tabId;
-  activeSubTab = SUB_TABS_CONFIG[tabId]?.[0]?.id || null;
-  buildShell();
+function navigateTo(tabId, subTabId = null) {
+  let path = `/${tabId}`;
+  
+  // Handle Channel mapping
+  if (['dinein', 'grabfood', 'foodpanda', 'online'].includes(tabId)) {
+    path = subTabId ? `/channels/${tabId}/${subTabId}` : `/channels/${tabId}`;
+  } else if (tabId === 'pantry_analysis') {
+    path = '/pantry-analysis';
+  } else {
+    path = subTabId ? `/${tabId}/${subTabId}` : `/${tabId}`;
+  }
+
+  router.navigate(path);
 }
 
 function toggleSidebar(collapsed) {
@@ -259,7 +281,21 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   currentUser = user;
-  buildShell();
+  if (user) {
+    // Define Routes
+    router
+      .add('/dashboard', () => { currentTab = 'dashboard'; activeSubTab = null; buildShell(); })
+      .add('/expenses', () => { currentTab = 'expenses'; activeSubTab = 'cashier'; buildShell(); })
+      .add('/expenses/:tab', (params) => { currentTab = 'expenses'; activeSubTab = params.tab; buildShell(); })
+      .add('/channels/:id', (params) => { currentTab = params.id; activeSubTab = 'history'; buildShell(); })
+      .add('/channels/:id/:sub', (params) => { currentTab = params.id; activeSubTab = params.sub; buildShell(); })
+      .add('/pantry-analysis', () => { currentTab = 'pantry_analysis'; activeSubTab = null; buildShell(); })
+      .add('/opex', () => { currentTab = 'opex'; activeSubTab = null; buildShell(); })
+      .add('/settings', () => { currentTab = 'settings'; activeSubTab = null; buildShell(); })
+      .init();
+  } else {
+    buildShell();
+  }
 });
 
 initDarkMode();
