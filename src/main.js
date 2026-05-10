@@ -31,11 +31,6 @@ const PAGE_TITLES = {
 };
 
 const SUB_TABS_CONFIG = {
-  expenses: [
-    { id: 'cashier', label: 'Cashier' },
-    { id: 'ledger', label: 'Ledger' },
-    { id: 'audit', label: 'Audit' }
-  ],
   dinein: [
     { id: 'history', label: 'History' },
     { id: 'import', label: 'Import' }

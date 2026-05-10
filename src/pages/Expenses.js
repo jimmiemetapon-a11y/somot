@@ -16,7 +16,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
    const container = document.createElement('div');
    container.className = 'p-6 space-y-6 pb-20 page-enter';
 
-   let currentTab = activeTab;
+   let currentTab = activeTab || 'cashier';
    const yesterday = new Date();
    yesterday.setDate(yesterday.getDate() - 1);
    const yesterdayStr = yesterday.toISOString().split('T')[0];
@@ -38,12 +38,16 @@ export async function renderExpensesPage(activeTab = 'cashier') {
    setTimeout(() => {
       const anchor = document.getElementById('header-local-filters');
       if (anchor) {
+         // Determine which tab is active for the label
+         const tabLabels = { 'cashier': 'Cashier', 'ledger': 'Ledger', 'audit': 'Audit' };
+         const activeLabel = tabLabels[currentTab] || 'Cashier';
+
          anchor.innerHTML = `
          <div class="flex items-center gap-4 pl-4 border-l border-slate-200 dark:border-white/10">
            <!-- Branch -->
            <div class="relative group cursor-pointer flex items-center gap-1.5 h-6">
-             <input type="hidden" id="exp-header-branch" value="Pioneer Center">
-             <span id="exp-header-branch-text" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">Pioneer Center</span>
+             <input type="hidden" id="exp-header-branch" value="${currentBranch}">
+             <span id="exp-header-branch-text" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">${currentBranch}</span>
              <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
              
              <div class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[90] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
@@ -60,20 +64,17 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
            <div class="w-1 h-1 rounded-full bg-slate-300 dark:bg-white/20"></div>
 
-           <!-- Date Range -->
-           <div class="relative group cursor-pointer flex items-center gap-1.5 h-6" id="exp-preset-container">
-              <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
-              <span id="exp-preset-label" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">This Month</span>
-              <i data-lucide="chevron-down" id="exp-preset-chevron" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
+           <!-- View/Tab Switcher (Replaces Date Range) -->
+           <div class="relative group cursor-pointer flex items-center gap-1.5 h-6" id="exp-tab-dropdown">
+              <i data-lucide="layers" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
+              <span id="exp-tab-label" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">${activeLabel}</span>
+              <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
               
-              <input type="text" id="exp-header-date-range" class="absolute inset-0 opacity-0 pointer-events-none" value="thisMonthInit">
-              
-              <div id="exp-preset-menu" class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[80] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
+              <div class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[80] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
                  <div class="py-2">
-                    <div class="exp-preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-value="yesterday">Yesterday</div>
-                    <div class="exp-preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-value="last7">Last 7 Days</div>
-                    <div class="exp-preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-value="thisMonth">This Month</div>
-                    <div class="exp-preset-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all border-t border-slate-100 dark:border-white/5 cursor-pointer" data-value="custom">Custom Range...</div>
+                    <div class="exp-tab-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-tab="cashier">Cashier Dashboard</div>
+                    <div class="exp-tab-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-tab="ledger">Expenses Ledger</div>
+                    <div class="exp-tab-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-tab="audit">Audit & Verification</div>
                  </div>
               </div>
            </div>
@@ -83,84 +84,44 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
       if (window.lucide) window.lucide.createIcons();
 
-      const handleUpdate = () => {
-         const branchSelect = document.getElementById('exp-header-branch');
-         if (branchSelect) currentBranch = branchSelect.value;
-
-         // Force a silent refresh of the current tab so it uses new filter criteria
-         loadTabContent(currentTab, true);
-      };
-
+      // Listen for Branch Changes
       const branchEl = document.getElementById('exp-header-branch');
-      if (branchEl) branchEl.addEventListener('change', handleUpdate);
-
-      const rangeInput = document.getElementById('exp-header-date-range');
-      const container = document.getElementById('exp-preset-container');
-      const label = document.getElementById('exp-preset-label');
-
-      const getRange = (type) => {
-         const d = new Date();
-         const fmt = (date) => {
-            const y = date.getFullYear();
-            const m = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${y}-${m}-${day}`;
-         };
-         switch (type) {
-            case 'yesterday':
-               const yest = new Date(); yest.setDate(yest.getDate() - 1);
-               return `${fmt(yest)} to ${fmt(yest)}`;
-            case 'last7':
-               const start7 = new Date(); start7.setDate(start7.getDate() - 6);
-               return `${fmt(start7)} to ${fmt(d)}`;
-            case 'thisMonth':
-               const startM = new Date(d.getFullYear(), d.getMonth(), 1);
-               return `${fmt(startM)} to ${fmt(d)}`;
-            default: return '';
-         }
-      };
-
-      if (window.flatpickr && rangeInput && container) {
-         const fp = window.flatpickr(rangeInput, {
-            mode: "range",
-            dateFormat: "Y-m-d",
-            onClose: (selectedDates) => {
-               if (selectedDates.length === 2) {
-                  const start = fp.formatDate(selectedDates[0], "Y-m-d");
-                  const end = fp.formatDate(selectedDates[1], "Y-m-d");
-                  const rangeStr = `${start} to ${end}`;
-                  label.textContent = rangeStr;
-                  rangeInput.value = rangeStr;
-                  handleUpdate();
-               }
-            }
+      if (branchEl) {
+         branchEl.addEventListener('change', () => {
+            currentBranch = branchEl.value;
+            loadTabContent(currentTab, true);
          });
+      }
 
-         container.querySelectorAll('.exp-preset-option').forEach(opt => {
+      // Listen for Tab Changes
+      const tabMenu = document.getElementById('exp-tab-dropdown');
+      if (tabMenu) {
+         tabMenu.querySelectorAll('.exp-tab-option').forEach(opt => {
             opt.onclick = (e) => {
                e.stopPropagation();
-               const val = opt.dataset.value;
-               if (val === 'custom') {
-                  fp.open();
-               } else {
-                  const range = getRange(val);
-                  label.textContent = opt.textContent;
-                  rangeInput.value = range;
-                  handleUpdate();
-               }
+               const tab = opt.dataset.tab;
+               const label = document.getElementById('exp-tab-label');
+               if (label) label.textContent = opt.textContent.replace(' Dashboard', '').replace(' Ledger', '').replace(' & Verification', '');
+               loadTabContent(tab);
             };
          });
       }
 
-      if (rangeInput && rangeInput.value === 'thisMonthInit') {
-         rangeInput.value = getRange('thisMonth');
-      }
-
       // Listen for global filter changes
-      window.addEventListener('global-filter-changed', handleUpdate);
+      const handleGlobalFilter = () => {
+         const globalBranch = document.getElementById('db-branch')?.value;
+         if (globalBranch && branchEl) {
+            branchEl.value = globalBranch;
+            const branchText = document.getElementById('exp-header-branch-text');
+            if (branchText) branchText.innerText = globalBranch;
+            currentBranch = globalBranch;
+            loadTabContent(currentTab, true);
+         }
+      };
+      window.addEventListener('global-filter-changed', handleGlobalFilter);
 
       const cleanup = () => {
-         window.removeEventListener('global-filter-changed', handleUpdate);
+         window.removeEventListener('global-filter-changed', handleGlobalFilter);
       };
       window.addEventListener('cleanup-page', cleanup, { once: true });
 
@@ -170,7 +131,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
    loadTabContent(currentTab);
 
    async function loadMasterData() {
-      const freshBranch = document.getElementById('exp-header-branch')?.value || document.getElementById('db-branch')?.value;
+      const freshBranch = document.getElementById('exp-header-branch')?.value;
       if (freshBranch && freshBranch !== 'All Branches') {
          currentBranch = freshBranch;
       }
@@ -223,7 +184,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       if (!content) return;
 
       // Only show skeleton if NOT a silent update and content is empty or different tab
-      if (!silent || !content.innerHTML.trim()) {
+      if (!silent || !content.innerHTML.trim() || currentTab !== tabName) {
          content.innerHTML = `
            <div class="space-y-6 animate-pulse p-2">
              <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -253,12 +214,17 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             content.innerHTML = renderLedgerTab();
             attachLedgerListeners();
             loadLedgerData();
-         } else {
+         } else if (tabName === 'audit') {
             content.innerHTML = renderAuditTab();
             await loadAuditData();
             await loadAuditLogData();
             await loadHistoryData();
             attachAuditLogListeners();
+         } else {
+            // Fallback
+            content.innerHTML = renderCashierTab();
+            attachCashierListeners();
+            await loadHistoryData();
          }
       } catch (err) {
          console.error("Load Tab Content Error:", err);
@@ -1959,7 +1925,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       const importBtn = container.querySelector('#import-excel-btn');
       const importFile = container.querySelector('#import-excel-file');
       if (importBtn) importBtn.onclick = () => {
-         const activeBranch = document.getElementById('db-branch')?.value;
+         const activeBranch = currentBranch;
          if (activeBranch === 'All Branches') { alert('Select a specific branch first.'); return; }
          importFile.click();
       };
@@ -2002,7 +1968,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
                      const batchId = `BATCH_LEDGER_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
                      const batch = writeBatch(db);
-                     const activeBranch = document.getElementById('db-branch')?.value;
+                     const activeBranch = currentBranch;
                      window.showToast(`Importing ${jsonData.length} records...`, 'info');
 
                      jsonData.forEach(row => {
@@ -2057,7 +2023,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       if (exportBtn) {
          exportBtn.onclick = async () => {
             window.showToast('Preparing Export...', 'info');
-            const activeBranch = document.getElementById('db-branch')?.value;
+            const activeBranch = currentBranch;
             try {
                let constraints = [orderBy('date', 'desc')];
                if (activeBranch && activeBranch !== 'All Branches') constraints.unshift(where('branchId', '==', activeBranch));
@@ -2200,7 +2166,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       const auditContent = container.querySelector('#audit-queue-container');
       try {
          let constraints = [where('status', '==', 'pending'), orderBy('createdAt', 'desc')];
-         const activeBranch = document.getElementById('db-branch')?.value;
+         const activeBranch = currentBranch;
          if (activeBranch && activeBranch !== 'All Branches') constraints.unshift(where('branchId', '==', activeBranch));
 
          const q = query(collection(db, 'liquidation_requests'), ...constraints);
@@ -2396,7 +2362,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
       try {
          let constraints = [orderBy('timestamp', 'desc'), limit(50)];
-         const activeBranch = document.getElementById('db-branch')?.value;
+         const activeBranch = currentBranch;
          if (activeBranch && activeBranch !== 'All Branches') {
             constraints.unshift(where('branchId', '==', activeBranch));
          }
@@ -2480,18 +2446,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
    // Global Switcher
    container.addEventListener('click', (e) => {
-      // Main Tab Switcher
-      const tabBtn = e.target.closest('.expense-tab');
-      if (tabBtn && !tabBtn.classList.contains('active')) {
-         container.querySelectorAll('.expense-tab').forEach(b => {
-            b.classList.remove('bg-[#96588a]', 'text-white', 'shadow-lg', 'shadow-[#96588a]/20', 'active');
-            b.classList.add('text-slate-400');
-         });
-         tabBtn.classList.remove('text-slate-400');
-         tabBtn.classList.add('bg-[#96588a]', 'text-white', 'shadow-lg', 'shadow-[#96588a]/20', 'active');
-         loadTabContent(tabBtn.dataset.tab);
-         return;
-      }
+      // Future global listeners can go here
    });
 
    // Global Refresh Handler
@@ -2512,11 +2467,11 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       const listContainer = contentArea?.querySelector('#cashier-items-list');
       const batchTotalEl = contentArea?.querySelector('#batch-total');
       if (!listContainer) return;
-      const currentBranch = document.getElementById('db-branch')?.value || 'Pioneer Center';
+      const activeBranch = currentBranch;
 
       try {
          const q = query(collection(db, 'expenses'),
-            where('branchId', '==', currentBranch),
+            where('branchId', '==', activeBranch),
             where('status', 'in', ['pending', 'requested']),
             orderBy('createdAt', 'desc')
          );
@@ -2650,7 +2605,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
    // Load history data Bảng Lịch Sử   
    async function loadHistoryData() {
       const historyContent = document.getElementById('history-list-container');
-      const activeBranch = document.getElementById('db-branch')?.value;
+      const activeBranch = currentBranch;
       if (!historyContent) return;
 
       try {
