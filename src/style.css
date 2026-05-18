@@ -650,16 +650,31 @@
   }
 
   @keyframes fade-out {
-    from { opacity: 1; }
-    to { opacity: 0; }
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 0;
+    }
   }
+
   @keyframes scale-down {
-    from { transform: scale(1); opacity: 1; }
-    to { transform: scale(0.9); opacity: 0; }
+    from {
+      transform: scale(1);
+      opacity: 1;
+    }
+
+    to {
+      transform: scale(0.9);
+      opacity: 0;
+    }
   }
+
   .animate-fade-out {
     animation: fade-out 0.2s ease-out forwards;
   }
+
   .animate-scale-down {
     animation: scale-down 0.2s ease-out forwards;
   }

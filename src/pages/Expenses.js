@@ -17,9 +17,10 @@ export async function renderExpensesPage(activeTab = 'cashier') {
    container.className = 'p-6 space-y-6 pb-20 page-enter';
 
    let currentTab = activeTab || 'cashier';
+   const _localDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
    const yesterday = new Date();
    yesterday.setDate(yesterday.getDate() - 1);
-   const yesterdayStr = yesterday.toISOString().split('T')[0];
+   const yesterdayStr = _localDate(yesterday);
    let categories = [];
    let purposes = [];
    let categoryMappings = {};
@@ -821,7 +822,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                            </div>
                            <div class="space-y-1.5">
                               <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
-                              <input type="date" id="exp-date" required value="${new Date().toISOString().split('T')[0]}" class="w-full bg-[#343434]/5 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
+                              <input type="date" id="exp-date" required value="${_localDate(new Date())}" class="w-full bg-[#343434]/5 dark:bg-black/20 text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
                            </div>
                         </div>
                         <div class="space-y-1.5">
@@ -1942,7 +1943,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                reader.onload = async (ev) => {
                   try {
                      const data = new Uint8Array(ev.target.result);
-                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                     const workbook = XLSX.read(data, { type: 'array' });
                      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                      const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
                      const rawData = rows.slice(2).filter(r => r.length > 0 && (r[8] !== undefined || r[2] !== undefined));
@@ -1954,7 +1955,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
                      const jsonData = rawData.map(r => {
                         return {
-                           'Date': standardizeDate(r[0]) || new Date().toISOString().split('T')[0],
+                           'Date': standardizeDate(r[0]) || getLocalDateString(new Date()),
                            'Category': r[1] || 'Other',
                            'Purpose': r[2] || 'Imported',
                            'Detail Description': r[3] || '',
@@ -2051,7 +2052,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                const ws = XLSX.utils.json_to_sheet(data);
                const wb = XLSX.utils.book_new();
                XLSX.utils.book_append_sheet(wb, ws, "Ledger");
-               XLSX.writeFile(wb, `Ledger_${activeBranch}_${new Date().toISOString().split('T')[0]}.xlsx`);
+               XLSX.writeFile(wb, `Ledger_${activeBranch}_${getLocalDateString(new Date())}.xlsx`);
                window.showToast('Export successful!', 'success');
             } catch (err) {
                console.error(err);
@@ -2343,7 +2344,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
       ws.getCell(`D${totalRow}`).value = 'TOTAL EXPENSES PER VOUCHER AND RECEIPT ATTACHED ►';
       ws.getCell(`E${totalRow}`).value = approvedRows.reduce((sum, x) => sum + Number(x.amount || 0), 0);
 
-      const filename = `Liquidation_${(reqData.branchId || 'Branch').replace(/\s+/g, '_')}_${reqData.id.substring(0, 8).toUpperCase()}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const filename = `Liquidation_${(reqData.branchId || 'Branch').replace(/\s+/g, '_')}_${reqData.id.substring(0, 8).toUpperCase()}_${getLocalDateString(new Date())}.xlsx`;
       const outBuffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
@@ -2379,7 +2380,8 @@ export async function renderExpensesPage(activeTab = 'cashier') {
          if (filters.date) {
             logs = logs.filter(l => {
                if (!l.timestamp) return false;
-               const logDate = new Date(l.timestamp.seconds * 1000).toISOString().split('T')[0];
+               const ld = new Date(l.timestamp.seconds * 1000);
+               const logDate = `${ld.getFullYear()}-${String(ld.getMonth() + 1).padStart(2, '0')}-${String(ld.getDate()).padStart(2, '0')}`;
                return logDate === filters.date;
             });
          }

@@ -16,7 +16,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   header.className = 'topbar transition-all duration-300';
 
   const isDashboard = title === 'Dashboard';
-  const hideGlobalFilters = ['Expenses', 'Pantry Analysis', 'Operating Expenses', 'Settings'].includes(title);
+  const hideGlobalFilters = ['Expenses', 'Pantry Analysis', 'Operating Expenses', 'Settings', 'P&L Statement'].includes(title);
 
   // Define options based on user permissions
   const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
@@ -30,8 +30,8 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
           <h1 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest ml-2">${title}</h1>
         ` : `
           <div class="h-6 flex items-center pr-4 ml-1">
-             <img src="/src/assets/${logoUrl}" class="h-full w-auto object-contain ${darkLogoUrl ? 'dark:hidden' : 'dark:brightness-0 dark:invert'}" alt="${title} Logo" />
-             ${darkLogoUrl ? `<img src="/src/assets/${darkLogoUrl}" class="h-full w-auto object-contain hidden dark:block" alt="${title} Logo" />` : ''}
+             <img src="/assets/${logoUrl}" class="h-full w-auto object-contain ${darkLogoUrl ? 'dark:hidden' : 'dark:brightness-0 dark:invert'}" alt="${title} Logo" />
+             ${darkLogoUrl ? `<img src="/assets/${darkLogoUrl}" class="h-full w-auto object-contain hidden dark:block" alt="${title} Logo" />` : ''}
           </div>
         `}
         
@@ -61,7 +61,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
           <!-- Date Picker -->
           <div class="relative group cursor-pointer flex items-center gap-1.5 h-6" id="custom-preset-container">
              <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] transition-colors"></i>
-             <input type="text" id="db-date-range" class="absolute inset-0 opacity-0 pointer-events-none" value="${dateRange || ''}">
+             <input type="text" id="db-date-range" aria-label="Select Date Range" class="absolute inset-0 opacity-0 pointer-events-none" value="${dateRange || ''}">
              
              <div class="flex items-center gap-1.5">
                 <span id="preset-label" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] transition-colors">Yesterday</span>
@@ -88,14 +88,14 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
     <!-- Right: Profile & Theme -->
     <div class="flex items-center gap-3">
       <!-- Refresh -->
-      <button id="db-refresh" class="w-10 h-10 flex items-center justify-center rounded-full bg-[#96588a] hover:bg-[#7a4671] text-white shadow-lg shadow-purple-200 dark:shadow-none transition-all active:scale-90 group">
+      <button id="db-refresh" aria-label="Refresh Data" class="w-10 h-10 flex items-center justify-center rounded-full bg-[#96588a] hover:bg-[#7a4671] text-white shadow-lg shadow-purple-200 dark:shadow-none transition-all active:scale-90 group">
         <i data-lucide="rotate-cw" class="w-4 h-4 group-hover:rotate-180 transition-transform duration-500"></i>
       </button>
 
       <div class="h-8 w-px bg-slate-200 dark:bg-white/10 mx-1"></div>
 
       <!-- Theme Toggle -->
-      <button id="dark-btn" class="p-2 rounded-lg text-[#141414] dark:text-white/60 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
+      <button id="dark-btn" aria-label="Toggle Dark Mode" class="p-2 rounded-lg text-[#141414] dark:text-white/60 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
         <i data-lucide="moon" id="icon-moon" class="w-5 h-5"></i>
       </button>
 
@@ -143,7 +143,12 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
     // Date Helpers
     const getRange = (type) => {
       const d = new Date();
-      const fmt = (date) => date.toISOString().split('T')[0];
+      const fmt = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
 
       switch (type) {
         case 'yesterday':

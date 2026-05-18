@@ -60,7 +60,7 @@ export function renderLoginPage() {
         <div class="w-full max-w-md bg-white/10 backdrop-blur-[40px] border border-white/20 rounded-[2rem] p-6 md:p-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] space-y-4 animate-scale-up">
           <!-- Card Logo (Bold & Sharp) -->
           <div class="flex justify-center mb-4">
-               <img src="/src/assets/logo-so-mot-new-01.png" alt="So Mot Logo" 
+               <img src="/assets/logo-so-mot-new-01.png" alt="So Mot Logo" 
                     class="w-28 h-auto object-contain filter drop-shadow-[1px_1px_0px_rgba(255,255,255,0.8)] drop-shadow-[-1px_-1px_0px_rgba(255,255,255,0.8)] drop-shadow-[1px_-1px_0px_rgba(255,255,255,0.8)] drop-shadow-[-1px_1px_0px_rgba(255,255,255,0.8)]">
           </div>
 

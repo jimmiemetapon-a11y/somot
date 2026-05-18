@@ -2,6 +2,12 @@ import { Chart, registerables } from 'chart.js';
 import { db } from '../firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 Chart.register(...registerables);
+const getLocalStr = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 // ── SVG Icons ─────────────────────────────────────────
 const IC = {
@@ -63,8 +69,8 @@ export function renderDashboard(user) {
   }).format(new Date());
 
   const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const today = now.toISOString().split('T')[0];
+  const firstDay = getLocalStr(new Date(now.getFullYear(), now.getMonth(), 1));
+  const today = getLocalStr(now);
 
   page.innerHTML = `
     <!-- Floating Typographic Greeting (Option A - Borderless) -->
@@ -212,8 +218,8 @@ export function renderDashboard(user) {
                 <h3 id="card-${id}-net" class="text-xl font-extrabold" style="color: ${ch.color}">₱0.00</h3>
               </div>
               <div class="w-16 h-8 flex items-center justify-end overflow-hidden transition-transform duration-300 group-hover:scale-110">
-                <img src="/src/assets/${ch.icon}" class="w-full h-full object-contain object-right-top dark:hidden" alt="${ch.label}">
-                <img src="/src/assets/${ch.darkIcon}" class="w-full h-full object-contain object-right-top hidden dark:block" alt="${ch.label}">
+                <img src="/assets/${ch.icon}" class="w-full h-full object-contain object-right-top dark:hidden" alt="${ch.label}">
+                <img src="/assets/${ch.darkIcon}" class="w-full h-full object-contain object-right-top hidden dark:block" alt="${ch.label}">
               </div>
             </div>
 
@@ -336,8 +342,8 @@ async function loadAndRender(page, branch, fromDate, toDate) {
     const prevFromDate = new Date(prevToDate);
     prevFromDate.setDate(prevFromDate.getDate() - days + 1);
 
-    const prevTo = prevToDate.toISOString().split('T')[0];
-    const prevFrom = prevFromDate.toISOString().split('T')[0];
+    const prevTo = getLocalStr(prevToDate);
+    const prevFrom = getLocalStr(prevFromDate);
 
     const [salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs, kpiData] = await Promise.all([
       fetchSalesData(branch, fromDate, toDate),

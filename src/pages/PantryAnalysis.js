@@ -370,7 +370,8 @@ async function loadData(branch, fromDate, toDate) {
     const filterPantry = (e) => {
       const cat = (e.category || '').trim().toLowerCase();
       const status = (e.status || '').trim().toLowerCase();
-      return cat === 'pantry' && status === 'liquidated';
+      const fundedBy = (e.fundedBy || '').trim().toLowerCase();
+      return cat === 'pantry' && status === 'liquidated' && fundedBy === 'accountant';
     };
 
     // 1. Fetch Expenses for the selected period
@@ -389,8 +390,15 @@ async function loadData(branch, fromDate, toDate) {
     prevToDate.setDate(prevToDate.getDate() - 1);
     const prevFromDate = new Date(prevToDate);
     prevFromDate.setDate(prevFromDate.getDate() - days + 1);
-    const prevTo = prevToDate.toISOString().split('T')[0];
-    const prevFrom = prevFromDate.toISOString().split('T')[0];
+    const getLocalStr = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const prevTo = getLocalStr(prevToDate);
+    const prevFrom = getLocalStr(prevFromDate);
 
     let qPrevExpConstr = [where('date', '>=', prevFrom), where('date', '<=', prevTo)];
     if (branch !== 'All Branches') qPrevExpConstr.push(where('branchId', '==', branch));
@@ -409,7 +417,7 @@ async function loadData(branch, fromDate, toDate) {
     // 4. Fetch Items for 15 days ending at `toDate` for charts
     const chartFromDate = new Date(d2);
     chartFromDate.setDate(chartFromDate.getDate() - 14);
-    const chartFromStr = chartFromDate.toISOString().split('T')[0];
+    const chartFromStr = getLocalStr(chartFromDate);
 
     let qChartConstr = [where('date', '>=', chartFromStr), where('date', '<=', toDate)];
     if (branch !== 'All Branches') qChartConstr.push(where('branchId', '==', branch));
@@ -575,7 +583,7 @@ async function loadData(branch, fromDate, toDate) {
     for (let i = 0; i < 15; i++) {
       const d = new Date(chartFromDate);
       d.setDate(d.getDate() + i);
-      dailyMap[d.toISOString().split('T')[0]] = 0;
+      dailyMap[getLocalStr(d)] = 0;
     }
     chartExpenses.forEach(e => {
       if (dailyMap[e.date] !== undefined) {
@@ -628,7 +636,7 @@ async function loadData(branch, fromDate, toDate) {
         { keys: ['process products'], display: 'Process products' },
         { keys: ['vegetables', 'vegtables'], display: 'Vegetables' },
         { keys: ['beverages'], display: 'Beverages' },
-        { keys: ['groceries'], display: 'Groceries' },
+        { keys: ['groceries', 'grocery', 'accountant import'], display: 'Groceries' },
         { keys: ['condiments'], display: 'Condiments' },
         { keys: ['take out materials'], display: 'Take out materials' },
         { keys: ['cleaning materials'], display: 'Cleaning Materials' }

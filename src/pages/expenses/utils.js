@@ -36,42 +36,54 @@ export function getUTCDateString(dateObj) {
 
 export function standardizeDate(val) {
    if (val === undefined || val === null || String(val).trim() === '') return null;
-   
-   let d = null;
+
+   let year, month, day;
+
    if (val instanceof Date) {
-      d = val;
+      // Dùng local time getters để tránh lệch múi giờ
+      year = val.getFullYear();
+      month = val.getMonth(); // 0-indexed
+      day = val.getDate();
    } else if (typeof val === 'number') {
-      // Excel serial date conversion
-      d = new Date(Math.round((val - 25569) * 86400 * 1000));
+      // Excel serial number: phần nguyên = ngày, KHÔNG chuyển qua UTC milliseconds
+      const totalDays = Math.floor(val);
+      // Serial 25569 = 1 Jan 1970 (epoch), dùng Local Time constructor
+      const refDate = new Date(1970, 0, 1 + (totalDays - 25569));
+      year = refDate.getFullYear();
+      month = refDate.getMonth();
+      day = refDate.getDate();
+   } else {
+      // Chuỗi text
+      const str = String(val).trim();
+      try {
+         const datePart = str.split(' ')[0];
+         let y, m, d;
+
+         if (datePart.includes('-')) {
+            const parts = datePart.split('-');
+            if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
+            else if (parts[2].length === 4) { y = parts[2]; m = parts[1]; d = parts[0]; }
+         } else if (datePart.includes('/')) {
+            const parts = datePart.split('/');
+            if (parts[2].length === 4) { y = parts[2]; m = parts[1]; d = parts[0]; }
+            else if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
+         }
+
+         if (y && m && d) {
+            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+         }
+
+         const fallback = new Date(str);
+         if (!isNaN(fallback.getTime())) {
+            return getLocalDateString(fallback);
+         }
+      } catch (e) { return null; }
+      return null;
    }
 
-   // Robust date extraction: Add 12 hours to handle timezone shifts up to 12h
-   if (d && !isNaN(d.getTime())) {
-      const midDay = new Date(d.getTime() + (12 * 60 * 60 * 1000));
-      return midDay.toISOString().split('T')[0];
-   }
-
-   const str = String(val).trim();
-   try {
-      const datePart = str.split(' ')[0];
-      if (datePart.includes('-')) {
-         const parts = datePart.split('-');
-         if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-         if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      }
-      if (datePart.includes('/')) {
-         const parts = datePart.split('/');
-         if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-         if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-      }
-      
-      const fallback = new Date(str);
-      if (!isNaN(fallback.getTime())) {
-         const fbMid = new Date(fallback.getTime() + (12 * 60 * 60 * 1000));
-         return fbMid.toISOString().split('T')[0];
-      }
-   } catch (e) { return null; }
-   return null;
+   // Format từ year/month/day đã bóc tách
+   const result = new Date(year, month, day);
+   return getLocalDateString(result);
 }
 
 export function cleanNumber(val) {

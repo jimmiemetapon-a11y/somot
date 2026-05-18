@@ -36,46 +36,83 @@ function formatAbbreviated(n) {
 }
 
 // Chuẩn hóa ngày về YYYY-MM-DD (Siêu bền bỉ cho mọi định dạng)
+// FIX: Tránh lệch múi giờ UTC bằng cách bóc tách trực tiếp từ Serial Number
 function standardizeDate(val, channelId) {
   if (val === undefined || val === null || String(val).trim() === '') return null;
 
-  // 1. Nếu Excel đọc ra dưới dạng Serial Number (ví dụ: 45404)
+  let year, month, day, hours = 0, minutes = 0;
+
+  // 1. Nếu Excel đọc ra dưới dạng Serial Number (ví dụ: 46156.987)
+  //    Phần nguyên = số ngày kể từ 1/1/1900, Phần thập phân = thời gian trong ngày
   if (typeof val === 'number') {
-    const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-    if (!isNaN(date.getTime())) return date.toISOString().split('T')[0];
-  }
+    const totalDays = Math.floor(val);       // Phần nguyên = ngày
+    const timeFraction = val - totalDays;     // Phần thập phân = giờ
 
-  const str = String(val).trim();
+    // Bóc tách giờ/phút từ phần thập phân
+    const totalMinutes = Math.round(timeFraction * 24 * 60);
+    hours = Math.floor(totalMinutes / 60);
+    minutes = totalMinutes % 60;
 
-  try {
+    // Chuyển serial thành ngày bằng cách dùng epoch cố định (Local Time)
+    // Serial 1 = 1 Jan 1900, nhưng Excel có bug Lotus 1-2-3 (thêm 29/2/1900 không tồn tại)
+    // → Dùng mốc: Serial 25569 = 1 Jan 1970
+    const daysSinceEpoch = totalDays - 25569;
+    const refDate = new Date(1970, 0, 1 + daysSinceEpoch, hours, minutes);
+
+    year = refDate.getFullYear();
+    month = refDate.getMonth();  // 0-indexed
+    day = refDate.getDate();
+    hours = refDate.getHours();
+    minutes = refDate.getMinutes();
+  } else {
+    const str = String(val).trim();
     const datePart = str.split(' ')[0];
 
-    // 2. Định dạng có dấu gạch ngang (-)
-    if (datePart.includes('-')) {
-      const parts = datePart.split('-');
-      if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-      if (parts[2].length === 4) {
-        if (isNaN(parts[1])) {
-          const d = new Date(datePart);
-          if (!isNaN(d.getTime())) return getLocalDateString(d);
-        }
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    // Thử tách y, m, d từ các định dạng phổ biến
+    let y, m, d;
+    if (datePart.includes('/')) {
+      const p = datePart.split('/');
+      if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }       // DD/MM/YYYY
+      else if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }   // YYYY/MM/DD
+    } else if (datePart.includes('-')) {
+      const p = datePart.split('-');
+      if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }       // YYYY-MM-DD
+      else if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }   // DD-MM-YYYY
+    }
+
+    if (y && m && d) {
+      const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
+      year = parseInt(y);
+      month = parseInt(m) - 1;  // 0-indexed
+      day = parseInt(d);
+      hours = timeMatch ? parseInt(timeMatch[1]) : 0;
+      minutes = timeMatch ? parseInt(timeMatch[2]) : 0;
+    } else {
+      // Fallback: thử parse trực tiếp (ít tin cậy)
+      const fallback = new Date(str);
+      if (!isNaN(fallback.getTime())) {
+        year = fallback.getFullYear();
+        month = fallback.getMonth();
+        day = fallback.getDate();
+        hours = fallback.getHours();
+        minutes = fallback.getMinutes();
+      } else {
+        return null;
       }
     }
+  }
 
-    // 3. Định dạng có dấu gạch chéo (/)
-    if (datePart.includes('/')) {
-      const parts = datePart.split('/');
-      if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-    }
+  // Tạo Date object bằng Local Time constructor (KHÔNG BAO GIỜ dùng UTC)
+  const dObj = new Date(year, month, day, hours, minutes);
 
-    const fallbackDate = new Date(str);
-    if (!isNaN(fallbackDate.getTime())) return getLocalDateString(fallbackDate);
+  if (isNaN(dObj.getTime())) return null;
 
-  } catch (e) { return null; }
+  // Logic lùi ngày cho Dine In: đơn trước 2:00 AM thuộc về ngày kinh doanh hôm trước
+  if (channelId === 'dinein' && hours < 2) {
+    dObj.setDate(dObj.getDate() - 1);
+  }
 
-  return null;
+  return getLocalDateString(dObj);
 }
 
 function parseAyalaDate(val) {
@@ -84,18 +121,26 @@ function parseAyalaDate(val) {
 
   // Case: DD/MM/YYYY HH:mm (Column E in Ayala POS)
   if (str.includes('/') || str.includes('-')) {
-    const datePart = str.split(' ')[0]; // Strip time if exists
+    const datePart = str.split(' ')[0];
     const sep = datePart.includes('/') ? '/' : '-';
     const parts = datePart.split(sep);
 
     if (parts.length >= 3) {
       let d, m, y;
-      if (parts[2].length === 4) { // DD/MM/YYYY
-        d = parts[0]; m = parts[1]; y = parts[2];
-      } else if (parts[0].length === 4) { // YYYY/MM/DD
-        y = parts[0]; m = parts[1]; d = parts[2];
+      if (parts[2].length === 4) { d = parts[0]; m = parts[1]; y = parts[2]; }
+      else if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
+
+      if (y && m && d) {
+        const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
+        const hh = timeMatch ? parseInt(timeMatch[1]) : 0;
+        const mm = timeMatch ? parseInt(timeMatch[2]) : 0;
+        const resultDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), hh, mm);
+        
+        if (hh < 2) {
+          resultDate.setDate(resultDate.getDate() - 1);
+        }
+        return getLocalDateString(resultDate);
       }
-      if (y) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
     }
   }
 
@@ -216,14 +261,28 @@ export function renderChannelPage(channelId, activeTab = 'history') {
             </div>
           </div>
 
-          <!-- Right: Premium Preview Area -->
-          <div id="preview-area" class="lg:col-span-2 luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-0 overflow-hidden min-h-[300px] border-t border-white/60 dark:border-white/10 relative flex items-center justify-center">
-             <div class="absolute top-6 left-8">
-                <p class="text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.2em]">Data Audit Preview</p>
-             </div>
-             <p class="text-xs text-slate-400 italic">Excel columns will appear here after selection</p>
+          <!-- Right: Premium Info Area (Static) -->
+          <div class="lg:col-span-2 luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-10 border-t border-white/60 dark:border-white/10 relative flex flex-col justify-center gap-4">
+             <h4 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">Import Guidelines</h4>
+             <ul class="space-y-3">
+                <li class="flex items-start gap-3 text-[11px] text-slate-500 dark:text-white/60 font-bold">
+                   <div class="w-5 h-5 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0"><i data-lucide="check" class="w-3 h-3"></i></div>
+                   Supports multi-file upload for combined analysis.
+                </li>
+                <li class="flex items-start gap-3 text-[11px] text-slate-500 dark:text-white/60 font-bold">
+                   <div class="w-5 h-5 rounded-full bg-[#96588a]/10 flex items-center justify-center text-[#96588a] shrink-0"><i data-lucide="clock" class="w-3 h-3"></i></div>
+                   Dine-in orders before 2:00 AM are adjusted to previous day.
+                </li>
+                <li class="flex items-start gap-3 text-[11px] text-slate-500 dark:text-white/60 font-bold">
+                   <div class="w-5 h-5 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0"><i data-lucide="alert-circle" class="w-3 h-3"></i></div>
+                   Conflicts are automatically detected and highlighted.
+                </li>
+             </ul>
           </div>
         </div>
+
+        <!-- NEW: Dedicated Preview Area (Always visible when there is content) -->
+        <div id="preview-area" class="w-full min-h-[100px]"></div>
 
         <div class="flex justify-end pt-4">
           <!-- Standalone button hidden, now using the one inside Hero Card -->
@@ -672,7 +731,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         const conflictDates = await checkConflicts(channelId, branchId, Object.keys(grouped));
 
         updateUI(page, grouped, channelId, conflictDates);
-        renderPreviewTable(allDataRows.slice(0, 15), previewArea, `Combined (${fileList.length} files)`, conflictDates);
+        renderPreviewTable(allDataRows.slice(0, 30), previewArea, `Combined (${fileList.length} files)`, conflictDates, grouped, channelId);
 
         // btnSave stays hidden, logic is triggered by hero-save-btn
         btnSave.disabled = false;
@@ -970,8 +1029,9 @@ function calculateAyalaDineIn(rows) {
     voidInv += cleanNumber(row[32]);
   });
 
-  const totalDed = vatAdj + seniorDisc + pwdDisc + otherDisc + voidInv;
-  const net = gross - totalDed;
+  const adjustedGross = gross - voidInv;
+  const totalDed = vatAdj + seniorDisc + pwdDisc + otherDisc;
+  const net = adjustedGross - totalDed;
 
   const breakdown = {
     deductions: {
@@ -985,7 +1045,7 @@ function calculateAyalaDineIn(rows) {
   };
 
   return {
-    net, gross, orders, totalDed, breakdown,
+    net, gross: adjustedGross, orders, totalDed, breakdown,
     details: [
       { label: 'Gross Sale', val: gross, color: 'text-slate-600' },
       { label: 'VAT Adjustment', val: vatAdj, color: 'text-rose-500', isDed: true },
@@ -1183,8 +1243,9 @@ function updateUI(page, dailyResults, channelId, conflictDates = []) {
   const finalDetails = [...deductionList, ...incomeList];
 
   // Hide upload row if data is found
-  const uploadRow = page.querySelector('#upload-controls-row');
-  if (uploadRow && dates.length > 0) uploadRow.classList.add('hidden');
+  // Hide upload part but keep preview
+  const uploadZone = page.querySelector('#upload-controls-row');
+  if (uploadZone && dates.length > 0) uploadZone.classList.add('hidden');
 
   summaryArea.innerHTML = `
     <div class="luxury-card relative bg-white/40 dark:bg-[#141414]/60 rounded-[2.5rem] p-8 mb-8 shadow-2xl backdrop-blur-3xl border-t border-white/60 dark:border-white/10 overflow-hidden animate-fade-in flex flex-col lg:flex-row items-stretch gap-10">
@@ -1422,7 +1483,7 @@ async function fetchChannelHistory(channelId) {
       // DEFAULT: Yesterday
       const yest = new Date();
       yest.setDate(yest.getDate() - 1);
-      const yestStr = yest.toISOString().split('T')[0];
+      const yestStr = getLocalDateString(yest);
 
       q = query(
         collection(db, "daily_sales"),
@@ -1706,7 +1767,7 @@ async function showManualEntryModal() {
               <div class="space-y-1.5">
                  <label class="text-[7px] font-black text-slate-400 dark:text-white/30 uppercase tracking-widest ml-1">Transaction Date</label>
                  <div class="relative">
-                    <input type="date" id="m-date" class="w-full bg-slate-200 dark:bg-[#343434]/80 rounded-2xl pl-4 pr-10 py-3 text-sm font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-[#96588a] transition-all outline-none border-none cursor-pointer" value="${new Date().toISOString().split('T')[0]}">
+                    <input type="date" id="m-date" class="w-full bg-slate-200 dark:bg-[#343434]/80 rounded-2xl pl-4 pr-10 py-3 text-sm font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-[#96588a] transition-all outline-none border-none cursor-pointer" value="${getLocalDateString(new Date())}">
                     <div id="m-date-icon" class="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 dark:text-white/40">
                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                     </div>
@@ -1820,56 +1881,99 @@ async function showManualEntryModal() {
   };
 }
 
-function renderPreviewTable(data, container, fileName, conflictDates = []) {
-  container.className = 'chart-card md:col-span-2 flex flex-col h-full overflow-hidden p-0';
+function renderPreviewTable(data, container, fileName, conflictDates = [], dailyResults = {}, channelId) {
+  container.className = 'chart-card md:col-span-2 flex flex-col h-full overflow-hidden p-0 bg-white/50 dark:bg-[#141414]/80';
   const excelHeaders = data[0].map((_, i) => getExcelColumnName(i));
+  const fmt = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 
-  // Lấy danh sách ngày hạch toán để highlight (giả sử cột ngày là 5 hoặc 4 cho Ayala)
-  // Lưu ý: data ở đây là raw Excel rows
+  const datesFound = Object.keys(dailyResults).sort();
 
   container.innerHTML = `
-    <div class="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-transparent">
-      <div class="flex items-center gap-3">
-         <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Preview: ${fileName}</p>
+    <div class="px-8 py-6 border-b border-slate-200 dark:border-white/10 flex flex-col gap-4 bg-slate-50/80 dark:bg-transparent">
+      <div class="flex items-center justify-between">
+         <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl bg-[#96588a]/10 flex items-center justify-center text-[#96588a]">
+               <i data-lucide="file-search" class="w-4 h-4"></i>
+            </div>
+            <div>
+               <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Audit Center</p>
+               <p class="text-xs font-black text-slate-700 dark:text-white uppercase truncate">${fileName}</p>
+            </div>
+         </div>
          ${conflictDates.length > 0 ? `
-            <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[8px] font-black uppercase tracking-widest animate-pulse">
-               ${conflictDates.length} Conflicts Detected
-            </span>
-         ` : ''}
+            <div class="px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
+               <i data-lucide="alert-triangle" class="w-3 h-3"></i> ${conflictDates.length} Existing Days
+            </div>
+         ` : `
+            <div class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
+               <i data-lucide="check-circle" class="w-3 h-3"></i> Ready to Import
+            </div>
+         `}
+      </div>
+
+      <!-- Quick Summary by Date -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+         ${datesFound.map(d => {
+           const res = dailyResults[d];
+           const isConflict = conflictDates.includes(d);
+           return `
+             <div class="p-3 rounded-2xl bg-white dark:bg-white/5 border ${isConflict ? 'border-amber-500/30 bg-amber-500/[0.02]' : 'border-slate-200 dark:border-white/10'} transition-all">
+                <div class="flex items-center justify-between mb-1">
+                   <p class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">${d}</p>
+                   ${isConflict ? '<i data-lucide="history" class="w-2.5 h-2.5 text-amber-500"></i>' : ''}
+                </div>
+                <p class="text-xs font-black text-slate-800 dark:text-white">${fmt.format(res.gross)}</p>
+                <p class="text-[8px] font-bold text-slate-400 uppercase mt-0.5">${res.orders} Orders</p>
+             </div>
+           `;
+         }).join('')}
       </div>
     </div>
+
     <div class="flex-1 overflow-auto scrollbar-hide">
       <table class="w-full text-[9px] text-left border-collapse">
-        <thead class="sticky top-0 z-10">
-          <tr class="bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-white/40 font-black uppercase tracking-widest">
-            ${excelHeaders.map(h => `<th class="px-4 py-2 border-b border-slate-200 dark:border-white/10 text-center font-black">${h}</th>`).join('')}
+        <thead class="sticky top-0 z-20">
+          <tr class="bg-slate-200 dark:bg-[#1a1a1a] text-slate-500 dark:text-white/40 font-black uppercase tracking-widest">
+            <th class="px-4 py-2 border-b border-[#96588a]/20 text-[#96588a] font-black text-center bg-[#96588a]/5">AUDIT: ADJUSTED</th>
+            ${excelHeaders.map(h => `<th class="px-4 py-2 border-b border-slate-300 dark:border-white/10 text-center font-black">${h}</th>`).join('')}
           </tr>
-          <tr class="bg-white dark:bg-[#1a1a1a] border-b border-slate-100 dark:border-white/5 shadow-sm">
+          <tr class="bg-slate-50 dark:bg-[#202020] border-b border-slate-200 dark:border-white/10 shadow-sm">
+            <th class="px-4 py-3 font-black text-[#96588a] text-center uppercase tracking-tighter">Shifted Date</th>
             ${data[0].map(c => `<th class="px-4 py-3 font-black text-slate-800 dark:text-white whitespace-nowrap uppercase tracking-tighter">${c || ''}</th>`).join('')}
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-white/5">
-          ${data.slice(1, 20).map(row => {
-    // Thử đoán xem dòng này có phải là ngày bị trùng không (Check mờ)
-    const hasConflict = row.some(cell => conflictDates.includes(String(cell).split(' ')[0]));
-    return `
-              <tr class="${hasConflict ? 'bg-amber-500/[0.03]' : ''} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all">
-                ${row.map(c => `
-                  <td class="px-4 py-2.5 text-slate-500 dark:text-slate-400 whitespace-nowrap font-bold">
-                    ${hasConflict && conflictDates.includes(String(c).split(' ')[0]) ? `
-                       <span class="flex items-center gap-1 text-amber-600">
-                          <i data-lucide="alert-circle" class="w-2.5 h-2.5"></i> ${c ?? ''}
-                       </span>
-                    ` : (c ?? '')}
-                  </td>
-                `).join('')}
+          ${data.slice(1, 30).map(row => {
+            // Tính toán ngày hạch toán cho dòng này để hiện audit
+            const dateColIdx = channelId === 'dinein' && (document.getElementById('db-branch')?.value === 'Ayala Cloverleaf') ? 4 : (CHANNEL_CONFIG[channelId]?.colDate ?? 0);
+            const rawDateVal = row[dateColIdx];
+            const adjustedDate = standardizeDate(rawDateVal, channelId);
+            
+            // Tính ngày gốc (không áp dụng quy tắc 2AM) để so sánh
+            const originalDate = standardizeDate(rawDateVal, '_no_shift_');
+            const isShifted = adjustedDate && originalDate && adjustedDate !== originalDate;
+
+            return `
+              <tr class="${isShifted ? 'bg-indigo-500/[0.04]' : ''} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all group">
+                <td class="px-4 py-2.5 text-center font-black ${isShifted ? 'text-indigo-600' : 'text-slate-400 opacity-40'}">
+                   ${isShifted ? `<span class="flex items-center justify-center gap-1"><i data-lucide="clock" class="w-2.5 h-2.5"></i> ${adjustedDate}</span>` : adjustedDate || '-'}
+                </td>
+                ${row.map(c => {
+                  const valStr = String(c || '');
+                  const isDateCell = valStr.includes('/') || (valStr.includes('-') && valStr.length > 8);
+                  return `
+                    <td class="px-4 py-2.5 text-slate-500 dark:text-slate-400 whitespace-nowrap font-bold ${isDateCell ? 'text-[#96588a]' : ''}">
+                      ${c ?? ''}
+                    </td>
+                  `;
+                }).join('')}
               </tr>
              `;
-  }).join('')}
+          }).join('')}
         </tbody>
       </table>
-      <div class="p-4 text-center bg-slate-50/50 dark:bg-transparent border-t border-slate-100 dark:border-white/5">
-         <p class="text-[8px] text-slate-400 font-black uppercase tracking-[0.2em]">Showing first 20 rows for preview</p>
+      <div class="p-6 text-center bg-slate-50/50 dark:bg-transparent border-t border-slate-100 dark:border-white/5">
+         <p class="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em]">Advanced Audit: Showing first 30 transactions</p>
       </div>
     </div>
   `;

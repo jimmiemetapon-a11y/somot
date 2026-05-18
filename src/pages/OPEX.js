@@ -329,10 +329,15 @@ async function loadOpexData(branch, fromDate, toDate) {
     const pct = totalNetSales > 0 ? (totalOpex / totalNetSales) * 100 : 0;
 
     // Update UI Stats
-    document.getElementById('opex-total-val').textContent = fmt(totalOpex);
-    document.getElementById('opex-highest-name').textContent = highestCatName.toUpperCase();
-    document.getElementById('opex-highest-val').textContent = fmt(highestCatVal);
-    document.getElementById('opex-pct-val').textContent = pct.toFixed(1) + '%';
+    const elTotal = document.getElementById('opex-total-val');
+    const elHighName = document.getElementById('opex-highest-name');
+    const elHighVal = document.getElementById('opex-highest-val');
+    const elPct = document.getElementById('opex-pct-val');
+
+    if (elTotal) elTotal.textContent = fmt(totalOpex);
+    if (elHighName) elHighName.textContent = highestCatName.toUpperCase();
+    if (elHighVal) elHighVal.textContent = fmt(highestCatVal);
+    if (elPct) elPct.textContent = pct.toFixed(1) + '%';
 
     // Render Table
     const tbody = document.getElementById('opex-tbody');

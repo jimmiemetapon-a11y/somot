@@ -7,6 +7,7 @@ import { renderChannelPage } from './pages/ChannelPage.js';
 import { renderExpensesPage } from './pages/Expenses.js';
 import { renderPantryAnalysis } from './pages/PantryAnalysis.js';
 import { renderOPEX } from './pages/OPEX.js';
+import { renderPNL } from './pages/PNL.js';
 import { renderSettings } from './pages/Settings.js';
 import { renderLoginPage } from './pages/Login.js';
 import { auth, db } from './firebase.js';
@@ -29,6 +30,7 @@ const PAGE_TITLES = {
   expenses: ['Expenses', 'Petty cash & liquidation tracking', null, null],
   pantry_analysis: ['Pantry Analysis', 'Deep dive into ingredient costs & usage', null, null],
   opex: ['Operating Expenses', 'Monthly fixed costs & overheads tracking', null, null],
+  pnl: ['P&L Statement', 'Comparative financial analysis among branches', null, null],
   settings: ['Settings', 'App configuration & preferences', null, null],
 };
 
@@ -43,6 +45,7 @@ const PAGE_MAP = {
   expenses: () => renderExpensesPage(activeSubTab),
   pantry_analysis: () => renderPantryAnalysis(),
   opex: () => renderOPEX(),
+  pnl: () => renderPNL(),
   settings: () => renderSettings(),
 };
 
@@ -274,6 +277,7 @@ onAuthStateChanged(auth, async (user) => {
       .add('/channels/:id/:sub', (params) => { currentTab = params.id; activeSubTab = params.sub; buildShell(); })
       .add('/pantry-analysis', () => { currentTab = 'pantry_analysis'; activeSubTab = null; buildShell(); })
       .add('/opex', () => { currentTab = 'opex'; activeSubTab = null; buildShell(); })
+      .add('/pnl', () => { currentTab = 'pnl'; activeSubTab = null; buildShell(); })
       .add('/settings', () => { currentTab = 'settings'; activeSubTab = null; buildShell(); })
       .init();
   } else {
