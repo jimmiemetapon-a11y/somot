@@ -612,6 +612,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                   await addDoc(collection(db, 'expenses'), payload);
                   window.showToast('Transaction saved!', 'success');
                }
+               window.dispatchEvent(new CustomEvent('expenses-updated'));
 
                btn.className = originalClassName;
                btn.classList.remove('bg-slate-900', 'dark:bg-white', 'dark:text-slate-900');
@@ -711,6 +712,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                const batch = writeBatch(db);
                snap.docs.forEach(d => batch.update(d.ref, { status: 'requested', liquidationId: liqRef.id }));
                await batch.commit();
+               window.dispatchEvent(new CustomEvent('expenses-updated'));
 
                // Audit Log: Submit Request
                await addDoc(collection(db, 'audit_logs'), {
@@ -1105,6 +1107,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                   snap.docs.forEach(d => batch.update(d.ref, { status: 'pending', liquidationId: null }));
                   batch.update(doc(db, 'liquidation_requests', reqData.id), { status: 'cancelled', cancelledAt: serverTimestamp() });
                   await batch.commit();
+                  window.dispatchEvent(new CustomEvent('expenses-updated'));
 
                   await addDoc(collection(db, 'audit_logs'), {
                      action: 'cancel_request',
@@ -1212,6 +1215,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                   reviewedAt: serverTimestamp()
                });
                await batch.commit();
+               window.dispatchEvent(new CustomEvent('expenses-updated'));
 
                // Replenish petty cash naturally by marking items as liquidated
                // (No need to increment petty_base in DB as the display formula already handles it)
@@ -1346,6 +1350,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
 
                   batch.update(doc(db, 'liquidation_requests', reqData.id), { status: 'pending', totalAmount: total, resubmittedAt: serverTimestamp() });
                   await batch.commit();
+                  window.dispatchEvent(new CustomEvent('expenses-updated'));
 
                   // Audit Log: Resubmit
                   await addDoc(collection(db, 'audit_logs'), {
@@ -1645,6 +1650,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             if (confirmed) {
                try {
                   await deleteDoc(doc(db, 'expenses', id));
+                  window.dispatchEvent(new CustomEvent('expenses-updated'));
                   window.showToast('Record deleted', 'success');
                   loadLedgerData();
                } catch (err) {
@@ -1896,6 +1902,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                         });
 
                         await batch.commit();
+                        window.dispatchEvent(new CustomEvent('expenses-updated'));
 
                         // Create log entry for Undo
                         await setDoc(doc(db, "import_logs", batchId), {
@@ -1992,6 +1999,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      });
 
                      await batch.commit();
+                     window.dispatchEvent(new CustomEvent('expenses-updated'));
 
                      // Log for Undo
                      await setDoc(doc(db, "import_logs", batchId), {
@@ -2578,6 +2586,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
                      const confirmed = await window.showConfirmModal('Delete Item', 'Are you sure you want to remove this item from your current batch?');
                      if (confirmed) {
                         await deleteDoc(doc(db, 'expenses', itemId));
+                        window.dispatchEvent(new CustomEvent('expenses-updated'));
                         window.showToast('Item deleted', 'info');
                         loadCashierData();
                      }
@@ -2769,6 +2778,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
             await updateDoc(doc(db, 'expenses', item.id), {
                date, purpose, amount: amount, category
             });
+            window.dispatchEvent(new CustomEvent('expenses-updated'));
             window.showToast('Transaction updated', 'success');
             closeEditModal();
             loadLedgerData();

@@ -231,7 +231,7 @@ export function renderPantryAnalysis() {
           <!-- Date Range -->
           <div class="relative group cursor-pointer flex items-center gap-1.5 h-6" id="pa-preset-container">
              <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
-             <span id="pa-preset-label" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">This Month</span>
+             <span id="pa-preset-label" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">Last 7 Days</span>
              <i data-lucide="chevron-down" id="pa-preset-chevron" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
              
              <input type="text" id="pa-date-range" class="absolute inset-0 opacity-0 pointer-events-none" value="">
@@ -251,7 +251,7 @@ export function renderPantryAnalysis() {
 
     if (window.lucide) window.lucide.createIcons();
 
-    const handleUpdate = () => {
+    const handleUpdate = (force = false) => {
       // Read local filter state
       const branchSelect = document.getElementById('pa-branch');
       const rangeInput = document.getElementById('pa-date-range');
@@ -267,7 +267,9 @@ export function renderPantryAnalysis() {
         return `${y}-${m}-${day}`;
       };
       let toStr = fmt(now);
-      let fromStr = fmt(new Date(now.getFullYear(), now.getMonth(), 1));
+      const start7 = new Date();
+      start7.setDate(start7.getDate() - 6);
+      let fromStr = fmt(start7);
 
       if (rangeVal.includes(' to ')) {
         [fromStr, toStr] = rangeVal.split(' to ');
@@ -275,7 +277,7 @@ export function renderPantryAnalysis() {
         fromStr = toStr = rangeVal;
       }
 
-      loadData(branch, fromStr, toStr);
+      loadData(branch, fromStr, toStr, force);
     };
 
     // Setup flatpickr and local filter events
@@ -347,7 +349,7 @@ export function renderPantryAnalysis() {
 
     // Refresh button logic
     const refreshBtn = document.getElementById('db-refresh');
-    if (refreshBtn) refreshBtn.onclick = (e) => { e.preventDefault(); handleUpdate(); };
+    if (refreshBtn) refreshBtn.onclick = (e) => { e.preventDefault(); handleUpdate(true); };
 
     const cleanup = () => {
       window.removeEventListener('global-filter-changed', handleUpdate);
@@ -363,33 +365,29 @@ export function renderPantryAnalysis() {
 
 // ─── Data Fetching & Processing ─────────────────────────────────────────────
 
-async function loadData(branch, fromDate, toDate) {
+// Global cache for all pantry expenses
+let cachedPantryExpenses = null;
+
+// Global cache map for query results by filter keys (branch|fromDate|toDate)
+const pantryCacheMap = new Map();
+
+// Listen to custom events to clear cache when expenses or sales are updated
+window.addEventListener('expenses-updated', () => {
+  clearPantryCache();
+});
+window.addEventListener('sales-updated', () => {
+  pantryCacheMap.clear();
+});
+
+export function clearPantryCache() {
+  cachedPantryExpenses = null;
+  pantryCacheMap.clear();
+}
+
+async function loadData(branch, fromDate, toDate, force = false) {
   try {
     const fmt = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    const filterPantry = (e) => {
-      const cat = (e.category || '').trim().toLowerCase();
-      const status = (e.status || '').trim().toLowerCase();
-      const fundedBy = (e.fundedBy || '').trim().toLowerCase();
-      return cat === 'pantry' && status === 'liquidated' && fundedBy === 'accountant';
-    };
-
-    // 1. Fetch Expenses for the selected period
-    let qExpConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
-    if (branch !== 'All Branches') qExpConstr.push(where('branchId', '==', branch));
-    const qExp = query(collection(db, 'expenses'), ...qExpConstr);
-    const snapExp = await getDocs(qExp);
-    let expenses = snapExp.docs.map(d => d.data());
-    expenses = expenses.filter(filterPantry);
-
-    // 2. Fetch Previous Period Expenses for Trend
-    const d1 = new Date(fromDate + 'T00:00:00');
-    const d2 = new Date(toDate + 'T00:00:00');
-    const days = Math.round((d2 - d1) / 86400000) + 1;
-    const prevToDate = new Date(d1);
-    prevToDate.setDate(prevToDate.getDate() - 1);
-    const prevFromDate = new Date(prevToDate);
-    prevFromDate.setDate(prevFromDate.getDate() - days + 1);
     const getLocalStr = (d) => {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -397,41 +395,78 @@ async function loadData(branch, fromDate, toDate) {
       return `${y}-${m}-${day}`;
     };
 
-    const prevTo = getLocalStr(prevToDate);
-    const prevFrom = getLocalStr(prevFromDate);
+    const cacheKey = `${branch}|${fromDate}|${toDate}`;
+    let expenses, prevExpenses, items, chartExpenses, totalNetSales, chartFromDate;
 
-    let qPrevExpConstr = [where('date', '>=', prevFrom), where('date', '<=', prevTo)];
-    if (branch !== 'All Branches') qPrevExpConstr.push(where('branchId', '==', branch));
-    const qPrevExp = query(collection(db, 'expenses'), ...qPrevExpConstr);
-    const snapPrevExp = await getDocs(qPrevExp);
-    let prevExpenses = snapPrevExp.docs.map(d => d.data());
-    prevExpenses = prevExpenses.filter(filterPantry);
+    if (!force && pantryCacheMap.has(cacheKey)) {
+      // Restore from cache map
+      ({ expenses, prevExpenses, items, chartExpenses, totalNetSales, chartFromDate } = pantryCacheMap.get(cacheKey));
+    } else {
+      // 1. Fetch Expenses (only relevant pantry expenses, cached globally)
+      if (force || !cachedPantryExpenses) {
+        const qExp = query(
+          collection(db, 'expenses'),
+          where('category', 'in', ['Pantry', 'pantry']),
+          where('status', '==', 'liquidated'),
+          where('fundedBy', '==', 'accountant')
+        );
+        const snapExp = await getDocs(qExp);
+        cachedPantryExpenses = snapExp.docs.map(d => d.data());
+      }
 
-    // 3. Fetch Items for the selected period
-    let qItemsConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
-    if (branch !== 'All Branches') qItemsConstr.push(where('branchId', '==', branch));
-    const qItems = query(collection(db, 'Pantry_Expense_Items_Detail'), ...qItemsConstr);
-    const snapItems = await getDocs(qItems);
-    let items = snapItems.docs.map(d => d.data());
+      // Filter current period expenses from global cache
+      expenses = cachedPantryExpenses.filter(e => {
+        const matchesBranch = branch === 'All Branches' || e.branchId === branch;
+        const matchesDate = e.date >= fromDate && e.date <= toDate;
+        return matchesBranch && matchesDate;
+      });
 
-    // 4. Fetch Items for 15 days ending at `toDate` for charts
-    const chartFromDate = new Date(d2);
-    chartFromDate.setDate(chartFromDate.getDate() - 14);
-    const chartFromStr = getLocalStr(chartFromDate);
+      // 2. Filter Previous Period Expenses for Trend
+      const d1 = new Date(fromDate + 'T00:00:00');
+      const d2 = new Date(toDate + 'T00:00:00');
+      const days = Math.round((d2 - d1) / 86400000) + 1;
+      const prevToDate = new Date(d1);
+      prevToDate.setDate(prevToDate.getDate() - 1);
+      const prevFromDate = new Date(prevToDate);
+      prevFromDate.setDate(prevFromDate.getDate() - days + 1);
 
-    let qChartConstr = [where('date', '>=', chartFromStr), where('date', '<=', toDate)];
-    if (branch !== 'All Branches') qChartConstr.push(where('branchId', '==', branch));
-    const qChart = query(collection(db, 'expenses'), ...qChartConstr);
-    const snapChart = await getDocs(qChart);
-    let chartExpenses = snapChart.docs.map(d => d.data());
-    chartExpenses = chartExpenses.filter(filterPantry);
+      const prevTo = getLocalStr(prevToDate);
+      const prevFrom = getLocalStr(prevFromDate);
 
-    // 5. Fetch Net Sales for % COGS Calculation
-    let qSalesConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
-    if (branch !== 'All Branches') qSalesConstr.push(where('branchId', '==', branch));
-    const qSales = query(collection(db, 'daily_sales'), ...qSalesConstr);
-    const snapSales = await getDocs(qSales);
-    const totalNetSales = snapSales.docs.reduce((sum, d) => sum + (parseFloat(d.data()?.financials?.net) || 0), 0);
+      prevExpenses = cachedPantryExpenses.filter(e => {
+        const matchesBranch = branch === 'All Branches' || e.branchId === branch;
+        const matchesDate = e.date >= prevFrom && e.date <= prevTo;
+        return matchesBranch && matchesDate;
+      });
+
+      // 3. Fetch Items for the selected period
+      let qItemsConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
+      if (branch !== 'All Branches') qItemsConstr.push(where('branchId', '==', branch));
+      const qItems = query(collection(db, 'Pantry_Expense_Items_Detail'), ...qItemsConstr);
+      const snapItems = await getDocs(qItems);
+      items = snapItems.docs.map(d => d.data());
+
+      // 4. Filter Items for 15 days ending at `toDate` for charts
+      chartFromDate = new Date(d2);
+      chartFromDate.setDate(chartFromDate.getDate() - 14);
+      const chartFromStr = getLocalStr(chartFromDate);
+
+      chartExpenses = cachedPantryExpenses.filter(e => {
+        const matchesBranch = branch === 'All Branches' || e.branchId === branch;
+        const matchesDate = e.date >= chartFromStr && e.date <= toDate;
+        return matchesBranch && matchesDate;
+      });
+
+      // 5. Fetch Net Sales for % COGS Calculation
+      let qSalesConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
+      if (branch !== 'All Branches') qSalesConstr.push(where('branchId', '==', branch));
+      const qSales = query(collection(db, 'daily_sales'), ...qSalesConstr);
+      const snapSales = await getDocs(qSales);
+      totalNetSales = snapSales.docs.reduce((sum, d) => sum + (parseFloat(d.data()?.financials?.net) || 0), 0);
+
+      // Save to cache map
+      pantryCacheMap.set(cacheKey, { expenses, prevExpenses, items, chartExpenses, totalNetSales, chartFromDate });
+    }
 
     // --- Processing Top Stats ---
     const totalSpend = expenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);

@@ -851,6 +851,7 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
   });
 
   await Promise.all([...promises, logPromise]);
+  window.dispatchEvent(new CustomEvent('sales-updated'));
 }
 
 // Logic tính toán cho từng kênh (đã cập nhật cleanNumber)

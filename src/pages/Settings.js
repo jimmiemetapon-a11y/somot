@@ -427,6 +427,7 @@ export function renderSettings() {
                      await batch.commit();
                   }
                }
+               window.dispatchEvent(new CustomEvent('expenses-updated'));
 
                alert(`Success! Successfully cleared ${totalDeleted} records for ${branchId}. The card balance is now reset to its base fund.`);
                resetBtn.innerText = 'Reset Complete!';
@@ -749,6 +750,9 @@ export function renderSettings() {
               });
               await batch.commit();
            }
+         
+         window.dispatchEvent(new CustomEvent('expenses-updated'));
+         window.dispatchEvent(new CustomEvent('sales-updated'));
         }
         
         // Mark log as deleted instead of removing it (for audit trail)
