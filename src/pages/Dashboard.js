@@ -74,7 +74,7 @@ export function renderDashboard(user) {
 
   page.innerHTML = `
     <!-- Floating Typographic Greeting (Option A - Borderless) -->
-    <div class="card-stagger relative mb-8 mt-0 px-2" style="animation-delay: 0.1s">
+    <div class="card-stagger relative mb-8 mt-4 px-2" style="animation-delay: 0.1s">
       <!-- Atmospheric Background Element -->
       <div class="absolute -top-10 -left-6 opacity-[0.08] dark:opacity-[0.08] pointer-events-none select-none text-slate-800/80 dark:text-white/100">
         <i data-lucide="${weatherIcon}" class="w-32 h-32 -rotate-12"></i>
@@ -500,7 +500,7 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   const baseDailyKpi = kpiData?.daily_net || Object.values(CHANNELS).reduce((acc, c) => acc + c.kpi, 0);
   const totalKpiForPeriod = baseDailyKpi * days;
   const kpiPct = totalKpiForPeriod > 0 ? (totalNet / totalKpiForPeriod) * 100 : 0;
-  
+
   const heroBar = page.querySelector('#hero-net-bar');
   const heroPct = page.querySelector('#hero-net-pct');
   const heroTargetEl = page.querySelector('#hero-net-target');

@@ -4,19 +4,23 @@ import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, orderB
 const CHANNEL_CONFIG = {
   dinein: {
     label: 'Dine In', icon: 'id_VcqlrDV_1777185371840.svg', color: 'amber', hex: '#96588a',
-    colQty: 48, colUnitPrice: 49, colUnitDisc: 51, colInvDisc: 31, colBankTrans: 37, colId: 1, colDate: 5
+    colQty: 48, colUnitPrice: 49, colUnitDisc: 51, colInvDisc: 31, colBankTrans: 37, colId: 1, colDate: 5,
+    fileGuideline: 'KiotViet filename usually has the format: InvoiceListDetail_KV...'
   },
   grabfood: {
     label: 'GrabFood', icon: 'GrabFood.svg', color: 'emerald', hex: '#96588a',
-    colGross: 29, colMerchantDisc: 35, colDeliveryDisc: 36, colComm: 46, colMarketing: 44, colAds: 52, colOrderComm: 47, colCategory: 7, colDesc: 62, colDate: 4, colId: 15
+    colGross: 29, colMerchantDisc: 35, colDeliveryDisc: 36, colComm: 46, colMarketing: 44, colAds: 52, colOrderComm: 47, colCategory: 7, colDesc: 62, colDate: 4, colId: 15,
+    fileGuideline: 'Grab filename usually has the format: Transaction_Store_2026...._to_....'
   },
   foodpanda: {
     label: 'FoodPanda', icon: 'Foodpanda.svg', color: 'pink', hex: '#96588a',
-    colGross: 21, colCheckP: 15, colCheckS: 18, colCheckT: 19, colCheckU: 20, colDiscount: 28, colComm: 31, colTax: 26, colMarketing: 34, colAds: 33, colOthers: 29, colRefunds: 24, colDate: 8
+    colGross: 21, colCheckP: 15, colCheckS: 18, colCheckT: 19, colCheckU: 20, colDiscount: 28, colComm: 31, colTax: 26, colMarketing: 34, colAds: 33, colOthers: 29, colRefunds: 24, colDate: 8,
+    fileGuideline: 'Panda filename usually has the format: orderDetails'
   },
   online: {
     label: 'Online Order', icon: 'WooCommerce.svg', color: 'violet', hex: '#96588a',
-    colGross: 13, colDate: 18, colId: 15
+    colGross: 13, colDate: 18, colId: 15,
+    fileGuideline: 'Online Woo filename usually has the format: order'
   },
 };
 
@@ -277,6 +281,12 @@ export function renderChannelPage(channelId, activeTab = 'history') {
                    <div class="w-5 h-5 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0"><i data-lucide="alert-circle" class="w-3 h-3"></i></div>
                    Conflicts are automatically detected and highlighted.
                 </li>
+                ${cfg.fileGuideline ? `
+                <li class="flex items-start gap-3 text-[11px] text-slate-500 dark:text-white/60 font-bold">
+                   <div class="w-5 h-5 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0"><i data-lucide="file-text" class="w-3 h-3"></i></div>
+                   ${cfg.fileGuideline}
+                </li>
+                ` : ''}
              </ul>
           </div>
         </div>

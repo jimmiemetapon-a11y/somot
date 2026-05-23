@@ -235,6 +235,9 @@ export function renderPNL() {
             await wb.xlsx.load(buf);
             const ws = wb.getWorksheet(1);
 
+            // Delete the Cleaning Materials row (Row 28)
+            ws.spliceRows(28, 1);
+
             const pctVal = (val, base) => base > 0 ? val / base : 0;
 
             // Template branch columns (ExcelJS is 1-indexed)
@@ -263,20 +266,19 @@ export function renderPNL() {
               { row: 25, get: d => d.cogs.groceries, useNet: true },
               { row: 26, get: d => d.cogs.condiments, useNet: true },
               { row: 27, get: d => d.cogs.takeout, useNet: true },
-              { row: 28, get: d => d.cogs.cleaning, useNet: true },
-              { row: 29, get: d => -d.cogs.endInv, useNet: true },
-              { row: 30, get: d => d.cogs.total, useNet: true },
-              { row: 31, get: d => d.netRev - d.cogs.total, useNet: true },
-              { row: 34, get: d => d.operating.labor, useNet: true },
-              { row: 35, get: d => d.operating.marketing, useNet: true },
-              { row: 36, get: d => d.operating.sales, useNet: true },
-              { row: 37, get: d => d.operating.rental, useNet: true },
-              { row: 38, get: d => d.operating.utilities, useNet: true },
-              { row: 39, get: d => d.operating.management, useNet: true },
-              { row: 40, get: d => d.operating.depreciation, useNet: true },
-              { row: 41, get: d => d.operating.other, useNet: true },
-              { row: 42, get: d => d.operating.total, useNet: true },
-              { row: 44, get: d => (d.netRev - d.cogs.total) - d.operating.total, useNet: true },
+              { row: 28, get: d => -d.cogs.endInv, useNet: true },
+              { row: 29, get: d => d.cogs.total, useNet: true },
+              { row: 30, get: d => d.netRev - d.cogs.total, useNet: true },
+              { row: 33, get: d => d.operating.labor, useNet: true },
+              { row: 34, get: d => d.operating.marketing, useNet: true },
+              { row: 35, get: d => d.operating.sales, useNet: true },
+              { row: 36, get: d => d.operating.rental, useNet: true },
+              { row: 37, get: d => d.operating.utilities, useNet: true },
+              { row: 38, get: d => d.operating.management, useNet: true },
+              { row: 39, get: d => d.operating.depreciation, useNet: true },
+              { row: 40, get: d => d.operating.other, useNet: true },
+              { row: 41, get: d => d.operating.total, useNet: true },
+              { row: 43, get: d => (d.netRev - d.cogs.total) - d.operating.total, useNet: true },
             ];
 
             // Write data — ExcelJS preserves cell style when you only set .value
@@ -428,8 +430,7 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate) {
       'beverages': 'beverages',
       'groceries': 'groceries', 'grocery': 'groceries', 'accountant import': 'groceries',
       'condiments': 'condiments',
-      'take out materials': 'takeout',
-      'cleaning materials': 'cleaning'
+      'take out materials': 'takeout'
     };
 
     expensesData.forEach(e => {
@@ -437,6 +438,12 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate) {
       if (!pnlMap[b] || e.category?.toLowerCase() !== 'pantry' || e.fundedBy !== 'accountant') return;
       const purpose = (e.purpose || '').toLowerCase();
       const amt = parseFloat(e.amount) || 0;
+
+      if (purpose.includes('cleaning materials')) {
+        pnlMap[b].operating.other += amt;
+        pnlMap[b].operating.total += amt;
+        return;
+      }
 
       let matched = false;
       for (const [key, field] of Object.entries(cogsKeys)) {
@@ -596,7 +603,6 @@ function renderPNLTable(page, branches, data, targetMonth) {
   html += row('Groceries', d => d.cogs.groceries, false, '', '', true);
   html += row('Condiments', d => d.cogs.condiments, false, '', '', true);
   html += row('Take out materials', d => d.cogs.takeout, false, '', '', true);
-  html += row('Cleaning Materials', d => d.cogs.cleaning, false, '', '', true);
   html += row('Ending Inventory', d => -d.cogs.endInv, false, 'text-blue-600 dark:text-blue-400', '', true);
   html += row('TOTAL COGS', d => d.cogs.total, true, 'text-rose-600 dark:text-rose-400', '35.0%', true);
   html += row('GROSS PROFIT', d => d.netRev - d.cogs.total, true, 'text-emerald-600 dark:text-emerald-400', '65.0%', true);

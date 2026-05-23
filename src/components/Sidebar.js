@@ -1,3 +1,5 @@
+import logoImg from '../assets/logo-so-mot-new-01.png';
+
 const IC = {
   dash: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>`,
   dinein: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h1v2"/><path d="M21 22v-3"/></svg>`,
@@ -16,50 +18,55 @@ export function renderSidebar(activeTab, onNavigate, isCollapsed, onToggle) {
   const sidebar = document.createElement('aside');
   sidebar.className = `sidebar ${isCollapsed ? 'collapsed' : ''}`;
   sidebar.innerHTML = `
+    <!-- Logo Header Area -->
+    <div class="flex items-center justify-center h-[70px] border-b border-slate-100 dark:border-white/5 overflow-hidden shrink-0">
+      <img src="${logoImg}" class="object-contain transition-all duration-300 ${isCollapsed ? 'h-7 w-auto max-w-[40px]' : 'h-11 w-auto max-w-[180px]'}" alt="App Logo" />
+    </div>
+
     <!-- Nav -->
     <nav class="flex-1 pl-0 pr-2 py-10 space-y-1 overflow-y-auto scrollbar-hide nav-scroll-mask">
       <div class="nav-item ${activeTab === 'dashboard' ? 'active' : ''}" data-tab="dashboard" title="Dashboard">
-        <span class="icon-box">${IC.dash}</span> <span class="nav-text font-bold">Dashboard</span>
+        <span class="icon-box">${IC.dash}</span> <span class="nav-text font-bold transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">Dashboard</span>
       </div>
 
       <div class="nav-item ${activeTab === 'dinein' ? 'active' : ''}" data-tab="dinein" title="Dine In">
-        <span class="icon-box">${IC.dinein}</span> <span class="nav-text">Dine In</span>
+        <span class="icon-box">${IC.dinein}</span> <span class="nav-text transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">Dine In</span>
       </div>
       <div class="nav-item ${activeTab === 'grabfood' ? 'active' : ''}" data-tab="grabfood" title="GrabFood">
-        <span class="icon-box">${IC.grab}</span> <span class="nav-text">GrabFood</span>
+        <span class="icon-box">${IC.grab}</span> <span class="nav-text transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">GrabFood</span>
       </div>
       <div class="nav-item ${activeTab === 'foodpanda' ? 'active' : ''}" data-tab="foodpanda" title="FoodPanda">
-        <span class="icon-box">${IC.panda}</span> <span class="nav-text">FoodPanda</span>
+        <span class="icon-box">${IC.panda}</span> <span class="nav-text transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">FoodPanda</span>
       </div>
       <div class="nav-item ${activeTab === 'online' ? 'active' : ''}" data-tab="online" title="Online Order">
-        <span class="icon-box">${IC.online}</span> <span class="nav-text">Online Order</span>
+        <span class="icon-box">${IC.online}</span> <span class="nav-text transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">Online Order</span>
       </div>
 
       <div class="pt-4 opacity-20"><div class="border-t border-slate-400"></div></div>
 
       <div class="nav-item ${activeTab === 'expenses' ? 'active' : ''}" data-tab="expenses" title="Expenses">
-        <span class="icon-box">${IC.expenses}</span> <span class="nav-text">Expenses</span>
+        <span class="icon-box">${IC.expenses}</span> <span class="nav-text transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">Expenses</span>
       </div>
       <div class="nav-item ${activeTab === 'pantry_analysis' ? 'active' : ''}" data-tab="pantry_analysis" title="Pantry Analysis">
-        <span class="icon-box">${IC.analytics}</span> <span class="nav-text">Pantry Analysis</span>
+        <span class="icon-box">${IC.analytics}</span> <span class="nav-text transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">Pantry Analysis</span>
       </div>
       <div class="nav-item ${activeTab === 'opex' ? 'active' : ''}" data-tab="opex" title="Operating Expenses">
-        <span class="icon-box">${IC.opex}</span> <span class="nav-text">OPEX</span>
+        <span class="icon-box">${IC.opex}</span> <span class="nav-text transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">OPEX</span>
       </div>
       <div class="nav-item ${activeTab === 'pnl' ? 'active' : ''}" data-tab="pnl" title="P&L Statement">
-        <span class="icon-box">${IC.pnl}</span> <span class="nav-text">P&L</span>
+        <span class="icon-box">${IC.pnl}</span> <span class="nav-text transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">P&L</span>
       </div>
 
       <div class="nav-item ${activeTab === 'settings' ? 'active' : ''}" data-tab="settings" title="Settings">
-        <span class="icon-box">${IC.settings}</span> <span class="nav-text">Settings</span>
+        <span class="icon-box">${IC.settings}</span> <span class="nav-text transition-opacity duration-300 ${isCollapsed ? 'opacity-0' : 'opacity-100'}">Settings</span>
       </div>
     </nav>
 
     <!-- Footer -->
-    <div class="px-8 py-6 mt-auto sidebar-footer">
+    <div class="px-6 py-6 mt-auto sidebar-footer overflow-hidden transition-all duration-300">
       <div class="flex items-center gap-2.5">
-        <div class="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)] animate-pulse"></div>
-        <span class="text-[11px] text-slate-400 dark:text-purple-300/40 font-bold uppercase tracking-widest">Live Sync</span>
+        <div class="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)] animate-pulse shrink-0"></div>
+        <span class="text-[11px] text-slate-400 dark:text-purple-300/40 font-bold uppercase tracking-widest transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}">Live Sync</span>
       </div>
     </div>
   `;

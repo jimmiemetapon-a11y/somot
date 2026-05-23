@@ -673,17 +673,22 @@ async function loadData(branch, fromDate, toDate, force = false) {
         { keys: ['beverages'], display: 'Beverages' },
         { keys: ['groceries', 'grocery', 'accountant import'], display: 'Groceries' },
         { keys: ['condiments'], display: 'Condiments' },
-        { keys: ['take out materials'], display: 'Take out materials' },
-        { keys: ['cleaning materials'], display: 'Cleaning Materials' }
+        { keys: ['take out materials'], display: 'Take out materials' }
       ];
 
       // Sum by Fuzzy Matching
       const cogsData = cogsTargets.map(t => ({ ...t, value: 0 }));
       let otherCogsValue = 0;
+      let cleaningMaterialsValue = 0;
 
       expenses.forEach(e => {
         const p = (e.purpose || '').trim().toLowerCase();
         const amt = parseFloat(e.amount) || 0;
+
+        if (p.includes('cleaning materials')) {
+          cleaningMaterialsValue += amt;
+          return;
+        }
 
         let matched = false;
         for (const target of cogsData) {
@@ -733,6 +738,17 @@ async function loadData(branch, fromDate, toDate, force = false) {
            <span class="text-xl font-black text-indigo-600 dark:text-indigo-400 tracking-tighter">${totalCogsPct.toFixed(1)}%</span>
         </div>
       `;
+
+      if (cleaningMaterialsValue > 0) {
+        const cleaningPct = totalNetSales > 0 ? (cleaningMaterialsValue / totalNetSales) * 100 : 0;
+        html += `
+          <div class="grid grid-cols-3 px-3 py-2 border-t border-dashed border-slate-100 dark:border-white/5 items-center mt-2">
+             <span class="text-[11px] font-bold text-slate-500 uppercase">Other Exp (Cleaning)</span>
+             <span class="text-[11px] font-black text-slate-900 dark:text-white text-right tabular-nums">${fmt(cleaningMaterialsValue)}</span>
+             <span class="text-[11px] font-black text-indigo-500 text-right">${cleaningPct.toFixed(1)}%</span>
+          </div>
+        `;
+      }
 
       cogsListEl.innerHTML = html;
     }
