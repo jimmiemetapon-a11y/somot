@@ -9,10 +9,11 @@ import { renderPantryAnalysis } from './pages/PantryAnalysis.js';
 import { renderOPEX } from './pages/OPEX.js';
 import { renderPNL } from './pages/PNL.js';
 import { renderSettings } from './pages/Settings.js';
+import { renderAdminPage } from './pages/Admin.js';
 import { renderLoginPage } from './pages/Login.js';
 import { auth, db } from './firebase.js';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Router } from './utils/Router.js';
 
 let currentUser = null;
@@ -32,6 +33,7 @@ const PAGE_TITLES = {
   opex: ['Operating Expenses', 'Monthly fixed costs & overheads tracking', null, null],
   pnl: ['P&L Statement', 'Comparative financial analysis among branches', null, null],
   settings: ['Settings', 'App configuration & preferences', null, null],
+  admin: ['User Permissions', 'Configure branch & page access for managers and admin accounts', null, null],
 };
 
 const SUB_TABS_CONFIG = {};
@@ -42,11 +44,12 @@ const PAGE_MAP = {
   grabfood: () => renderChannelPage('grabfood', activeSubTab),
   foodpanda: () => renderChannelPage('foodpanda', activeSubTab),
   online: () => renderChannelPage('online', activeSubTab),
-  expenses: () => renderExpensesPage(activeSubTab),
-  pantry_analysis: () => renderPantryAnalysis(),
-  opex: () => renderOPEX(),
-  pnl: () => renderPNL(),
+  expenses: () => renderExpensesPage(activeSubTab, currentUser),
+  pantry_analysis: () => renderPantryAnalysis(currentUser),
+  opex: () => renderOPEX(currentUser),
+  pnl: () => renderPNL(currentUser),
   settings: () => renderSettings(),
+  admin: () => renderAdminPage(),
 };
 
 window.addEventListener('switch-sub-tab', (e) => {
@@ -73,6 +76,69 @@ let filterState = {
   to: yesterdayStr,
   dateRange: `${yesterdayStr} to ${yesterdayStr}`
 };
+
+function isAdminUser() {
+  return currentUser?.permissions?.isAdmin === true || ['jimmie.somot@gmail.com'].includes(currentUser?.email);
+}
+
+function hasPermission(tabId) {
+  if (isAdminUser()) return true;
+  const DEFAULT_TABS = ['dashboard', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
+  const allowedTabs = currentUser?.permissions?.allowedTabs || DEFAULT_TABS;
+
+  if (tabId === 'expenses') {
+    return allowedTabs.includes('expenses') || allowedTabs.some(t => t.startsWith('expenses/'));
+  }
+
+  return allowedTabs.includes(tabId);
+}
+
+function getFirstAllowedTab() {
+  if (isAdminUser()) return 'dashboard';
+  const DEFAULT_TABS = ['dashboard', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
+  const allowedTabs = currentUser?.permissions?.allowedTabs || DEFAULT_TABS;
+  if (allowedTabs.length > 0) {
+    return allowedTabs[0];
+  }
+  return 'dashboard';
+}
+
+function hasSubTabPermission(subTabId) {
+  if (isAdminUser()) return true;
+  const allowedTabs = currentUser?.permissions?.allowedTabs || [];
+  const hasSpecificSubTabs = allowedTabs.some(t => ['expenses/cashier', 'expenses/ledger', 'expenses/audit'].includes(t));
+  if (!hasSpecificSubTabs) return true;
+  return allowedTabs.includes(`expenses/${subTabId}`);
+}
+
+function getFirstAllowedSubTab() {
+  if (isAdminUser()) return 'cashier';
+  const allowedTabs = currentUser?.permissions?.allowedTabs || [];
+  const hasSpecificSubTabs = allowedTabs.some(t => ['expenses/cashier', 'expenses/ledger', 'expenses/audit'].includes(t));
+  if (!hasSpecificSubTabs) return 'cashier';
+  if (allowedTabs.includes('expenses/cashier')) return 'cashier';
+  if (allowedTabs.includes('expenses/ledger')) return 'ledger';
+  if (allowedTabs.includes('expenses/audit')) return 'audit';
+  return 'cashier';
+}
+
+function runWithPermission(tabId, proceedFn) {
+  if (hasPermission(tabId)) {
+    proceedFn();
+  } else {
+    window.showToast("You do not have permission to access this page.", "warning");
+    navigateTo(getFirstAllowedTab());
+  }
+}
+
+function runWithAdminPermission(proceedFn) {
+  if (isAdminUser()) {
+    proceedFn();
+  } else {
+    window.showToast("You do not have permission to access the Admin Panel.", "error");
+    navigateTo(getFirstAllowedTab());
+  }
+}
 
 function buildShell() {
   const app = document.getElementById('app');
@@ -115,7 +181,7 @@ function buildShell() {
   // 2. Persistent Sidebar (Update active state without full re-render if possible)
   // For now, we update it to ensure active tab classes match
   sidebarContainer.innerHTML = '';
-  const sidebar = renderSidebar(currentTab, navigateTo, isSidebarCollapsed, toggleSidebar);
+  const sidebar = renderSidebar(currentTab, navigateTo, isSidebarCollapsed, toggleSidebar, currentUser);
   sidebarContainer.appendChild(sidebar);
 
   // 3. Update Header
@@ -248,13 +314,32 @@ onAuthStateChanged(auth, async (user) => {
     try {
       // Fetch permissions from Firestore using email as document ID
       const permSnap = await getDoc(doc(db, 'user_permissions', user.email));
+      const isAdminEmail = ['jimmie.somot@gmail.com'].includes(user.email);
+
       if (permSnap.exists()) {
         user.permissions = permSnap.data();
-      } else {
-        // Fallback permissions if not specifically defined in DB
+      } else if (isAdminEmail) {
+        // Safe fallback for primary admin so they never get locked out
         user.permissions = {
-          allowedBranches: ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf']
+          allowedBranches: ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'],
+          allowedTabs: ['dashboard', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'],
+          isAdmin: true
         };
+        // Auto-save admin record to Firestore for consistency
+        try {
+          await setDoc(doc(db, 'user_permissions', user.email), user.permissions);
+        } catch (e) {
+          console.error("Failed to auto-write default admin config:", e);
+        }
+      } else {
+        // Kick out unauthorized user
+        await signOut(auth);
+        setTimeout(() => {
+          window.showToast("Access Denied: Your account is not whitelisted.", "error");
+        }, 500);
+        currentUser = null;
+        buildShell();
+        return;
       }
 
       // Enforce permission on current filter state
@@ -270,15 +355,50 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     // Define Routes
     router
-      .add('/dashboard', () => { currentTab = 'dashboard'; activeSubTab = null; buildShell(); })
-      .add('/expenses', () => { currentTab = 'expenses'; activeSubTab = 'cashier'; buildShell(); })
-      .add('/expenses/:tab', (params) => { currentTab = 'expenses'; activeSubTab = params.tab; buildShell(); })
-      .add('/channels/:id', (params) => { currentTab = params.id; activeSubTab = 'history'; buildShell(); })
-      .add('/channels/:id/:sub', (params) => { currentTab = params.id; activeSubTab = params.sub; buildShell(); })
-      .add('/pantry-analysis', () => { currentTab = 'pantry_analysis'; activeSubTab = null; buildShell(); })
-      .add('/opex', () => { currentTab = 'opex'; activeSubTab = null; buildShell(); })
-      .add('/pnl', () => { currentTab = 'pnl'; activeSubTab = null; buildShell(); })
-      .add('/settings', () => { currentTab = 'settings'; activeSubTab = null; buildShell(); })
+      .add('/dashboard', () => {
+        runWithPermission('dashboard', () => { currentTab = 'dashboard'; activeSubTab = null; buildShell(); });
+      })
+      .add('/expenses', () => {
+        runWithPermission('expenses', () => {
+          const firstAllowedSubTab = getFirstAllowedSubTab();
+          currentTab = 'expenses';
+          activeSubTab = firstAllowedSubTab;
+          buildShell();
+        });
+      })
+      .add('/expenses/:tab', (params) => {
+        runWithPermission('expenses', () => {
+          if (hasSubTabPermission(params.tab)) {
+            currentTab = 'expenses';
+            activeSubTab = params.tab;
+            buildShell();
+          } else {
+            window.showToast("You do not have permission to access this section.", "warning");
+            navigateTo('expenses', getFirstAllowedSubTab());
+          }
+        });
+      })
+      .add('/channels/:id', (params) => {
+        runWithPermission(params.id, () => { currentTab = params.id; activeSubTab = 'history'; buildShell(); });
+      })
+      .add('/channels/:id/:sub', (params) => {
+        runWithPermission(params.id, () => { currentTab = params.id; activeSubTab = params.sub; buildShell(); });
+      })
+      .add('/pantry-analysis', () => {
+        runWithPermission('pantry_analysis', () => { currentTab = 'pantry_analysis'; activeSubTab = null; buildShell(); });
+      })
+      .add('/opex', () => {
+        runWithPermission('opex', () => { currentTab = 'opex'; activeSubTab = null; buildShell(); });
+      })
+      .add('/pnl', () => {
+        runWithPermission('pnl', () => { currentTab = 'pnl'; activeSubTab = null; buildShell(); });
+      })
+      .add('/settings', () => {
+        runWithPermission('settings', () => { currentTab = 'settings'; activeSubTab = null; buildShell(); });
+      })
+      .add('/admin', () => {
+        runWithAdminPermission(() => { currentTab = 'admin'; activeSubTab = null; buildShell(); });
+      })
       .init();
   } else {
     buildShell();

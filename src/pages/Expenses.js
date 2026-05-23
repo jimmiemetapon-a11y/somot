@@ -11,7 +11,13 @@ let masterCache = {
    timestamp: 0
 };
 
-export async function renderExpensesPage(activeTab = 'cashier') {
+export async function renderExpensesPage(activeTab = 'cashier', user = null) {
+   const isAdmin = user?.permissions?.isAdmin === true || ['jimmie.somot@gmail.com'].includes(user?.email);
+   const allowedTabs = user?.permissions?.allowedTabs || [];
+    const hasSpecificSubTabs = allowedTabs.some(t => ['expenses/cashier', 'expenses/ledger', 'expenses/audit'].includes(t));
+    const canCashier = isAdmin || !hasSpecificSubTabs || allowedTabs.includes('expenses/cashier');
+    const canLedger = isAdmin || !hasSpecificSubTabs || allowedTabs.includes('expenses/ledger');
+    const canAudit = isAdmin || !hasSpecificSubTabs || allowedTabs.includes('expenses/audit');
    const APPROVAL_TEMPLATE_URL = '/templates/liquidation-approval-template.xlsx';
    const container = document.createElement('div');
    container.className = 'p-6 space-y-6 pb-20 page-enter';
@@ -25,7 +31,15 @@ export async function renderExpensesPage(activeTab = 'cashier') {
    let purposes = [];
    let categoryMappings = {};
    let selectedFile = null;
-   let currentBranch = document.getElementById('exp-header-branch')?.value || document.getElementById('db-branch')?.value || 'Pioneer Center';
+
+   const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+   const allowedBranches = user?.permissions?.allowedBranches || DEFAULT_BRANCHES;
+   const globalBranch = document.getElementById('db-branch')?.value;
+   let currentBranch = document.getElementById('exp-header-branch')?.value || (allowedBranches.includes(globalBranch) ? globalBranch : (allowedBranches[0] || 'Pioneer Center'));
+   if (!allowedBranches.includes(currentBranch)) {
+      currentBranch = allowedBranches[0] || 'Pioneer Center';
+   }
+
    let baseFund = 0;
    let historyLimit = 10;
    let unliquidatedTotal = 0;
@@ -53,7 +67,7 @@ export async function renderExpensesPage(activeTab = 'cashier') {
              
              <div class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[90] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
                <div class="py-2">
-                 ${['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'].map(b => `
+                 ${allowedBranches.map(b => `
                    <div class="px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" 
                         onclick="document.getElementById('exp-header-branch').value='${b}'; document.getElementById('exp-header-branch-text').innerText='${b}'; document.getElementById('exp-header-branch').dispatchEvent(new Event('change'));">
                      ${b}
@@ -72,11 +86,11 @@ export async function renderExpensesPage(activeTab = 'cashier') {
               <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
               
               <div class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[80] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
-                 <div class="py-2">
-                    <div class="exp-tab-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-tab="cashier">Cashier Dashboard</div>
-                    <div class="exp-tab-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-tab="ledger">Expenses Ledger</div>
-                    <div class="exp-tab-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-tab="audit">Audit & Verification</div>
-                 </div>
+                  <div class="py-2">
+                     ${canCashier ? `<div class="exp-tab-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-tab="cashier">Cashier Dashboard</div>` : ''}
+                     ${canLedger ? `<div class="exp-tab-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-tab="ledger">Expenses Ledger</div>` : ''}
+                     ${canAudit ? `<div class="exp-tab-option px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" data-tab="audit">Audit & Verification</div>` : ''}
+                  </div>
               </div>
            </div>
          </div>

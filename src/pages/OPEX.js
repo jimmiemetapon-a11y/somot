@@ -2,7 +2,11 @@ import { db } from '../firebase.js';
 import { collection, query, where, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 // Render OPEX Page
-export function renderOPEX() {
+export function renderOPEX(user = null) {
+  const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const allowedBranches = user?.permissions?.allowedBranches || DEFAULT_BRANCHES;
+  const activeBranchSelect = allowedBranches.includes('All Branches') ? 'All Branches' : allowedBranches[0];
+
   const page = document.createElement('div');
   page.className = 'p-6 space-y-6 page-enter min-h-full relative';
 
@@ -91,13 +95,13 @@ export function renderOPEX() {
         <div class="flex items-center gap-4 pl-4 border-l border-slate-200 dark:border-white/10">
           <!-- Branch -->
           <div class="relative group cursor-pointer flex items-center gap-1.5 h-6">
-            <input type="hidden" id="op-filter-branch" value="All Branches">
-            <span id="op-filter-branch-text" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">All Branches</span>
+            <input type="hidden" id="op-filter-branch" value="${activeBranchSelect}">
+            <span id="op-filter-branch-text" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">${activeBranchSelect}</span>
             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
             
             <div class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[90] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
               <div class="py-2">
-                ${['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'].map(b => `
+                ${allowedBranches.map(b => `
                   <div class="px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" 
                        onclick="document.getElementById('op-filter-branch').value='${b}'; document.getElementById('op-filter-branch-text').innerText='${b}'; document.getElementById('op-filter-branch').dispatchEvent(new Event('change'));">
                     ${b}
@@ -151,12 +155,12 @@ export function renderOPEX() {
     if (window.lucide) window.lucide.createIcons();
 
     // Bind Add Button
-    document.getElementById('btn-add-opex').onclick = () => openOpexModal();
+    document.getElementById('btn-add-opex').onclick = () => openOpexModal(allowedBranches);
 
     const handleUpdate = () => {
       const branchSelect = document.getElementById('op-filter-branch');
       const rangeInput = document.getElementById('op-filter-date-range');
-      const branch = branchSelect?.value || 'All Branches';
+      const branch = branchSelect?.value || activeBranchSelect;
       let fromStr = '2000-01-01', toStr = '2099-12-31';
 
       const rangeVal = rangeInput?.value || '';
@@ -166,7 +170,7 @@ export function renderOPEX() {
         fromStr = toStr = rangeVal;
       }
 
-      loadOpexData(branch, fromStr, toStr);
+      loadOpexData(branch, fromStr, toStr, allowedBranches);
     };
 
     // Setup flatpickr and local filter events
@@ -275,7 +279,7 @@ export function renderOPEX() {
 
 // ─── Data Loading ──────────────────────────────────────────────
 
-async function loadOpexData(branch, fromDate, toDate) {
+async function loadOpexData(branch, fromDate, toDate, allowedBranches = []) {
   try {
     const fmt = n => '₱' + (parseFloat(n) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -285,7 +289,12 @@ async function loadOpexData(branch, fromDate, toDate) {
     const toMonth = toDate.substring(0, 7);
 
     let qConstr = [where('month', '>=', fromMonth), where('month', '<=', toMonth)];
-    if (branch !== 'All Branches') qConstr.push(where('branchId', '==', branch));
+    if (branch !== 'All Branches') {
+      qConstr.push(where('branchId', '==', branch));
+    } else {
+      const nonAllBranches = allowedBranches.filter(ab => ab !== 'All Branches');
+      qConstr.push(where('branchId', 'in', nonAllBranches));
+    }
 
     const snap = await getDocs(query(collection(db, 'opex_records'), ...qConstr));
     const records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -322,7 +331,12 @@ async function loadOpexData(branch, fromDate, toDate) {
     // Net Sales logic for OPEX %
     let totalNetSales = 0;
     let qSalesConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
-    if (branch !== 'All Branches') qSalesConstr.push(where('branchId', '==', branch));
+    if (branch !== 'All Branches') {
+      qSalesConstr.push(where('branchId', '==', branch));
+    } else {
+      const nonAllBranches = allowedBranches.filter(ab => ab !== 'All Branches');
+      qSalesConstr.push(where('branchId', 'in', nonAllBranches));
+    }
     const snapSales = await getDocs(query(collection(db, 'daily_sales'), ...qSalesConstr));
     snapSales.docs.forEach(d => totalNetSales += (parseFloat(d.data()?.financials?.net) || 0));
 
@@ -381,11 +395,12 @@ async function loadOpexData(branch, fromDate, toDate) {
 
 let currentModal = null;
 
-async function openOpexModal() {
+async function openOpexModal(allowedBranches = []) {
   if (currentModal) currentModal.remove();
 
-  const currentBranch = document.getElementById('op-filter-branch')?.value || 'Catholic Trade';
-  const branchOptions = ['Catholic Trade', 'Pioneer Center', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const nonAllBranches = allowedBranches.filter(b => b !== 'All Branches');
+  const currentBranch = document.getElementById('op-filter-branch')?.value || nonAllBranches[0] || 'Catholic Trade';
+  const branchOptions = nonAllBranches.length ? nonAllBranches : ['Catholic Trade', 'Pioneer Center', 'Unimart Capitol', 'Ayala Cloverleaf'];
 
   // Default to current month
   const now = new Date();

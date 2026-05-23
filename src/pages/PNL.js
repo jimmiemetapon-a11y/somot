@@ -3,7 +3,22 @@ import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, setDoc,
 
 let _pnlExportState = { branches: [], data: {} };
 
-export function renderPNL() {
+window.togglePnlDeductions = (rowId) => {
+  const icon = document.getElementById(`pnl-toggle-icon-${rowId}`);
+  if (icon) {
+    const isExpanded = icon.classList.contains('rotate-90');
+    icon.classList.toggle('rotate-90', !isExpanded);
+    document.querySelectorAll(`tr[data-parent="${rowId}"]`).forEach(el => {
+      el.classList.toggle('hidden', isExpanded);
+    });
+  }
+};
+
+export function renderPNL(user = null) {
+  const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const allowedBranches = user?.permissions?.allowedBranches || DEFAULT_BRANCHES;
+  const activeBranchSelect = allowedBranches.includes('All Branches') ? 'All Branches' : allowedBranches[0];
+
   const page = document.createElement('div');
   page.className = 'page-enter h-full flex flex-col p-2 pb-0';
 
@@ -98,7 +113,7 @@ export function renderPNL() {
     const branchEl = document.getElementById('pnl-branch');
     const rangeEl = document.getElementById('pnl-date-range');
 
-    currentBranch = branchEl?.value || 'All Branches';
+    currentBranch = branchEl?.value || activeBranchSelect;
     dateRange = rangeEl?.value || '';
 
     const getLocalStr = (d) => {
@@ -117,7 +132,7 @@ export function renderPNL() {
       toStr = getLocalStr(now);
     }
 
-    await loadAndRenderPNL(page, currentBranch, fromStr, toStr);
+    await loadAndRenderPNL(page, currentBranch, fromStr, toStr, allowedBranches);
   };
 
   // Attach local filters to Header anchor
@@ -133,12 +148,12 @@ export function renderPNL() {
           <div class="w-[1px] h-4 bg-slate-200 dark:bg-white/10"></div>
           
           <div class="relative group cursor-pointer flex items-center gap-1.5 h-6">
-            <input type="hidden" id="pnl-branch" value="All Branches">
-            <span id="pnl-branch-text" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] transition-colors">All Branches</span>
+            <input type="hidden" id="pnl-branch" value="${activeBranchSelect}">
+            <span id="pnl-branch-text" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] transition-colors">${activeBranchSelect}</span>
             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] transition-colors"></i>
             <div class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[90] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
               <div class="py-2">
-                ${['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'].map(b => `
+                ${allowedBranches.map(b => `
                   <div class="px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] transition-all cursor-pointer" 
                        onclick="document.getElementById('pnl-branch').value='${b}'; document.getElementById('pnl-branch-text').innerText='${b}'; document.getElementById('pnl-branch').dispatchEvent(new Event('change'));">
                     ${b}
@@ -332,13 +347,18 @@ export function renderPNL() {
   return page;
 }
 
-async function loadAndRenderPNL(page, branchFilter, fromDate, toDate) {
+async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBranches = []) {
   const loader = page.querySelector('#pnl-loading');
   if (loader) loader.classList.remove('hidden');
 
   try {
+    // Enforce branch permission
+    if (!allowedBranches.includes(branchFilter)) {
+      throw new Error("Permission Denied: Unauthorized branch access");
+    }
+
     // 1. Identify Branches to Display
-    const allBranches = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+    const allBranches = allowedBranches.filter(b => b !== 'All Branches');
     const displayBranches = branchFilter === 'All Branches' ? allBranches : [branchFilter];
 
     // 2. Data Fetching
@@ -358,6 +378,38 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate) {
       pnlMap[b] = {
         rev: { dinein: 0, grocery: 0, online: 0, grabfood: 0, foodpanda: 0, other: 0, total: 0 },
         ded: { instore: 0, grab: 0, panda: 0, bank: 0, total: 0 },
+        dedDetails: {
+          instore: {
+            productDiscount: 0,
+            invoiceDiscount: 0,
+            discount100: 0,
+            discount: 0,
+            vatAdjustment: 0,
+            seniorCitizenDiscount: 0,
+            pwdDiscount: 0,
+            otherDiscount: 0,
+            voidInvoice: 0
+          },
+          grab: {
+            commission: 0,
+            orderCommission: 0,
+            merchantDiscount: 0,
+            deliveryDiscount: 0,
+            dineOutPromo: 0,
+            adsFee: 0,
+            marketingFee: 0,
+            adjustmentFee: 0,
+            otherBaFees: 0
+          },
+          panda: {
+            commission: 0,
+            adsFee: 0,
+            marketingFee: 0,
+            discount: 0,
+            tax: 0,
+            others: 0
+          }
+        },
         netRev: 0,
         cogs: { beginInv: 0, endInv: 0, process: 0, veggies: 0, beverages: 0, groceries: 0, condiments: 0, takeout: 0, cleaning: 0, purchases: 0, total: 0 },
         operating: { labor: 0, marketing: 0, sales: 0, rental: 0, utilities: 0, management: 0, depreciation: 0, other: 0, total: 0 }
@@ -387,29 +439,71 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate) {
 
       // Deductions Breakdown
       if (ch === 'dinein') {
-        // Normal fields
-        pnlMap[b].ded.instore += (parseFloat(brk.productDiscount) || 0) +
-          (parseFloat(brk.invoiceDiscount) || 0) +
-          (parseFloat(brk.discount100) || 0) +
-          (parseFloat(brk.discount) || 0);
+        const pd = parseFloat(brk.productDiscount) || 0;
+        const id = parseFloat(brk.invoiceDiscount) || 0;
+        const d100 = parseFloat(brk.discount100) || 0;
+        const d = parseFloat(brk.discount) || 0;
+        const va = parseFloat(brk.vatAdjustment) || 0;
+        const sc = parseFloat(brk.seniorCitizenDiscount) || 0;
+        const pwd = parseFloat(brk.pwdDiscount) || 0;
+        const od = parseFloat(brk.otherDiscount) || 0;
+        const vi = parseFloat(brk.voidInvoice) || 0;
 
-        // Ayala specific fields
-        pnlMap[b].ded.instore += (parseFloat(brk.vatAdjustment) || 0) +
-          (parseFloat(brk.seniorCitizenDiscount) || 0) +
-          (parseFloat(brk.pwdDiscount) || 0) +
-          (parseFloat(brk.otherDiscount) || 0);
+        pnlMap[b].dedDetails.instore.productDiscount += pd;
+        pnlMap[b].dedDetails.instore.invoiceDiscount += id;
+        pnlMap[b].dedDetails.instore.discount100 += d100;
+        pnlMap[b].dedDetails.instore.discount += d;
+        pnlMap[b].dedDetails.instore.vatAdjustment += va;
+        pnlMap[b].dedDetails.instore.seniorCitizenDiscount += sc;
+        pnlMap[b].dedDetails.instore.pwdDiscount += pwd;
+        pnlMap[b].dedDetails.instore.otherDiscount += od;
+        pnlMap[b].dedDetails.instore.voidInvoice += vi;
 
+        pnlMap[b].ded.instore += pd + id + d100 + d + va + sc + pwd + od;
         pnlMap[b].ded.bank += (parseFloat(brk.bankCardFee) || 0);
 
         // Adjust Gross if there's a void (as per requirement: void is not a deduction, it's a reduction of Gross)
         const voidAmt = parseFloat(brk.voidInvoice) || 0;
         if (voidAmt > 0) {
           pnlMap[b].rev.dinein -= voidAmt;
-          // The total will be recalculated later
         }
       } else if (ch === 'grabfood') {
+        const comm = parseFloat(brk.commission) || 0;
+        const ocomm = parseFloat(brk.orderCommission) || 0;
+        const mdisc = parseFloat(brk.merchantDiscount) || 0;
+        const ddisc = parseFloat(brk.deliveryDiscount) || 0;
+        const dPromo = parseFloat(brk.dineOutPromo) || 0;
+        const ads = parseFloat(brk.adsFee) || 0;
+        const mFee = parseFloat(brk.marketingFee) || 0;
+        const adj = parseFloat(brk.adjustmentFee) || 0;
+        const otherF = parseFloat(brk.otherBaFees) || 0;
+
+        pnlMap[b].dedDetails.grab.commission += comm;
+        pnlMap[b].dedDetails.grab.orderCommission += ocomm;
+        pnlMap[b].dedDetails.grab.merchantDiscount += mdisc;
+        pnlMap[b].dedDetails.grab.deliveryDiscount += ddisc;
+        pnlMap[b].dedDetails.grab.dineOutPromo += dPromo;
+        pnlMap[b].dedDetails.grab.adsFee += ads;
+        pnlMap[b].dedDetails.grab.marketingFee += mFee;
+        pnlMap[b].dedDetails.grab.adjustmentFee += adj;
+        pnlMap[b].dedDetails.grab.otherBaFees += otherF;
+
         pnlMap[b].ded.grab += (parseFloat(s.financials?.totalDeductions) || 0);
       } else if (ch === 'foodpanda') {
+        const comm = parseFloat(brk.commission) || 0;
+        const ads = parseFloat(brk.adsFee) || 0;
+        const mFee = parseFloat(brk.marketingFee) || 0;
+        const disc = parseFloat(brk.discount) || 0;
+        const tax = parseFloat(brk.tax) || 0;
+        const oth = parseFloat(brk.others) || 0;
+
+        pnlMap[b].dedDetails.panda.commission += comm;
+        pnlMap[b].dedDetails.panda.adsFee += ads;
+        pnlMap[b].dedDetails.panda.marketingFee += mFee;
+        pnlMap[b].dedDetails.panda.discount += disc;
+        pnlMap[b].dedDetails.panda.tax += tax;
+        pnlMap[b].dedDetails.panda.others += oth;
+
         pnlMap[b].ded.panda += (parseFloat(s.financials?.totalDeductions) || 0);
       } else {
         pnlMap[b].ded.instore += (parseFloat(s.financials?.totalDeductions) || 0);
@@ -540,16 +634,38 @@ function renderPNLTable(page, branches, data, targetMonth) {
   const fmt = (val) => val === 0 ? '₱0.00' : '₱' + val.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const pct = (val, net) => net > 0 ? ((val / net) * 100).toFixed(1) + '%' : '0.0%';
 
-  const row = (label, getVal, isBold = false, colorClass = '', std = '', useNet = false) => {
+  const row = (label, getVal, isBold = false, colorClass = '', std = '', useNet = false, options = {}) => {
+    const { rowId = '', parentId = '', hasChildren = false, isChild = false } = options;
+
     let baseClass = isBold ? 'font-black text-[13px]' : 'font-bold text-[12px]';
+    if (isChild) {
+      baseClass = 'font-semibold text-[11px]';
+    }
+
     let textColor = colorClass || (isBold ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400');
     if (label === '5. Operating Income (EBIT)') {
       textColor = 'text-[#96588a] dark:text-[#a46297]';
     }
+    if (isChild) {
+      textColor = 'text-slate-500 dark:text-slate-400';
+    }
+
+    const childAttr = isChild ? `data-parent="${parentId}" class="pnl-child-row hidden pnl-row-hover transition-all bg-slate-50/30 dark:bg-white/[0.01]"` : `class="pnl-row-hover transition-all"`;
+    const labelPadding = isChild ? 'pl-8' : 'pl-4';
+
+    let labelContent = label;
+    if (hasChildren) {
+      labelContent = `
+        <span class="inline-flex items-center gap-1.5 cursor-pointer select-none group/toggle" onclick="window.togglePnlDeductions('${rowId}')">
+          <i data-lucide="chevron-right" id="pnl-toggle-icon-${rowId}" class="w-3.5 h-3.5 text-slate-400 group-hover/toggle:text-[#96588a] transition-transform duration-200"></i>
+          <span>${label}</span>
+        </span>
+      `;
+    }
 
     return `
-      <tr class="pnl-row-hover transition-all">
-        <td class="pnl-sticky-desc px-4 py-2 uppercase tracking-tight border-r border-slate-100 dark:border-white/5 ${baseClass} ${textColor} whitespace-nowrap">${label}</td>
+      <tr ${childAttr}>
+        <td class="pnl-sticky-desc ${labelPadding} py-2 uppercase tracking-tight border-r border-slate-100 dark:border-white/5 ${baseClass} ${textColor} whitespace-nowrap">${labelContent}</td>
         ${branches.map(b => {
       const val = getVal(data[b]);
       const net = useNet ? data[b].netRev : data[b].rev.total;
@@ -587,9 +703,31 @@ function renderPNLTable(page, branches, data, targetMonth) {
 
   // 2. Deductions
   html += header('2. SALES DEDUCTIONS');
-  html += row('In store deductions', d => d.ded.instore);
-  html += row('Grab food deductions', d => d.ded.grab);
-  html += row('Food panda deductions', d => d.ded.panda);
+  html += row('In store deductions', d => d.ded.instore, false, '', '', false, { rowId: 'instore', hasChildren: true });
+  html += row('Product Discount', d => d.dedDetails.instore.productDiscount, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('Invoice Discount', d => d.dedDetails.instore.invoiceDiscount, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('100% Discount', d => d.dedDetails.instore.discount100, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('General Discount', d => d.dedDetails.instore.discount, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('Senior Citizen Discount', d => d.dedDetails.instore.seniorCitizenDiscount, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('PWD Discount', d => d.dedDetails.instore.pwdDiscount, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('Other Discount', d => d.dedDetails.instore.otherDiscount, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('VAT Adjustment', d => d.dedDetails.instore.vatAdjustment, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('Void Invoice (Gross Reduction)', d => d.dedDetails.instore.voidInvoice, false, '', '', false, { parentId: 'instore', isChild: true });
+
+  html += row('Grab food deductions', d => d.ded.grab, false, '', '', false, { rowId: 'grab', hasChildren: true });
+  html += row('Commission', d => d.dedDetails.grab.commission + d.dedDetails.grab.orderCommission, false, '', '', false, { parentId: 'grab', isChild: true });
+  html += row('Merchant Promo/Discounts', d => d.dedDetails.grab.merchantDiscount + d.dedDetails.grab.deliveryDiscount + d.dedDetails.grab.dineOutPromo, false, '', '', false, { parentId: 'grab', isChild: true });
+  html += row('Ads & Marketing', d => d.dedDetails.grab.adsFee + d.dedDetails.grab.marketingFee, false, '', '', false, { parentId: 'grab', isChild: true });
+  html += row('Adjustment Fee', d => d.dedDetails.grab.adjustmentFee, false, '', '', false, { parentId: 'grab', isChild: true });
+  html += row('Other Fees', d => d.dedDetails.grab.otherBaFees, false, '', '', false, { parentId: 'grab', isChild: true });
+
+  html += row('Food panda deductions', d => d.ded.panda, false, '', '', false, { rowId: 'panda', hasChildren: true });
+  html += row('Commission', d => d.dedDetails.panda.commission, false, '', '', false, { parentId: 'panda', isChild: true });
+  html += row('Ads & Marketing', d => d.dedDetails.panda.adsFee + d.dedDetails.panda.marketingFee, false, '', '', false, { parentId: 'panda', isChild: true });
+  html += row('Discounts/Promotions', d => d.dedDetails.panda.discount, false, '', '', false, { parentId: 'panda', isChild: true });
+  html += row('Tax', d => d.dedDetails.panda.tax, false, '', '', false, { parentId: 'panda', isChild: true });
+  html += row('Others', d => d.dedDetails.panda.others, false, '', '', false, { parentId: 'panda', isChild: true });
+
   html += row('Bank card', d => d.ded.bank);
   html += row('TOTAL DEDUCTIONS', d => d.ded.total, true, 'text-rose-600 dark:text-rose-400');
   html += row('NET REVENUE', d => d.netRev, true, 'text-emerald-600 dark:text-emerald-400');

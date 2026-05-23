@@ -21,9 +21,13 @@ function animateValue(el, end, formatter) {
   }, 250);
 }
 
-export function renderPantryAnalysis() {
+export function renderPantryAnalysis(user = null) {
   // Reset global chart instances for the new page instance
   if (chartTrend) { chartTrend.destroy(); chartTrend = null; }
+
+  const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const allowedBranches = user?.permissions?.allowedBranches || DEFAULT_BRANCHES;
+  const activeBranchSelect = allowedBranches.includes('All Branches') ? 'All Branches' : allowedBranches[0];
 
   const page = document.createElement('div');
   page.className = 'p-5 space-y-4 page-enter min-h-full';
@@ -210,13 +214,13 @@ export function renderPantryAnalysis() {
         <div class="flex items-center gap-4 pl-4 border-l border-slate-200 dark:border-white/10">
           <!-- Branch -->
           <div class="relative group cursor-pointer flex items-center gap-1.5 h-6">
-            <input type="hidden" id="pa-branch" value="All Branches">
-            <span id="pa-branch-text" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">All Branches</span>
+            <input type="hidden" id="pa-branch" value="${activeBranchSelect}">
+            <span id="pa-branch-text" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">${activeBranchSelect}</span>
             <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
             
             <div class="absolute top-full left-0 mt-2 w-52 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-[90] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
               <div class="py-2">
-                ${['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'].map(b => `
+                ${allowedBranches.map(b => `
                   <div class="px-5 py-3 text-[10px] font-black text-slate-600 dark:text-white/80 uppercase tracking-[0.15em] hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white transition-all cursor-pointer" 
                        onclick="document.getElementById('pa-branch').value='${b}'; document.getElementById('pa-branch-text').innerText='${b}'; document.getElementById('pa-branch').dispatchEvent(new Event('change'));">
                     ${b}
@@ -256,7 +260,7 @@ export function renderPantryAnalysis() {
       const branchSelect = document.getElementById('pa-branch');
       const rangeInput = document.getElementById('pa-date-range');
 
-      const branch = branchSelect?.value || 'All Branches';
+      const branch = branchSelect?.value || activeBranchSelect;
       const rangeVal = rangeInput?.value || '';
 
       const now = new Date();
@@ -277,7 +281,7 @@ export function renderPantryAnalysis() {
         fromStr = toStr = rangeVal;
       }
 
-      loadData(branch, fromStr, toStr, force);
+      loadData(branch, fromStr, toStr, force, allowedBranches);
     };
 
     // Setup flatpickr and local filter events
@@ -384,7 +388,7 @@ export function clearPantryCache() {
   pantryCacheMap.clear();
 }
 
-async function loadData(branch, fromDate, toDate, force = false) {
+async function loadData(branch, fromDate, toDate, force = false, allowedBranches = []) {
   try {
     const fmt = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -416,7 +420,9 @@ async function loadData(branch, fromDate, toDate, force = false) {
 
       // Filter current period expenses from global cache
       expenses = cachedPantryExpenses.filter(e => {
-        const matchesBranch = branch === 'All Branches' || e.branchId === branch;
+        const matchesBranch = branch === 'All Branches'
+          ? (allowedBranches.filter(ab => ab !== 'All Branches').includes(e.branchId))
+          : e.branchId === branch;
         const matchesDate = e.date >= fromDate && e.date <= toDate;
         return matchesBranch && matchesDate;
       });
@@ -434,14 +440,21 @@ async function loadData(branch, fromDate, toDate, force = false) {
       const prevFrom = getLocalStr(prevFromDate);
 
       prevExpenses = cachedPantryExpenses.filter(e => {
-        const matchesBranch = branch === 'All Branches' || e.branchId === branch;
+        const matchesBranch = branch === 'All Branches'
+          ? (allowedBranches.filter(ab => ab !== 'All Branches').includes(e.branchId))
+          : e.branchId === branch;
         const matchesDate = e.date >= prevFrom && e.date <= prevTo;
         return matchesBranch && matchesDate;
       });
 
       // 3. Fetch Items for the selected period
       let qItemsConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
-      if (branch !== 'All Branches') qItemsConstr.push(where('branchId', '==', branch));
+      if (branch !== 'All Branches') {
+        qItemsConstr.push(where('branchId', '==', branch));
+      } else {
+        const nonAllBranches = allowedBranches.filter(ab => ab !== 'All Branches');
+        qItemsConstr.push(where('branchId', 'in', nonAllBranches));
+      }
       const qItems = query(collection(db, 'Pantry_Expense_Items_Detail'), ...qItemsConstr);
       const snapItems = await getDocs(qItems);
       items = snapItems.docs.map(d => d.data());
@@ -452,14 +465,21 @@ async function loadData(branch, fromDate, toDate, force = false) {
       const chartFromStr = getLocalStr(chartFromDate);
 
       chartExpenses = cachedPantryExpenses.filter(e => {
-        const matchesBranch = branch === 'All Branches' || e.branchId === branch;
+        const matchesBranch = branch === 'All Branches'
+          ? (allowedBranches.filter(ab => ab !== 'All Branches').includes(e.branchId))
+          : e.branchId === branch;
         const matchesDate = e.date >= chartFromStr && e.date <= toDate;
         return matchesBranch && matchesDate;
       });
 
       // 5. Fetch Net Sales for % COGS Calculation
       let qSalesConstr = [where('date', '>=', fromDate), where('date', '<=', toDate)];
-      if (branch !== 'All Branches') qSalesConstr.push(where('branchId', '==', branch));
+      if (branch !== 'All Branches') {
+        qSalesConstr.push(where('branchId', '==', branch));
+      } else {
+        const nonAllBranches = allowedBranches.filter(ab => ab !== 'All Branches');
+        qSalesConstr.push(where('branchId', 'in', nonAllBranches));
+      }
       const qSales = query(collection(db, 'daily_sales'), ...qSalesConstr);
       const snapSales = await getDocs(qSales);
       totalNetSales = snapSales.docs.reduce((sum, d) => sum + (parseFloat(d.data()?.financials?.net) || 0), 0);
