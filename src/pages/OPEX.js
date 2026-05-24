@@ -4,7 +4,8 @@ import { collection, query, where, getDocs, doc, setDoc, deleteDoc } from 'fireb
 // Render OPEX Page
 export function renderOPEX(user = null) {
   const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
-  const allowedBranches = user?.permissions?.allowedBranches || DEFAULT_BRANCHES;
+  const isAdmin = user?.permissions?.isAdmin === true || ['jimmie.somot@gmail.com'].includes(user?.email);
+  const allowedBranches = isAdmin ? DEFAULT_BRANCHES : (user?.permissions?.allowedBranches || DEFAULT_BRANCHES);
   const activeBranchSelect = allowedBranches.includes('All Branches') ? 'All Branches' : allowedBranches[0];
 
   const page = document.createElement('div');

@@ -20,7 +20,8 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
 
   // Define options based on user permissions
   const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
-  const allowedBranches = user?.permissions?.allowedBranches || DEFAULT_BRANCHES;
+  const isAdmin = user?.permissions?.isAdmin === true || ['jimmie.somot@gmail.com'].includes(user?.email);
+  const allowedBranches = isAdmin ? DEFAULT_BRANCHES : (user?.permissions?.allowedBranches || DEFAULT_BRANCHES);
 
   header.innerHTML = `
     <!-- Left: Title / Partner Logo + Global Filters -->

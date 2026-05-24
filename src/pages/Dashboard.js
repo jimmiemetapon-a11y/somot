@@ -115,7 +115,7 @@ export function renderDashboard(user) {
             </div>
             <p class="text-slate-500 dark:text-white/60 text-[9px] font-black uppercase tracking-[0.2em]">Net Revenue</p>
           </div>
-          <div id="hero-net-trend-text" class="text-[9px] font-bold px-2 py-0.5 rounded-md bg-emerald-600 text-white">0% ^</div>
+          <div id="hero-net-trend-text" class="text-[9px] font-bold px-2 py-0.5 rounded-md bg-emerald-600 text-white">0% ▲</div>
         </div>
         
         <div class="flex items-baseline gap-3 mb-4">
@@ -127,9 +127,10 @@ export function renderDashboard(user) {
             <p id="hero-net-pct" class="text-[8px] text-slate-400 dark:text-white/40 font-black uppercase tracking-widest">0% of period target</p>
             <span id="hero-net-target" class="text-[8px] text-orange-600 dark:text-orange-500 font-black uppercase tracking-tighter">Target: ₱0.00</span>
           </div>
-          <div class="w-full h-2 bg-slate-200/50 dark:bg-white/10 rounded-full relative overflow-hidden">
+          <div class="w-full h-2 bg-slate-200/50 dark:bg-white/10 rounded-full relative">
             <div id="hero-net-bar" class="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-1000 relative rounded-full" style="width:0%">
-              <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)] animate-[shimmer_2s_infinite]"></div>
+              <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)] animate-[shimmer_2s_infinite] rounded-full"></div>
+              <div class="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 rounded-full shadow-md translate-x-1/2 transition-all duration-300" style="border-color: #f97316"></div>
             </div>
           </div>
         </div>
@@ -145,7 +146,7 @@ export function renderDashboard(user) {
               <i data-lucide="trending-up" class="w-3 h-3"></i>
               <span class="text-[9px] font-black uppercase tracking-widest">Gross</span>
             </div>
-            <div id="hero-gross-trend" class="text-[7px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-600 text-white leading-none">0% ^</div>
+            <div id="hero-gross-trend" class="text-[7px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-600 text-white leading-none">0% ▲</div>
           </div>
           <h3 id="hero-gross" class="text-lg font-black text-slate-900 dark:text-white tracking-tight">₱0.00</h3>
         </div>
@@ -175,7 +176,7 @@ export function renderDashboard(user) {
               <i data-lucide="receipt" class="w-3 h-3"></i>
               <span class="text-[9px] font-black uppercase tracking-widest">Expenses</span>
             </div>
-            <div id="hero-expenses-trend" class="text-[7px] font-bold px-1.5 py-0.5 rounded-md bg-rose-600 text-white leading-none">0% v</div>
+            <div id="hero-expenses-trend" class="text-[7px] font-bold px-1.5 py-0.5 rounded-md bg-rose-600 text-white leading-none">0% ▼</div>
           </div>
           <h3 id="hero-expenses" class="text-lg font-black text-rose-600 dark:text-rose-500 tracking-tight">₱0.00</h3>
         </div>
@@ -441,7 +442,7 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   const trendEl = page.querySelector('#hero-net-trend-text');
   if (trendEl) {
     const isUp = netTrendPct >= 0;
-    trendEl.innerHTML = `${isUp ? '+' : ''}${netTrendPct.toFixed(1)}% ${isUp ? '^' : 'v'}`;
+    trendEl.innerHTML = `${isUp ? '+' : ''}${netTrendPct.toFixed(1)}% ${isUp ? '▲' : '▼'}`;
     trendEl.className = `text-[9px] font-bold px-2 py-0.5 rounded-md text-white ${isUp ? 'bg-emerald-600' : 'bg-rose-600'}`;
   }
 
@@ -452,7 +453,7 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   const grossTrendEl = page.querySelector('#hero-gross-trend');
   if (grossTrendEl) {
     const isUp = grossTrend >= 0;
-    grossTrendEl.innerHTML = `${isUp ? '+' : ''}${grossTrend.toFixed(1)}% ${isUp ? '^' : 'v'}`;
+    grossTrendEl.innerHTML = `${isUp ? '+' : ''}${grossTrend.toFixed(1)}% ${isUp ? '▲' : '▼'}`;
     grossTrendEl.className = `text-[8px] font-bold px-1.5 py-0.5 rounded-md text-white leading-none ${isUp ? 'bg-emerald-600' : 'bg-rose-600'}`;
   }
 
@@ -466,7 +467,7 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   if (expTrendEl) {
     const isUp = expTrendPct >= 0;
     // For expenses: UP is generally bad (Rose), DOWN is good (Emerald)
-    expTrendEl.innerHTML = `${isUp ? '+' : ''}${expTrendPct.toFixed(1)}% ${isUp ? '^' : 'v'}`;
+    expTrendEl.innerHTML = `${isUp ? '+' : ''}${expTrendPct.toFixed(1)}% ${isUp ? '▲' : '▼'}`;
     expTrendEl.className = `text-[8px] font-bold px-1.5 py-0.5 rounded-md text-white leading-none ${isUp ? 'bg-rose-600' : 'bg-emerald-600'}`;
   }
 
