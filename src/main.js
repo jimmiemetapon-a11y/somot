@@ -1,6 +1,5 @@
 // src/main.js
 import './style.css';
-import { renderSidebar } from './components/Sidebar.js';
 import { renderHeader } from './components/Header.js';
 import { renderDashboard } from './pages/Dashboard.js';
 import { renderChannelPage } from './pages/ChannelPage.js';
@@ -17,7 +16,6 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Router } from './utils/Router.js';
 
 let currentUser = null;
-let isSidebarCollapsed = false;
 let currentTab = 'dashboard';
 let activeSubTab = null;
 const router = new Router();
@@ -151,51 +149,67 @@ function buildShell() {
   }
 
   // 1. Initialize Shell Containers (ONCE)
-  let sidebarContainer = document.getElementById('sidebar-container');
+  let subheaderContainer = document.getElementById('subheader-container');
   let mainContentContainer = document.getElementById('main-container');
   let contentArea = document.getElementById('page-content');
   let headerContainer = document.getElementById('header-container');
 
-  if (!sidebarContainer || !mainContentContainer) {
+  if (!mainContentContainer || !subheaderContainer || !headerContainer) {
     app.innerHTML = '';
 
-    sidebarContainer = document.createElement('div');
-    sidebarContainer.id = 'sidebar-container';
-    app.appendChild(sidebarContainer);
+    // Subheader container (left side panel)
+    subheaderContainer = document.createElement('div');
+    subheaderContainer.id = 'subheader-container';
+    subheaderContainer.className = 'flex items-center shrink-0';
+    app.appendChild(subheaderContainer);
 
+    // Main content container (holds header + content stacked vertically)
     mainContentContainer = document.createElement('div');
     mainContentContainer.id = 'main-container';
     mainContentContainer.className = 'main-content';
     app.appendChild(mainContentContainer);
 
+    // Header container (inside mainContentContainer at the top)
     headerContainer = document.createElement('div');
     headerContainer.id = 'header-container';
+    headerContainer.className = 'w-full shrink-0';
     mainContentContainer.appendChild(headerContainer);
 
+    // Page content area (inside mainContentContainer below the header)
     contentArea = document.createElement('div');
     contentArea.id = 'page-content';
     contentArea.className = 'flex-1 overflow-auto';
     mainContentContainer.appendChild(contentArea);
   }
 
-  // 2. Persistent Sidebar (Update active state without full re-render if possible)
-  // For now, we update it to ensure active tab classes match
-  sidebarContainer.innerHTML = '';
-  const sidebar = renderSidebar(currentTab, navigateTo, isSidebarCollapsed, toggleSidebar, currentUser);
-  sidebarContainer.appendChild(sidebar);
-
-  // 3. Update Header
+  // 2. Update Header
   const [title, subtitle, logoUrl, darkLogoUrl] = PAGE_TITLES[currentTab] || ['Dashboard', '', null, null];
   headerContainer.innerHTML = '';
   
   const currentRange = document.getElementById('db-date-range')?.value || filterState.dateRange;
-  const header = renderHeader(
+  const { header, subheader } = renderHeader(
     title, subtitle, toggleDarkMode, logoUrl, 
     filterState.branch, currentRange, currentUser, 
     handleSignOut, SUB_TABS_CONFIG[currentTab] || [], 
-    activeSubTab, darkLogoUrl
+    activeSubTab, darkLogoUrl, currentTab, navigateTo
   );
   headerContainer.appendChild(header);
+
+  // Check if subheader-nav is already rendered to prevent destruction/recreation stutter
+  const existingSubnav = document.getElementById('subheader-nav');
+  if (!existingSubnav) {
+    subheaderContainer.innerHTML = '';
+    subheaderContainer.appendChild(subheader);
+  } else {
+    // Only update active tab highlight on existing sidebar instance
+    existingSubnav.querySelectorAll('.subheader-item').forEach(btn => {
+      if (btn.dataset.tab === currentTab) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
 
   // 4. Trigger Page Rendering
   renderPage(currentTab);
@@ -279,15 +293,6 @@ function navigateTo(tabId, subTabId = null) {
   router.navigate(path);
 }
 
-function toggleSidebar(collapsed) {
-  isSidebarCollapsed = collapsed;
-  const app = document.getElementById('app');
-  const sidebar = document.querySelector('.sidebar');
-  if (app && sidebar) {
-    app.classList.toggle('sidebar-is-collapsed', collapsed);
-    sidebar.classList.toggle('collapsed', collapsed);
-  }
-}
 
 function toggleDarkMode() {
   document.documentElement.classList.toggle('dark');

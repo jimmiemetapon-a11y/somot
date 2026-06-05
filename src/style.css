@@ -17,6 +17,9 @@
   --app-surface: #ffffff;
   --app-border: #f1f5f9;
 
+  /* Unified Panel Background */
+  --panel-bg: #ffffff;
+
   /* --- UI Accents --- */
   --accent-rose: #f43f5e;
   --accent-emerald: #10b981;
@@ -114,16 +117,104 @@
     @apply flex h-screen overflow-hidden w-full bg-white dark:bg-[#0D0D0D];
   }
 
-  .sidebar {
-    @apply relative w-[260px] h-screen bg-white dark:bg-[#0D0D0D] border-r border-slate-100 dark:border-white/5 flex flex-col z-40 transition-all duration-300 ease-in-out;
+
+
+  /* --- Collapsible Sub-header Nav --- */
+  .subheader-nav {
+    height: 100vh;
+    width: 0;
+    opacity: 0;
+    visibility: hidden;
+    margin: 0;
+    @apply flex flex-col transition-all duration-300 ease-in-out rounded-none z-[150] shrink-0 relative;
+    background-color: #ffffff;
   }
 
-  .sidebar.collapsed {
-    @apply w-[80px];
+  .dark .subheader-nav {
+    background-color: transparent;
+  }
+
+  /* Unified Panel Overlay - Disabled for Flat Look */
+  .subheader-nav::before {
+    display: none;
+  }
+
+  /* Make all children render on top of the overlay */
+  .subheader-nav>* {
+    position: relative;
+    z-index: 10;
+  }
+
+  /* Open State */
+  .subheader-nav.open {
+    width: 260px;
+    opacity: 1;
+    visibility: visible;
+    margin: 0;
+  }
+
+  .subheader-container {
+    @apply flex flex-col py-4 px-3 gap-1 overflow-y-auto scrollbar-hide w-full flex-1;
+  }
+
+  .subheader-item {
+    @apply flex items-center gap-3 w-full px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shrink-0;
+    color: #64748b;
+    height: 42px;
+  }
+
+  .dark .subheader-item {
+    color: rgba(255, 255, 255, 0.45) !important;
+  }
+
+  .subheader-item svg {
+    stroke: currentColor;
+    @apply transition-transform duration-200;
+  }
+
+  .subheader-item:hover {
+    color: #1e293b;
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  .dark .subheader-item:hover {
+    color: rgba(255, 255, 255, 0.85) !important;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .subheader-item:hover svg {
+    @apply scale-105;
+  }
+
+  /* Active state */
+  .subheader-item.active {
+    background: rgba(150, 88, 138, 0.1) !important;
+    color: var(--brand-primary) !important;
+    font-weight: 800 !important;
+    box-shadow: none !important;
+  }
+
+  .dark .subheader-item.active {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+  }
+
+  .subheader-item.active svg {
+    stroke: currentColor !important;
+    stroke-width: 2.5px !important;
+  }
+
+  /* Hamburger button */
+  .hamburger-btn {
+    @apply w-10 h-10 flex items-center justify-center rounded-xl text-slate-600 dark:text-white/70 hover:bg-slate-100 dark:hover:bg-white/10 transition-all duration-200 cursor-pointer shrink-0;
   }
 
   .main-content {
-    @apply flex-1 flex flex-col h-screen overflow-hidden relative bg-[#f8fafc] dark:bg-[#0D0D0D];
+    @apply flex-1 flex flex-col overflow-hidden relative bg-[#f9f9f9] dark:bg-[#0D0D0D] my-3 mr-3 ml-3 rounded-2xl border border-[#f9f9f9] dark:border-white/5;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.02), 0 4px 10px -2px rgba(0, 0, 0, 0.01);
+  }
+  .dark .main-content {
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3);
   }
 
   .topbar {
@@ -135,24 +226,40 @@
   }
 
   .nav-item {
-    @apply flex items-center gap-3 pl-4 pr-2 py-3 text-sm font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer transition-all duration-300 relative shrink-0 whitespace-nowrap overflow-hidden;
+    @apply flex items-center gap-3 pl-4 pr-2 py-3 text-sm font-bold cursor-pointer transition-all duration-300 relative shrink-0 whitespace-nowrap overflow-hidden;
+    color: rgba(255, 255, 255, 0.50);
     height: 44px;
     margin: 1px 0;
     background: transparent !important;
     border-radius: 0;
   }
 
+  .nav-item:hover {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .nav-item svg {
+    stroke: rgba(255, 255, 255, 0.50);
+    transition: stroke 0.3s;
+  }
+
+  .nav-item:hover svg {
+    stroke: rgba(255, 255, 255, 0.85);
+  }
+
   .nav-item.active {
     @apply font-black;
-    background: transparent !important;
+    background: rgba(255, 255, 255, 0.08) !important;
     box-shadow: none !important;
+    border-left: 3px solid rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.95);
   }
 
   .nav-item.active .nav-text,
   .nav-item.active .icon-box svg {
-    color: #96588a !important;
-    stroke: #96588a !important;
-    stroke-width: 3px !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+    stroke: rgba(255, 255, 255, 0.95) !important;
+    stroke-width: 2.5px !important;
   }
 
   /* Sophisticated Soft Fade Scroll Mask */
@@ -174,13 +281,14 @@
   }
 
   .nav-item.active {
-    @apply text-white font-extrabold shadow-lg;
-    background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
-    box-shadow: 0 10px 20px -5px rgba(var(--brand-primary-rgb), 0.4);
+    @apply font-extrabold;
+    background: rgba(255, 255, 255, 0.10) !important;
+    border-left: 3px solid rgba(255, 255, 255, 0.7);
+    box-shadow: none;
   }
 
   .nav-item.active:hover {
-    background: linear-gradient(135deg, var(--brand-primary-light) 0%, var(--brand-primary) 100%);
+    background: rgba(255, 255, 255, 0.15) !important;
   }
 
   /* ── Channel Summary Cards ── */

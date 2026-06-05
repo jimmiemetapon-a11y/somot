@@ -132,8 +132,8 @@ export function renderAdminPage() {
     // Filter list
     const filtered = rawUsers.filter(user => {
       const matchesSearch = user.email.toLowerCase().includes(searchQuery);
-      const matchesRole = roleFilter === 'all' 
-        ? true 
+      const matchesRole = roleFilter === 'all'
+        ? true
         : roleFilter === 'admin' ? !!user.isAdmin : !user.isAdmin;
       return matchesSearch && matchesRole;
     });
@@ -160,30 +160,30 @@ export function renderAdminPage() {
       // Branch Badges logic
       let branchBadges = '';
       if (isAdmin || branches.length === ALL_BRANCHES.length || branches.includes('All Branches')) {
-        branchBadges = `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20"><span class="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span>All Branches</span>`;
+        branchBadges = `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20"><span class="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span>All Branches</span>`;
       } else if (branches.length === 0) {
         branchBadges = `<span class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider italic">No Branch Access</span>`;
       } else {
-        branchBadges = branches.map(b => `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-500/10 text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/15">${b}</span>`).join('');
+        branchBadges = branches.map(b => `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/15">${b}</span>`).join('');
       }
 
       // Tab Badges logic
       let tabBadges = '';
       if (isAdmin || tabs.length === ALL_TABS.length) {
-        tabBadges = `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20"><span class="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span>Full Access</span>`;
+        tabBadges = `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20"><span class="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></span>Full Access</span>`;
       } else if (tabs.length === 0) {
         tabBadges = `<span class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider italic">No Tab Access</span>`;
       } else {
         tabBadges = tabs.map(t => {
           const label = ALL_TABS.find(x => x.id === t)?.label || t;
-          return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 dark:bg-purple-500/10 text-[9px] font-black uppercase tracking-wider text-[#96588a] dark:text-purple-400 border border-purple-100 dark:border-purple-500/15">${label}</span>`;
+          return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-[9px] font-black uppercase tracking-wider text-[#96588a] dark:text-purple-400 border border-purple-100 dark:border-purple-500/15">${label}</span>`;
         }).join('');
       }
 
       // Role badge
       const roleBadge = isAdmin
-        ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-500/10 text-[8px] font-black uppercase tracking-widest text-rose-500 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20">Admin</span>`
-        : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/5 text-[8px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/5">Manager</span>`;
+        ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/10 text-[8px] font-black uppercase tracking-widest text-rose-500 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20">Admin</span>`
+        : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 text-[8px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/5">Manager</span>`;
 
       return `
         <div class="p-6 rounded-[2rem] bg-white/50 dark:bg-white/[0.01] border border-slate-100 dark:border-white/5 backdrop-blur-xl hover:bg-white dark:hover:bg-white/[0.03] hover:shadow-xl hover:shadow-purple-500/[0.01] transition-all duration-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -222,10 +222,10 @@ export function renderAdminPage() {
 
           <!-- Action Buttons -->
           <div class="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end border-t border-slate-100 dark:border-white/5 pt-4 md:pt-0 md:border-t-0">
-            <button class="edit-user-btn px-4 py-3 bg-slate-100 hover:bg-[#96588a] hover:text-white dark:bg-white/5 dark:hover:bg-[#96588a] text-slate-700 dark:text-slate-300 rounded-full text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 hover:scale-[1.03] active:scale-95 shadow-sm" data-email="${user.email}">
+            <button class="edit-user-btn px-4 py-3 bg-slate-100 hover:bg-[#96588a] hover:text-white dark:bg-white/5 dark:hover:bg-[#96588a] text-slate-700 dark:text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 hover:scale-[1.03] active:scale-95 shadow-sm" data-email="${user.email}">
               <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
             </button>
-            <button class="delete-user-btn px-4 py-3 bg-rose-50 dark:bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-full text-[9px] font-black uppercase tracking-widest border border-rose-100 dark:border-rose-500/20 transition-all flex items-center gap-1.5 hover:scale-[1.03] active:scale-95 shadow-sm" data-email="${user.email}">
+            <button class="delete-user-btn px-4 py-3 bg-rose-50 dark:bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest border border-rose-100 dark:border-rose-500/20 transition-all flex items-center gap-1.5 hover:scale-[1.03] active:scale-95 shadow-sm" data-email="${user.email}">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
             </button>
           </div>
@@ -313,8 +313,8 @@ export function renderAdminPage() {
             <label class="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] px-1">Allowed Branches Access</label>
             <div class="grid grid-cols-2 gap-3">
               ${ALL_BRANCHES.map((branch) => {
-                const checked = userBranches.includes(branch) ? 'checked' : '';
-                return `
+      const checked = userBranches.includes(branch) ? 'checked' : '';
+      return `
                   <label class="relative flex items-center gap-3 p-4 rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/5 transition-all select-none group">
                     <input type="checkbox" name="modal-branch" value="${branch}" ${checked} class="peer sr-only">
                     <!-- Custom Checkbox -->
@@ -324,7 +324,7 @@ export function renderAdminPage() {
                     <span class="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 peer-checked:text-[#96588a] dark:peer-checked:text-purple-400 transition-colors">${branch}</span>
                   </label>
                 `;
-              }).join('')}
+    }).join('')}
             </div>
           </div>
 
@@ -333,8 +333,8 @@ export function renderAdminPage() {
             <label class="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] px-1">Allowed Tabs Access</label>
             <div class="grid grid-cols-2 gap-3">
               ${ALL_TABS.map((tab) => {
-                const checked = userTabs.includes(tab.id) ? 'checked' : '';
-                return `
+      const checked = userTabs.includes(tab.id) ? 'checked' : '';
+      return `
                   <label class="relative flex items-center gap-3 p-4 rounded-2xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] cursor-pointer hover:bg-slate-100/50 dark:hover:bg-white/5 transition-all select-none group">
                     <input type="checkbox" name="modal-tab" value="${tab.id}" ${checked} class="peer sr-only">
                     <!-- Custom Checkbox -->
@@ -344,7 +344,7 @@ export function renderAdminPage() {
                     <span class="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 peer-checked:text-[#96588a] dark:peer-checked:text-purple-400 transition-colors">${tab.label}</span>
                   </label>
                 `;
-              }).join('')}
+    }).join('')}
             </div>
           </div>
         </div>

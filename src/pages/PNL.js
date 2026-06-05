@@ -36,25 +36,36 @@ export function renderPNL(user = null) {
         position: sticky; 
         top: 0; 
         z-index: 100;
-        background: #ffffff;
-        border-bottom: 1px solid rgba(150, 88, 138, 0.2);
+        background: #072a20 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
       }
-      .dark #pnl-main-table thead th { 
-        background: #1a1a1a;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      #pnl-main-table thead th:first-child {
+        border-left: none !important;
+      }
+      
+      /* Make all header texts white on green background */
+      #pnl-main-table thead th,
+      #pnl-main-table thead th h2,
+      #pnl-main-table thead th div,
+      #pnl-main-table thead th span { 
+        color: #ffffff !important;
+      }
+      #pnl-main-table thead th p {
+        color: rgba(255, 255, 255, 0.6) !important;
       }
       
       #pnl-main-table .pnl-section-header td { 
         position: sticky; 
         top: 60px;
         z-index: 90;
-        background: #eef2ff; /* Indigo 50 */
-        color: #312e81; /* Indigo 900 */
-        border-bottom: 1px solid rgba(49, 46, 129, 0.1);
+        background: #eef7f4 !important; /* Extremely light forest green */
+        color: #072a20 !important; /* Rich Dark Forest Green */
+        border-bottom: 1px solid rgba(7, 42, 32, 0.1);
       }
       .dark #pnl-main-table .pnl-section-header td { 
-        background: #1e1b4b; /* Deep Indigo for dark mode */
-        color: #e0e7ff;
+        background: #0d2820 !important; /* Deep forest green for dark mode */
+        color: #a7d3c7 !important; /* Soft sage green */
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       }
       
