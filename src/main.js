@@ -2,6 +2,7 @@
 import './style.css';
 import { renderHeader } from './components/Header.js';
 import { renderDashboard } from './pages/Dashboard.js';
+import { renderPerformancePage } from './pages/Performance.js';
 import { renderChannelPage } from './pages/ChannelPage.js';
 import { renderExpensesPage } from './pages/Expenses.js';
 import { renderPantryAnalysis } from './pages/PantryAnalysis.js';
@@ -22,6 +23,7 @@ const router = new Router();
 
 const PAGE_TITLES = {
   dashboard: ['Dashboard', 'Revenue overview across all channels', null, null],
+  performance: ['Performance', 'Hourly sales progress report', null, null],
   dinein: ['Dine In', 'In-house dining revenue', 'id_VcqlrDV_1777185371840.svg', 'kiotviet_dark.svg'],
   grabfood: ['GrabFood', 'GrabFood delivery channel', 'GrabFood.svg', 'Grab_dark.svg'],
   foodpanda: ['FoodPanda', 'FoodPanda delivery channel', 'Foodpanda.svg', 'panda_dark.svg'],
@@ -38,6 +40,7 @@ const SUB_TABS_CONFIG = {};
 
 const PAGE_MAP = {
   dashboard: () => renderDashboard(currentUser),
+  performance: () => renderPerformancePage(currentUser),
   dinein: () => renderChannelPage('dinein', activeSubTab),
   grabfood: () => renderChannelPage('grabfood', activeSubTab),
   foodpanda: () => renderChannelPage('foodpanda', activeSubTab),
@@ -81,7 +84,7 @@ function isAdminUser() {
 
 function hasPermission(tabId) {
   if (isAdminUser()) return true;
-  const DEFAULT_TABS = ['dashboard', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
+  const DEFAULT_TABS = ['dashboard', 'performance', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
   const allowedTabs = currentUser?.permissions?.allowedTabs || DEFAULT_TABS;
 
   if (tabId === 'expenses') {
@@ -93,7 +96,7 @@ function hasPermission(tabId) {
 
 function getFirstAllowedTab() {
   if (isAdminUser()) return 'dashboard';
-  const DEFAULT_TABS = ['dashboard', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
+  const DEFAULT_TABS = ['dashboard', 'performance', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
   const allowedTabs = currentUser?.permissions?.allowedTabs || DEFAULT_TABS;
   if (allowedTabs.length > 0) {
     return allowedTabs[0];
@@ -327,7 +330,7 @@ onAuthStateChanged(auth, async (user) => {
         // Safe fallback for primary admin so they never get locked out
         user.permissions = {
           allowedBranches: ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'],
-          allowedTabs: ['dashboard', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'],
+          allowedTabs: ['dashboard', 'performance', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'],
           isAdmin: true
         };
         // Auto-save admin record to Firestore for consistency
@@ -362,6 +365,9 @@ onAuthStateChanged(auth, async (user) => {
     router
       .add('/dashboard', () => {
         runWithPermission('dashboard', () => { currentTab = 'dashboard'; activeSubTab = null; buildShell(); });
+      })
+      .add('/performance', () => {
+        runWithPermission('performance', () => { currentTab = 'performance'; activeSubTab = null; buildShell(); });
       })
       .add('/expenses', () => {
         runWithPermission('expenses', () => {

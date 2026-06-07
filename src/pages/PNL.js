@@ -529,7 +529,7 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
       pnlMap[b].netRev = pnlMap[b].rev.total - pnlMap[b].ded.total;
     });
 
-    // Process COGS (Expenses with category 'pantry')
+    // Process COGS & Operating Expenses from recorded expenses
     const cogsKeys = {
       'process products': 'process',
       'vegetables': 'veggies', 'vegtables': 'veggies',
@@ -539,25 +539,80 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
       'take out materials': 'takeout'
     };
 
+    const mapCategoryToPnlField = (category) => {
+      const cat = (category || '').toLowerCase().trim();
+      if (!cat) return null;
+
+      // 1. COGS (1 to 6)
+      if (cat.includes('process')) return { type: 'cogs', field: 'process' };
+      if (cat.includes('veg')) return { type: 'cogs', field: 'veggies' };
+      if (cat.includes('bev')) return { type: 'cogs', field: 'beverages' };
+      if (cat.includes('groc')) return { type: 'cogs', field: 'groceries' };
+      if (cat.includes('condiment')) return { type: 'cogs', field: 'condiments' };
+      if (cat.includes('take out') || cat.includes('takeout')) return { type: 'cogs', field: 'takeout' };
+
+      // 2. OPEX (7 to 14)
+      if (cat.includes('allowance') || cat.includes('benefit') || cat.includes('labor') || cat.includes('meal')) return { type: 'opex', field: 'labor' };
+      if (cat.includes('marketing')) return { type: 'opex', field: 'marketing' };
+      if (cat.includes('online')) return { type: 'opex', field: 'sales' };
+      if (cat.includes('rental') || cat.includes('rent')) return { type: 'opex', field: 'rental' };
+      
+      if (cat.includes('electricity') || cat.includes('electric') || cat.includes('gas') || cat.includes('water')) {
+        return { type: 'opex', field: 'utilities' };
+      }
+      
+      if (cat.includes('internet') || cat.includes('load') || cat.includes('maintenance') || 
+          cat.includes('representation') || cat.includes('stationery') || cat.includes('transport')) {
+        return { type: 'opex', field: 'management' };
+      }
+      
+      if (cat.includes('equipment') || cat.includes('asset') || cat.includes('depreciation')) {
+        return { type: 'opex', field: 'depreciation' };
+      }
+      
+      if (cat.includes('cleaning') || cat.includes('clean') || cat.includes('share') || cat.includes('other')) {
+        return { type: 'opex', field: 'other' };
+      }
+
+      return null;
+    };
+
     expensesData.forEach(e => {
       const b = e.branchId;
-      if (!pnlMap[b] || e.category?.toLowerCase() !== 'pantry' || e.fundedBy !== 'accountant') return;
+      if (!pnlMap[b]) return;
+      const category = (e.category || '').toLowerCase().trim();
       const purpose = (e.purpose || '').toLowerCase();
       const amt = parseFloat(e.amount) || 0;
 
-      if (purpose.includes('cleaning materials')) {
-        pnlMap[b].operating.other += amt;
-        pnlMap[b].operating.total += amt;
-        return;
+      // 1. Old pantry accountant logic
+      if (category === 'pantry' && e.fundedBy === 'accountant') {
+        if (purpose.includes('cleaning materials')) {
+          pnlMap[b].operating.other += amt;
+          pnlMap[b].operating.total += amt;
+          return;
+        }
+
+        let matched = false;
+        for (const [key, field] of Object.entries(cogsKeys)) {
+          if (purpose.includes(key)) {
+            pnlMap[b].cogs[field] += amt;
+            pnlMap[b].cogs.purchases += amt;
+            matched = true;
+            break;
+          }
+        }
+        if (matched) return;
       }
 
-      let matched = false;
-      for (const [key, field] of Object.entries(cogsKeys)) {
-        if (purpose.includes(key)) {
-          pnlMap[b].cogs[field] += amt;
+      // 2. New mapping using substring keywords for both petty cash and accountant
+      const mapped = mapCategoryToPnlField(category);
+      if (mapped) {
+        if (mapped.type === 'cogs') {
+          pnlMap[b].cogs[mapped.field] += amt;
           pnlMap[b].cogs.purchases += amt;
-          matched = true;
-          break;
+        } else if (mapped.type === 'opex') {
+          pnlMap[b].operating[mapped.field] += amt;
+          pnlMap[b].operating.total += amt;
         }
       }
     });

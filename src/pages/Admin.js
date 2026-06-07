@@ -8,6 +8,7 @@ export function renderAdminPage() {
   const ALL_BRANCHES = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
   const ALL_TABS = [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'performance', label: 'Performance' },
     { id: 'dinein', label: 'Dine In' },
     { id: 'grabfood', label: 'GrabFood' },
     { id: 'foodpanda', label: 'FoodPanda' },

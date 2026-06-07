@@ -119,6 +119,79 @@ function standardizeDate(val, channelId) {
   return getLocalDateString(dObj);
 }
 
+function standardizeDateWithHour(val, channelId) {
+  if (val === undefined || val === null || String(val).trim() === '') return { dateKey: null, hour: 0 };
+
+  let year, month, day, hours = 0, minutes = 0;
+
+  if (typeof val === 'number') {
+    const totalDays = Math.floor(val);
+    const timeFraction = val - totalDays;
+
+    const totalMinutes = Math.round(timeFraction * 24 * 60);
+    hours = Math.floor(totalMinutes / 60);
+    minutes = totalMinutes % 60;
+
+    const daysSinceEpoch = totalDays - 25569;
+    const refDate = new Date(1970, 0, 1 + daysSinceEpoch, hours, minutes);
+
+    year = refDate.getFullYear();
+    month = refDate.getMonth();
+    day = refDate.getDate();
+    hours = refDate.getHours();
+    minutes = refDate.getMinutes();
+  } else {
+    const str = String(val).trim();
+    const datePart = str.split(' ')[0];
+
+    let y, m, d;
+    if (datePart.includes('/')) {
+      const p = datePart.split('/');
+      if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }
+      else if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }
+    } else if (datePart.includes('-')) {
+      const p = datePart.split('-');
+      if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }
+      else if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }
+    }
+
+    if (y && m && d) {
+      const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
+      year = parseInt(y);
+      month = parseInt(m) - 1;
+      day = parseInt(d);
+      hours = timeMatch ? parseInt(timeMatch[1]) : 0;
+      minutes = timeMatch ? parseInt(timeMatch[2]) : 0;
+    } else {
+      const fallback = new Date(str);
+      if (!isNaN(fallback.getTime())) {
+        year = fallback.getFullYear();
+        month = fallback.getMonth();
+        day = fallback.getDate();
+        hours = fallback.getHours();
+        minutes = fallback.getMinutes();
+      } else {
+        return { dateKey: null, hour: 0 };
+      }
+    }
+  }
+
+  const dObj = new Date(year, month, day, hours, minutes);
+
+  if (isNaN(dObj.getTime())) return { dateKey: null, hour: 0 };
+
+  const originalHour = hours;
+
+  if (channelId === 'dinein' && hours < 2) {
+    dObj.setDate(dObj.getDate() - 1);
+  }
+
+  return {
+    dateKey: getLocalDateString(dObj),
+    hour: originalHour
+  };
+}
+
 function parseAyalaDate(val) {
   if (!val) return null;
   let str = String(val).trim();
@@ -820,6 +893,7 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
         totalDeductions: res.totalDed
       },
       breakdown: res.breakdown,
+      hourlyNet: res.hourlyNet || null,
       importBatchId: batchId,
       updatedAt: serverTimestamp()
     };
@@ -842,6 +916,15 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
             mergedDeductions[k] = (mergedDeductions[k] || 0) + v;
           });
           dataToSave.breakdown.deductions = mergedDeductions;
+        }
+
+        // Merge hourlyNet
+        if (res.hourlyNet) {
+          const mergedHourly = { ...(old.hourlyNet || {}) };
+          Object.entries(res.hourlyNet).forEach(([hr, val]) => {
+            mergedHourly[hr] = (mergedHourly[hr] || 0) + val;
+          });
+          dataToSave.hourlyNet = mergedHourly;
         }
       }
     }
@@ -867,7 +950,17 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
 // Logic tính toán cho từng kênh (đã cập nhật cleanNumber)
 function calculateOnline(rows, cfg) {
   let gross = 0;
-  rows.forEach(row => { gross += cleanNumber(row[cfg.colGross]); });
+  const hourlyNet = {};
+
+  rows.forEach(row => { 
+    const val = cleanNumber(row[cfg.colGross]);
+    gross += val;
+
+    const dateVal = row[cfg.colDate];
+    const { hour } = standardizeDateWithHour(dateVal, 'online');
+    const hrStr = String(hour).padStart(2, '0');
+    hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + val;
+  });
 
   const breakdown = {
     deductions: {},
@@ -878,7 +971,8 @@ function calculateOnline(rows, cfg) {
     net: gross, gross, orders: rows.length, totalDed: 0, breakdown, details: [
       { label: 'Gross Sale', val: gross, color: 'text-slate-600' },
       { label: 'Total Deduction', val: 0, color: 'text-rose-700 font-bold', isDed: true }
-    ]
+    ],
+    hourlyNet
   };
 }
 
@@ -891,17 +985,47 @@ function calculateGrab(rows, cfg) {
   let adjustment_fee = 0;
   let other_ba_fees = 0;
 
+  const hourlyGross = {};
+  const hourlyNet = {};
+  let totalGeneralDeductions = 0;
+
   rows.forEach(row => {
     let g = cleanNumber(row[cfg.colGross]);
     const orderId = String(row[cfg.colId] || '').trim();
 
+    let rowMerchantDisc = 0;
+    let rowDeliveryDisc = 0;
+    let rowComm = 0;
+    let rowMarketing = 0;
+    let rowOrderComm = 0;
+    let rowAdsFee = 0;
+    let rowDineOut = 0;
+    let rowAdjustment = 0;
+    let rowOther = 0;
+
+    const dateVal = row[cfg.colDate];
+    const { hour } = standardizeDateWithHour(dateVal, 'grabfood');
+    const hrStr = String(hour).padStart(2, '0');
+
     if (g > 0) {
       gross += g;
-      merchantDisc += Math.abs(cleanNumber(row[cfg.colMerchantDisc]));
-      deliveryDisc += Math.abs(cleanNumber(row[cfg.colDeliveryDisc]));
-      comm += Math.abs(cleanNumber(row[cfg.colComm]));
-      marketing += Math.abs(cleanNumber(row[cfg.colMarketing]));
-      orderComm += Math.abs(cleanNumber(row[cfg.colOrderComm]));
+      rowMerchantDisc = Math.abs(cleanNumber(row[cfg.colMerchantDisc]));
+      rowDeliveryDisc = Math.abs(cleanNumber(row[cfg.colDeliveryDisc]));
+      rowComm = Math.abs(cleanNumber(row[cfg.colComm]));
+      rowMarketing = Math.abs(cleanNumber(row[cfg.colMarketing]));
+      rowOrderComm = Math.abs(cleanNumber(row[cfg.colOrderComm]));
+
+      merchantDisc += rowMerchantDisc;
+      deliveryDisc += rowDeliveryDisc;
+      comm += rowComm;
+      marketing += rowMarketing;
+      orderComm += rowOrderComm;
+
+      const rowSpecificDed = rowMerchantDisc + rowDeliveryDisc + rowComm + rowMarketing + rowOrderComm;
+      const rowNet = g - rowSpecificDed;
+
+      hourlyGross[hrStr] = (hourlyGross[hrStr] || 0) + g;
+      hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + rowNet;
     }
 
     // Đếm đơn dựa trên ID cột P (15)
@@ -922,10 +1046,27 @@ function calculateGrab(rows, cfg) {
       } else {
         other_ba_fees += absVal;
       }
+      totalGeneralDeductions += absVal;
     }
   });
 
   const totalDed = merchantDisc + deliveryDisc + comm + marketing + orderComm + ads_fee + dine_out_promo + adjustment_fee + other_ba_fees;
+
+  // Phân bổ phí chung (General Deductions) theo tỷ lệ doanh thu Gross của từng giờ
+  if (totalGeneralDeductions > 0) {
+    if (gross > 0) {
+      Object.keys(hourlyNet).forEach(hr => {
+        const hrGross = hourlyGross[hr] || 0;
+        const share = totalGeneralDeductions * (hrGross / gross);
+        hourlyNet[hr] -= share;
+      });
+    } else {
+      for (let h = 0; h < 24; h++) {
+        const hrStr = String(h).padStart(2, '0');
+        hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) - (totalGeneralDeductions / 24);
+      }
+    }
+  }
 
   const breakdown = {
     deductions: {
@@ -953,12 +1094,14 @@ function calculateGrab(rows, cfg) {
       { label: 'Dine Out Promo', val: dine_out_promo, color: 'text-rose-500', isDed: true },
       { label: 'Adjustments', val: adjustment_fee, color: 'text-amber-600', isDed: true },
       { label: 'Total Deduction', val: totalDed, color: 'text-rose-700 font-black', isDed: true }
-    ]
+    ],
+    hourlyNet
   };
 }
 
 function calculatePanda(rows, cfg) {
   let gross = 0, disc = 0, comm = 0, tax = 0, marketing = 0, ads = 0, others = 0, refunds = 0, orders = 0;
+  const hourlyNet = {};
 
   rows.forEach(row => {
     // Logic Hủy đơn: ô P trống VÀ (ô S HOẶC T HOẶC U có dữ liệu)
@@ -970,23 +1113,41 @@ function calculatePanda(rows, cfg) {
     const isCancelled = (pVal === '') && (sVal !== '' || tVal !== '' || uVal !== '');
 
     let g = cleanNumber(row[cfg.colGross]);
+    let rowGross = 0;
 
     // Nếu không hủy thì mới cộng vào Gross Sale
     if (!isCancelled && g !== 0) {
+      rowGross = g;
       gross += g;
       orders++;
     }
 
     // Deduction tính tổng toàn bộ cột theo yêu cầu
-    disc += Math.abs(cleanNumber(row[cfg.colDiscount]));
-    comm += Math.abs(cleanNumber(row[cfg.colComm]));
-    tax += Math.abs(cleanNumber(row[cfg.colTax]));
-    marketing += Math.abs(cleanNumber(row[cfg.colMarketing]));
-    ads += Math.abs(cleanNumber(row[cfg.colAds]));
-    others += Math.abs(cleanNumber(row[cfg.colOthers]));
+    const rowDisc = Math.abs(cleanNumber(row[cfg.colDiscount]));
+    const rowComm = Math.abs(cleanNumber(row[cfg.colComm]));
+    const rowTax = Math.abs(cleanNumber(row[cfg.colTax]));
+    const rowMarketing = Math.abs(cleanNumber(row[cfg.colMarketing]));
+    const rowAds = Math.abs(cleanNumber(row[cfg.colAds]));
+    const rowOthers = Math.abs(cleanNumber(row[cfg.colOthers]));
+
+    disc += rowDisc;
+    comm += rowComm;
+    tax += rowTax;
+    marketing += rowMarketing;
+    ads += rowAds;
+    others += rowOthers;
 
     // Other Incomes (Vendor Refunds) - tổng cột Y
-    refunds += cleanNumber(row[cfg.colRefunds]);
+    const rowRefund = cleanNumber(row[cfg.colRefunds]);
+    refunds += rowRefund;
+
+    const rowTotalDed = rowDisc + rowComm + rowTax + rowMarketing + rowAds + rowOthers;
+    const rowNet = rowGross - rowTotalDed + rowRefund;
+
+    const dateVal = row[cfg.colDate];
+    const { hour } = standardizeDateWithHour(dateVal, 'foodpanda');
+    const hrStr = String(hour).padStart(2, '0');
+    hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + rowNet;
   });
 
   const totalDed = disc + comm + tax + marketing + ads + others;
@@ -1021,7 +1182,8 @@ function calculatePanda(rows, cfg) {
       { label: 'Others Deductions', val: others, color: 'text-rose-500', isDed: true },
       { label: 'Other Incomes', val: refunds, color: 'text-emerald-500', isIncome: true },
       { label: 'Total Deduction', val: totalDed, color: 'text-rose-700 font-bold', isDed: true }
-    ]
+    ],
+    hourlyNet
   };
 }
 
@@ -1071,64 +1233,89 @@ function calculateAyalaDineIn(rows) {
 
 function calculateDineIn(rows, cfg) {
   let gross = 0, productDisc = 0, invoiceDisc = 0, totalBankTrans = 0, grabDineOut = 0, discount100 = 0;
-  const ids = new Set(), invoiceDiscProcessed = new Set(), bankProcessed = new Set();
+  const ids = new Set();
 
+  const orderRowsMap = {};
   rows.forEach(row => {
     const id = String(row[cfg.colId] || '').trim();
     if (!id) return;
+    if (!orderRowsMap[id]) orderRowsMap[id] = [];
+    orderRowsMap[id].push(row);
+  });
 
-    // Các cột kiểm tra thanh toán
-    const akVal = cleanNumber(row[36]);
-    const alVal = cleanNumber(row[cfg.colBankTrans]); // AL is 37
-    const amVal = cleanNumber(row[38]);
-    const anVal = cleanNumber(row[39]);
-    const aiVal = cleanNumber(row[34]);
-    const ajVal = cleanNumber(row[35]);
+  const hourlyNet = {};
 
-    const qty = cleanNumber(row[cfg.colQty]);
-    const uPrice = cleanNumber(row[cfg.colUnitPrice]);
-    const rowGross = (qty * uPrice);
+  Object.entries(orderRowsMap).forEach(([id, oRows]) => {
+    ids.add(id);
 
-    // Kiểm tra logic Grab Dine Out vs 100% Discount
+    let orderGross = 0;
+    let orderProductDisc = 0;
+    let orderInvoiceDisc = 0;
+    let orderBankTrans = 0;
+    let orderDiscount100 = 0;
+
+    const firstRow = oRows[0];
+    const dateVal = firstRow[cfg.colDate];
+    const { hour } = standardizeDateWithHour(dateVal, 'dinein');
+    const hrStr = String(hour).padStart(2, '0');
+
+    const akVal = cleanNumber(firstRow[36]);
+    const alVal = cleanNumber(firstRow[cfg.colBankTrans]); // AL is 37
+    const amVal = cleanNumber(firstRow[38]);
+    const anVal = cleanNumber(firstRow[39]);
+    const aiVal = cleanNumber(firstRow[34]);
+    const ajVal = cleanNumber(firstRow[35]);
+
     const isZeroPaymentColumns = (akVal === 0 && alVal === 0 && amVal === 0 && anVal === 0);
 
     if (isZeroPaymentColumns) {
       if (aiVal === 0 && ajVal === 0) {
-        // CASE: 100% Discount (Manager/Free meals)
-        // Vẫn tính vào Gross và Orders của Dine In nhưng trừ sạch ở Net thông qua discount100
-        ids.add(id);
-        gross += rowGross;
-        discount100 += rowGross;
-        return; // Xong dòng này, không tính thêm chiết khấu lẻ nữa để tránh trùng
+        oRows.forEach(row => {
+          const qty = cleanNumber(row[cfg.colQty]);
+          const uPrice = cleanNumber(row[cfg.colUnitPrice]);
+          orderGross += (qty * uPrice);
+        });
+        gross += orderGross;
+        discount100 += orderGross;
+        hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + 0;
+        return;
       } else {
-        // CASE: Grab Dine Out (Ghi nhầm vào POS Dine In)
-        // Loại bỏ hoàn toàn khỏi doanh thu Dine In
-        grabDineOut += rowGross;
+        oRows.forEach(row => {
+          const qty = cleanNumber(row[cfg.colQty]);
+          const uPrice = cleanNumber(row[cfg.colUnitPrice]);
+          orderGross += (qty * uPrice);
+        });
+        grabDineOut += orderGross;
+        hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + 0;
         return;
       }
     }
 
-    ids.add(id);
+    oRows.forEach(row => {
+      const qty = cleanNumber(row[cfg.colQty]);
+      const uPrice = cleanNumber(row[cfg.colUnitPrice]);
+      const rowGross = (qty * uPrice);
+      orderGross += rowGross;
 
-    // 1. Gross Sale = AW * AX
-    gross += rowGross;
+      const uDisc = cleanNumber(row[cfg.colUnitDisc]);
+      orderProductDisc += (qty * uDisc);
+    });
 
-    // 2. Product Discount = AW * AZ
-    const uDisc = cleanNumber(row[cfg.colUnitDisc]);
-    productDisc += (qty * uDisc);
-
-    // 3. Invoice Discount (AF - Cột 31), chỉ tính 1 lần mỗi ID
-    if (!invoiceDiscProcessed.has(id)) {
-      const invDiscVal = cleanNumber(row[cfg.colInvDisc]);
-      if (invDiscVal > 0) invoiceDisc += invDiscVal;
-      invoiceDiscProcessed.add(id);
+    orderInvoiceDisc = cleanNumber(firstRow[cfg.colInvDisc]);
+    if (alVal > 0) {
+      orderBankTrans = alVal;
     }
 
-    // 4. Bank Card Transaction (AL - Cột 37), chỉ tính 1 lần mỗi ID
-    if (!bankProcessed.has(id)) {
-      if (alVal > 0) totalBankTrans += alVal;
-      bankProcessed.add(id);
-    }
+    const orderBankFee = (orderBankTrans / 100) * 2;
+    const orderTotalDed = orderProductDisc + orderInvoiceDisc + orderBankFee;
+    const orderNet = orderGross - orderTotalDed;
+
+    gross += orderGross;
+    productDisc += orderProductDisc;
+    invoiceDisc += orderInvoiceDisc;
+    totalBankTrans += orderBankTrans;
+
+    hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + orderNet;
   });
 
   const bankFee = (totalBankTrans / 100) * 2;
@@ -1159,7 +1346,8 @@ function calculateDineIn(rows, cfg) {
       { label: 'Invoice Discount', val: invoiceDisc, color: 'text-rose-500', isDed: true },
       { label: 'Bank Card Fee', val: bankFee, color: 'text-rose-500 font-medium', isDed: true },
       { label: 'Total Deduction', val: totalDed, color: 'text-rose-700 font-bold', isDed: true }
-    ]
+    ],
+    hourlyNet
   };
 }
 

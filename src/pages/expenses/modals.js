@@ -22,9 +22,9 @@ export function showExcelPreviewModal(data, onConfirm) {
             <table class="w-full text-left border-collapse">
                <thead class="sticky top-0 bg-white dark:bg-slate-900 z-10">
                   <tr class="border-b border-slate-50 dark:border-slate-800">
-                     <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                      <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
                      <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
-                     <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Purpose</th>
+                     <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Supplier</th>
                      <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
                      <th class="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Funded By</th>
                   </tr>
@@ -34,7 +34,7 @@ export function showExcelPreviewModal(data, onConfirm) {
                      <tr class="border-b border-slate-50 dark:border-slate-800">
                         <td class="py-3 text-[10px] font-bold text-slate-500">${r.Date || '---'}</td>
                         <td class="py-3 text-[10px] font-black text-slate-800 dark:text-white uppercase">${r.Category || '---'}</td>
-                        <td class="py-3 text-[10px] font-medium text-slate-500 truncate max-w-[200px]">${r.Purpose || '---'}</td>
+                        <td class="py-3 text-[10px] font-medium text-slate-500 truncate max-w-[200px]">${r.Purpose || r.Supplier || '---'}</td>
                         <td class="py-3 text-[10px] font-black text-right">₱${(parseFloat(r.Amount || 0)).toLocaleString()}</td>
                         <td class="py-3 text-center">
                            <span class="px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${(r['Funded by'] || '').toLowerCase().includes('petty') ? 'bg-rose-100 text-rose-600' : 'bg-blue-100 text-blue-600'}">

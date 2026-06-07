@@ -447,12 +447,13 @@ export async function renderExpensesPage(activeTab = 'cashier', user = null) {
       };
 
       const renderPurposeOptions = (options = []) => {
-         if (!purposeSelect) return;
+         const datalist = document.querySelector('#supplier-list');
+         if (!datalist) return;
          const unique = [...new Set(options.filter(Boolean))];
          const fallback = purposes || [];
          const source = unique.length ? unique : fallback;
-         purposeSelect.innerHTML = `<option value="">Select Purpose</option>${source.map(p => `<option value="${p}">${p}</option>`).join('')}`;
-         if (source.length === 1) purposeSelect.value = source[0];
+         datalist.innerHTML = source.map(p => `<option value="${p}"></option>`).join('');
+         if (source.length === 1 && purposeSelect) purposeSelect.value = source[0];
       };
 
       const applyAutoDescription = (text) => {
@@ -810,11 +811,11 @@ export async function renderExpensesPage(activeTab = 'cashier', user = null) {
                            </select>
                         </div>
                         <div class="space-y-1.5">
-                           <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Purpose</label>
-                           <select id="exp-purpose" required class="w-full bg-[#343434]/5 dark:bg-[#141414] text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all cursor-pointer">
-                              <option value="">Select Purpose</option>
-                              ${purposes.map(p => `<option value="${p}">${p}</option>`).join('')}
-                           </select>
+                           <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Supplier</label>
+                           <input type="text" id="exp-purpose" required placeholder="Enter Supplier" list="supplier-list" class="w-full bg-[#343434]/5 dark:bg-[#141414] text-slate-700 dark:text-white border-none rounded-xl px-4 py-3.5 text-xs font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
+                           <datalist id="supplier-list">
+                              ${purposes.map(p => `<option value="${p}"></option>`).join('')}
+                           </datalist>
                         </div>
                         <div id="exp-subcategory-wrap" class="space-y-1.5 hidden">
                            <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sub Category</label>
@@ -1043,7 +1044,7 @@ export async function renderExpensesPage(activeTab = 'cashier', user = null) {
                                  <input type="number" class="edit-amount w-full bg-slate-50 border-none rounded-xl px-3 py-2 text-[11px] font-black text-black" value="${item.amount}">
                               </div>
                               <div class="space-y-1">
-                                 <label class="text-[8px] font-black text-slate-400 uppercase ml-1">Correct Purpose</label>
+                                 <label class="text-[8px] font-black text-slate-400 uppercase ml-1">Correct Supplier</label>
                                  <input type="text" class="edit-purpose w-full bg-slate-50 border-none rounded-xl px-3 py-2 text-[11px] font-black text-black" value="${item.purpose}">
                               </div>
                            </div>
@@ -1449,7 +1450,7 @@ export async function renderExpensesPage(activeTab = 'cashier', user = null) {
                            </div>
                            <div class="flex-1 w-full space-y-1">
                               <label class="text-[9px] font-black text-slate-400 dark:text-white uppercase tracking-widest">Search</label>
-                              <input id="ledger-search" type="text" placeholder="Purpose / Description / Category / Invoice No."
+                              <input id="ledger-search" type="text" placeholder="Supplier / Description / Category / Invoice No."
                                 class="w-full bg-slate-100 dark:bg-[#343434] border-none rounded-full px-4 py-3 text-[10px] font-bold focus:ring-2 focus:ring-[#96588a] transition-all">
                            </div>
                            <div class="w-full sm:w-44 space-y-1">
@@ -1482,7 +1483,7 @@ export async function renderExpensesPage(activeTab = 'cashier', user = null) {
                            <thead>
                               <tr class="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-transparent">
                                  <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Date</th>
-                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Purpose & Detail</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Supplier & Detail</th>
                                  <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Category</th>
                                  <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-right">Amount</th>
                                  <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-center">Actions</th>
@@ -1502,7 +1503,7 @@ export async function renderExpensesPage(activeTab = 'cashier', user = null) {
                            <thead>
                               <tr class="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-transparent">
                                  <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Date</th>
-                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Purpose & Detail</th>
+                                 <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Supplier & Detail</th>
                                  <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em]">Category</th>
                                  <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-right">Amount</th>
                                  <th class="px-8 py-5 text-[10px] font-black text-slate-400 dark:text-white/40 uppercase tracking-[0.15em] text-center">Actions</th>

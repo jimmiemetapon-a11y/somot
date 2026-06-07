@@ -30,7 +30,7 @@ const CHANNELS = {
   foodpanda: { label: 'FOOD PANDA', kpi: 135000, color: '#F472B6', bg: '#fdf2f8', icon: 'Foodpanda.svg', darkIcon: 'panda_dark.svg' },
 };
 
-let chartMain = null, chartPie = null, chartMini = null;
+let chartMain = null, chartPie = null, chartMini = null, chartHourly = null;
 
 function animateValue(el, end, formatter) {
   if (!el) return;
@@ -71,6 +71,20 @@ export function renderDashboard(user) {
   const now = new Date();
   const firstDay = getLocalStr(new Date(now.getFullYear(), now.getMonth(), 1));
   const today = getLocalStr(now);
+
+  const start30Date = new Date();
+  start30Date.setDate(now.getDate() - 30);
+  const start30Str = getLocalStr(start30Date);
+
+  let trendFrom = start30Str;
+  let trendTo = today;
+
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(now.getDate() - 1);
+  const yesterdayStr = getLocalStr(yesterdayDate);
+
+  let hourlyFrom = yesterdayStr;
+  let hourlyTo = yesterdayStr;
 
   page.innerHTML = `
     <!-- Floating Typographic Greeting (Option A - Borderless) -->
@@ -262,9 +276,30 @@ export function renderDashboard(user) {
     <!-- Charts Row -->
     <div class="card-stagger grid grid-cols-1 lg:grid-cols-3 gap-6" style="animation-delay: 0.9s">
       <div class="bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-7 shadow-xl dark:shadow-2xl border-t border-white/60 dark:border-white/10 lg:col-span-2 transition-all">
-        <div class="mb-5">
-          <p class="font-black text-slate-800 dark:text-white/80 text-sm font-nunito uppercase tracking-widest">Net Revenue Trend</p>
-          <p class="text-[10px] text-slate-400 dark:text-white/30 mt-1 font-nunito font-bold uppercase tracking-tight">Daily breakdown across all channels</p>
+        <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <div>
+            <p class="font-black text-slate-800 dark:text-white/80 text-sm font-nunito uppercase tracking-widest">Net Revenue Trend</p>
+            <p class="text-[10px] text-slate-400 dark:text-white/30 mt-1 font-nunito font-bold uppercase tracking-tight">Daily breakdown across all channels</p>
+          </div>
+          <!-- Trend Date Range Filter -->
+          <div class="relative font-nunito" id="trend-date-container">
+             <button id="trend-date-btn" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/80 dark:bg-white/5 text-[9px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-white/5 hover:bg-slate-200/50 dark:hover:bg-white/10 transition-all cursor-pointer">
+                <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                <span id="trend-date-label">Last 30 Days</span>
+                <i data-lucide="chevron-down" class="w-3 h-3"></i>
+             </button>
+             <input type="text" id="trend-date-range" class="absolute inset-0 opacity-0 pointer-events-none">
+             
+             <!-- Preset Menu -->
+             <div id="trend-date-menu" class="absolute right-0 mt-2 w-48 bg-white dark:bg-[#181818] border border-slate-200 dark:border-white/5 rounded-2xl shadow-xl z-50 p-2 space-y-1 opacity-0 invisible translate-y-2 transition-all duration-200">
+                <button class="trend-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="last30">Last 30 Days</button>
+                <button class="trend-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="last7">Last 7 Days</button>
+                <button class="trend-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="thisMonth">This Month</button>
+                <button class="trend-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="lastMonth">Last Month</button>
+                <div class="h-px bg-slate-100 dark:bg-white/5 my-1"></div>
+                <button class="trend-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="custom">Custom Range</button>
+             </div>
+          </div>
         </div>
         <div class="h-64"><canvas id="chart-main"></canvas></div>
       </div>
@@ -287,51 +322,266 @@ export function renderDashboard(user) {
         </div>
       </div>
     </div>
+
+    <!-- Hourly Sales Chart Row -->
+    <div class="card-stagger bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-[2.5rem] p-7 shadow-xl dark:shadow-2xl border-t border-white/60 dark:border-white/10 transition-all mt-6" style="animation-delay: 1.0s">
+      <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div>
+          <p class="font-black text-slate-800 dark:text-white/80 text-sm font-nunito uppercase tracking-widest">Hourly Net Revenue</p>
+          <p class="text-[10px] text-slate-400 dark:text-white/30 mt-1 font-nunito font-bold uppercase tracking-tight">Hourly distribution for Dine In, Grab, and Food Panda</p>
+        </div>
+        <!-- Hourly Date Range Filter -->
+        <div class="relative font-nunito" id="hourly-date-container">
+           <button id="hourly-date-btn" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/80 dark:bg-white/5 text-[9px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-white/5 hover:bg-slate-200/50 dark:hover:bg-white/10 transition-all cursor-pointer">
+              <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+              <span id="hourly-date-label">Yesterday</span>
+              <i data-lucide="chevron-down" class="w-3 h-3"></i>
+           </button>
+           <input type="text" id="hourly-date-range" class="absolute inset-0 opacity-0 pointer-events-none">
+           
+           <!-- Preset Menu -->
+           <div id="hourly-date-menu" class="absolute right-0 mt-2 w-48 bg-white dark:bg-[#181818] border border-slate-200 dark:border-white/5 rounded-2xl shadow-xl z-50 p-2 space-y-1 opacity-0 invisible translate-y-2 transition-all duration-200">
+              <button class="hourly-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="yesterday">Yesterday</button>
+              <button class="hourly-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="today">Today</button>
+              <button class="hourly-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="last7">Last 7 Days</button>
+              <button class="hourly-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="thisMonth">This Month</button>
+              <div class="h-px bg-slate-100 dark:bg-white/5 my-1"></div>
+              <button class="hourly-preset-opt w-full text-left px-3 py-1.5 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition-all uppercase" data-value="custom">Custom Range</button>
+           </div>
+        </div>
+      </div>
+      <div class="h-80"><canvas id="chart-hourly"></canvas></div>
+    </div>
   `;
 
-  setTimeout(() => {
-    const branchSelect = document.getElementById('db-branch');
-    const rangeInput = document.getElementById('db-date-range');
-    const refreshBtn = document.getElementById('db-refresh');
+    setTimeout(() => {
+      const branchSelect = document.getElementById('db-branch');
+      const rangeInput = document.getElementById('db-date-range');
+      const refreshBtn = document.getElementById('db-refresh');
 
-    const handleUpdate = () => {
-      const branch = branchSelect?.value || 'All Branches';
-      const rangeVal = rangeInput?.value || '';
+      const handleUpdate = () => {
+        const branch = branchSelect?.value || 'All Branches';
+        const rangeVal = rangeInput?.value || '';
 
-      let from = firstDay, to = today;
-      if (rangeVal.includes(' to ')) {
-        [from, to] = rangeVal.split(' to ');
-      } else if (rangeVal) {
-        from = to = rangeVal;
+        let from = firstDay, to = today;
+        if (rangeVal.includes(' to ')) {
+          [from, to] = rangeVal.split(' to ');
+        } else if (rangeVal) {
+          from = to = rangeVal;
+        }
+
+        loadAndRender(page, branch, from, to, trendFrom, trendTo, hourlyFrom, hourlyTo);
+      };
+
+      // Trend chart date update function
+      const updateTrendChartOnly = async () => {
+        const branch = branchSelect?.value || 'All Branches';
+        try {
+          const trendDocs = await fetchSalesData(branch, trendFrom, trendTo);
+          updateMainChart(trendDocs);
+        } catch (err) {
+          console.error("Error updating trend chart:", err);
+        }
+      };
+
+      // Setup Trend Date Menu dropdown toggles
+      const trendBtn = page.querySelector('#trend-date-btn');
+      const trendLabel = page.querySelector('#trend-date-label');
+      const trendRangeInput = page.querySelector('#trend-date-range');
+      const trendMenu = page.querySelector('#trend-date-menu');
+
+      if (trendBtn && trendMenu) {
+        trendBtn.onclick = (e) => {
+          e.stopPropagation();
+          trendMenu.classList.toggle('opacity-0');
+          trendMenu.classList.toggle('invisible');
+          trendMenu.classList.toggle('translate-y-2');
+        };
+        
+        document.addEventListener('click', () => {
+          trendMenu.classList.add('opacity-0', 'invisible', 'translate-y-2');
+        });
       }
 
-      loadAndRender(page, branch, from, to);
-    };
+      const getTrendRange = (type) => {
+        const d = new Date();
+        const fmt = getLocalStr;
+        switch (type) {
+          case 'last7':
+            const start7 = new Date();
+            start7.setDate(start7.getDate() - 7);
+            return `${fmt(start7)} to ${fmt(d)}`;
+          case 'last30':
+            const start30 = new Date();
+            start30.setDate(start30.getDate() - 30);
+            return `${fmt(start30)} to ${fmt(d)}`;
+          case 'thisMonth':
+            const startM = new Date(d.getFullYear(), d.getMonth(), 1);
+            return `${fmt(startM)} to ${fmt(d)}`;
+          case 'lastMonth':
+            const lmS = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+            const lmE = new Date(d.getFullYear(), d.getMonth(), 0);
+            return `${fmt(lmS)} to ${fmt(lmE)}`;
+          default: return '';
+        }
+      };
 
-    // Initial load
-    handleUpdate();
+      if (window.flatpickr && trendRangeInput) {
+        const fpTrend = window.flatpickr(trendRangeInput, {
+          mode: "range",
+          dateFormat: "Y-m-d",
+          onClose: (selectedDates) => {
+            if (selectedDates.length === 2) {
+              const start = fpTrend.formatDate(selectedDates[0], "Y-m-d");
+              const end = fpTrend.formatDate(selectedDates[1], "Y-m-d");
+              const rangeStr = `${start} to ${end}`;
+              trendLabel.textContent = rangeStr;
+              trendFrom = start;
+              trendTo = end;
+              updateTrendChartOnly();
+            }
+          }
+        });
 
-    // Listen for global filter changes
-    window.addEventListener('global-filter-changed', handleUpdate);
+        page.querySelectorAll('.trend-preset-opt').forEach(opt => {
+          opt.onclick = (e) => {
+            e.stopPropagation();
+            const val = opt.dataset.value;
 
-    // Cleanup logic to prevent memory leaks
-    const cleanup = () => {
-      window.removeEventListener('global-filter-changed', handleUpdate);
-      if (chartMain) { chartMain.destroy(); chartMain = null; }
-      if (chartPie) { chartPie.destroy(); chartPie = null; }
-      if (chartMini) { chartMini.destroy(); chartMini = null; }
-    };
-    window.addEventListener('cleanup-page', cleanup, { once: true });
+            if (val === 'custom') {
+              fpTrend.open();
+            } else {
+              const range = getTrendRange(val);
+              trendLabel.textContent = opt.textContent;
+              if (range.includes(' to ')) {
+                [trendFrom, trendTo] = range.split(' to ');
+              } else {
+                trendFrom = trendTo = range;
+              }
+              updateTrendChartOnly();
+            }
 
-    if (refreshBtn) refreshBtn.onclick = (e) => { e.preventDefault(); handleUpdate(); };
-    if (window.lucide) window.lucide.createIcons();
-  }, 0);
+            trendMenu.classList.add('opacity-0', 'invisible', 'translate-y-2');
+          };
+        });
+      }
+
+      // Hourly chart date update function
+      const updateHourlyChartOnly = async () => {
+        const branch = branchSelect?.value || 'All Branches';
+        try {
+          const hourlyDocs = await fetchSalesData(branch, hourlyFrom, hourlyTo);
+          updateHourlyChart(hourlyDocs);
+        } catch (err) {
+          console.error("Error updating hourly chart:", err);
+        }
+      };
+
+      // Setup Hourly Date Menu dropdown toggles
+      const hourlyBtn = page.querySelector('#hourly-date-btn');
+      const hourlyLabel = page.querySelector('#hourly-date-label');
+      const hourlyRangeInput = page.querySelector('#hourly-date-range');
+      const hourlyMenu = page.querySelector('#hourly-date-menu');
+
+      if (hourlyBtn && hourlyMenu) {
+        hourlyBtn.onclick = (e) => {
+          e.stopPropagation();
+          hourlyMenu.classList.toggle('opacity-0');
+          hourlyMenu.classList.toggle('invisible');
+          hourlyMenu.classList.toggle('translate-y-2');
+        };
+        
+        document.addEventListener('click', () => {
+          hourlyMenu.classList.add('opacity-0', 'invisible', 'translate-y-2');
+        });
+      }
+
+      const getHourlyRange = (type) => {
+        const d = new Date();
+        const fmt = getLocalStr;
+        switch (type) {
+          case 'yesterday':
+            const yest = new Date();
+            yest.setDate(yest.getDate() - 1);
+            return `${fmt(yest)} to ${fmt(yest)}`;
+          case 'today':
+            return `${fmt(d)} to ${fmt(d)}`;
+          case 'last7':
+            const start7 = new Date();
+            start7.setDate(start7.getDate() - 7);
+            return `${fmt(start7)} to ${fmt(d)}`;
+          case 'thisMonth':
+            const startM = new Date(d.getFullYear(), d.getMonth(), 1);
+            return `${fmt(startM)} to ${fmt(d)}`;
+          default: return '';
+        }
+      };
+
+      if (window.flatpickr && hourlyRangeInput) {
+        const fpHourly = window.flatpickr(hourlyRangeInput, {
+          mode: "range",
+          dateFormat: "Y-m-d",
+          onClose: (selectedDates) => {
+            if (selectedDates.length === 2) {
+              const start = fpHourly.formatDate(selectedDates[0], "Y-m-d");
+              const end = fpHourly.formatDate(selectedDates[1], "Y-m-d");
+              const rangeStr = `${start} to ${end}`;
+              hourlyLabel.textContent = rangeStr;
+              hourlyFrom = start;
+              hourlyTo = end;
+              updateHourlyChartOnly();
+            }
+          }
+        });
+
+        page.querySelectorAll('.hourly-preset-opt').forEach(opt => {
+          opt.onclick = (e) => {
+            e.stopPropagation();
+            const val = opt.dataset.value;
+
+            if (val === 'custom') {
+              fpHourly.open();
+            } else {
+              const range = getHourlyRange(val);
+              hourlyLabel.textContent = opt.textContent;
+              if (range.includes(' to ')) {
+                [hourlyFrom, hourlyTo] = range.split(' to ');
+              } else {
+                hourlyFrom = hourlyTo = range;
+              }
+              updateHourlyChartOnly();
+            }
+
+            hourlyMenu.classList.add('opacity-0', 'invisible', 'translate-y-2');
+          };
+        });
+      }
+
+      // Initial load
+      handleUpdate();
+
+      // Listen for global filter changes
+      window.addEventListener('global-filter-changed', handleUpdate);
+
+      // Cleanup logic to prevent memory leaks
+      const cleanup = () => {
+        window.removeEventListener('global-filter-changed', handleUpdate);
+        if (chartMain) { chartMain.destroy(); chartMain = null; }
+        if (chartPie) { chartPie.destroy(); chartPie = null; }
+        if (chartMini) { chartMini.destroy(); chartMini = null; }
+        if (chartHourly) { chartHourly.destroy(); chartHourly = null; }
+      };
+      window.addEventListener('cleanup-page', cleanup, { once: true });
+
+      if (refreshBtn) refreshBtn.onclick = (e) => { e.preventDefault(); handleUpdate(); };
+      if (window.lucide) window.lucide.createIcons();
+    }, 0);
 
   return page;
 }
 
 // ── Data Handling ────────────────────────────────────────────────────────────
-async function loadAndRender(page, branch, fromDate, toDate) {
+async function loadAndRender(page, branch, fromDate, toDate, trendFrom, trendTo, hourlyFrom, hourlyTo) {
   try {
     // Calculate previous period for trend comparison
     const d1 = new Date(fromDate + 'T00:00:00');
@@ -346,16 +596,20 @@ async function loadAndRender(page, branch, fromDate, toDate) {
     const prevTo = getLocalStr(prevToDate);
     const prevFrom = getLocalStr(prevFromDate);
 
-    const [salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs, kpiData] = await Promise.all([
+    const [salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs, kpiData, trendSalesDocs, hourlySalesDocs] = await Promise.all([
       fetchSalesData(branch, fromDate, toDate),
       fetchSalesData(branch, prevFrom, prevTo),
       fetchExpenseData(branch, fromDate, toDate),
       fetchExpenseData(branch, prevFrom, prevTo),
-      fetchKPISettings(branch)
+      fetchKPISettings(branch),
+      fetchSalesData(branch, trendFrom, trendTo),
+      fetchSalesData(branch, hourlyFrom, hourlyTo)
     ]);
 
     updateCards(page, salesDocs, prevSalesDocs, expenseDocs, prevExpenseDocs, days, kpiData);
-    updateCharts(salesDocs);
+    updatePieChart(salesDocs);
+    updateMainChart(trendSalesDocs);
+    updateHourlyChart(hourlySalesDocs);
   } catch (err) {
     console.error('Dashboard error:', err);
   }
@@ -546,7 +800,7 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   });
 }
 
-function updateCharts(docs) {
+function updateMainChart(docs) {
   const isDark = document.documentElement.classList.contains('dark');
   const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
   const lblColor = '#64748b'; // slate-500
@@ -651,7 +905,9 @@ function updateCharts(docs) {
       },
     });
   }
+}
 
+function updatePieChart(docs) {
   // Donut
   const chanMap = {};
   Object.keys(CHANNELS).forEach(k => { chanMap[k] = 0; });
@@ -673,35 +929,143 @@ function updateCharts(docs) {
       options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false } } },
     });
   }
+}
 
-  // Mini Bar Chart (Last 7 days trend)
-  const miniCtx = document.getElementById('chart-mini-trend');
-  if (miniCtx) {
-    if (chartMini) chartMini.destroy();
-    const recentDates = dates.slice(-7);
-    const recentValues = recentDates.map(d => dailyMap[d]);
+function updateHourlyChart(docs) {
+  const hourlyData = {};
+  for (let h = 0; h < 24; h++) {
+    const hrKey = String(h).padStart(2, '0');
+    hourlyData[hrKey] = { dinein: 0, grabfood: 0, foodpanda: 0 };
+  }
 
-    chartMini = new Chart(miniCtx, {
+  docs.forEach(d => {
+    const chId = d.channelId;
+    if (chId === 'dinein' || chId === 'grabfood' || chId === 'foodpanda') {
+      const hourlyNet = d.hourlyNet || {};
+      Object.entries(hourlyNet).forEach(([hrStr, val]) => {
+        const hrInt = parseInt(hrStr, 10);
+        if (hrInt >= 0 && hrInt < 24) {
+          const hrKey = String(hrInt).padStart(2, '0');
+          hourlyData[hrKey][chId] += (val || 0);
+        }
+      });
+    }
+  });
+
+  let minHour = 24;
+  let maxHour = -1;
+  for (let h = 0; h < 24; h++) {
+    const hrKey = String(h).padStart(2, '0');
+    const hrObj = hourlyData[hrKey];
+    const totalHourSales = hrObj.dinein + hrObj.grabfood + hrObj.foodpanda;
+    if (totalHourSales > 0) {
+      if (h < minHour) minHour = h;
+      if (h > maxHour) maxHour = h;
+    }
+  }
+
+  if (minHour > maxHour) {
+    minHour = 8;
+    maxHour = 22;
+  } else {
+    minHour = Math.max(0, minHour - 1);
+    maxHour = Math.min(23, maxHour + 1);
+  }
+
+  const labels = [];
+  const dineinData = [];
+  const grabData = [];
+  const pandaData = [];
+
+  for (let h = minHour; h <= maxHour; h++) {
+    const hrKey = String(h).padStart(2, '0');
+    labels.push(`${hrKey}:00`);
+    dineinData.push(hourlyData[hrKey].dinein);
+    grabData.push(hourlyData[hrKey].grabfood);
+    pandaData.push(hourlyData[hrKey].foodpanda);
+  }
+
+  const hourlyCtx = document.getElementById('chart-hourly');
+  if (hourlyCtx) {
+    if (chartHourly) chartHourly.destroy();
+    
+    const isDark = document.documentElement.classList.contains('dark');
+    const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+    const lblColor = '#64748b'; // slate-500
+    
+    chartHourly = new Chart(hourlyCtx, {
       type: 'bar',
       data: {
-        labels: recentDates,
-        datasets: [{
-          data: recentValues,
-          backgroundColor: 'rgba(34, 197, 94, 0.8)', // green-500 with opacity
-          hoverBackgroundColor: 'rgba(21, 128, 61, 1)', // green-700
-          borderRadius: 4,
-          borderSkipped: false,
-          barPercentage: 0.7
-        }]
+        labels: labels,
+        datasets: [
+          {
+            label: 'Dine In',
+            data: dineinData,
+            backgroundColor: '#60A5FA', // Blue
+            borderRadius: 4,
+          },
+          {
+            label: 'GrabFood',
+            data: grabData,
+            backgroundColor: '#34D399', // Green
+            borderRadius: 4,
+          },
+          {
+            label: 'FoodPanda',
+            data: pandaData,
+            backgroundColor: '#F472B6', // Pink
+            borderRadius: 4,
+          }
+        ]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        responsive: true,
+        maintainAspectRatio: false,
         scales: {
-          x: { display: false },
-          y: { display: false, min: 0 }
+          x: {
+            stacked: true,
+            grid: { display: false },
+            ticks: { color: lblColor, font: { family: 'Plus Jakarta Sans', size: 10 } }
+          },
+          y: {
+            stacked: true,
+            grid: { color: gridColor, drawBorder: false },
+            ticks: {
+              color: lblColor,
+              font: { family: 'Plus Jakarta Sans', size: 10 },
+              callback: v => '₱' + v.toLocaleString()
+            }
+          }
         },
-        animation: { duration: 1000 }
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            align: 'end',
+            labels: {
+              boxWidth: 8,
+              boxHeight: 8,
+              usePointStyle: true,
+              pointStyle: 'circle',
+              padding: 20,
+              color: lblColor,
+              font: { family: 'Plus Jakarta Sans', size: 10, weight: 'bold' }
+            }
+          },
+          tooltip: {
+            backgroundColor: isDark ? '#1e293b' : '#fff',
+            titleColor: isDark ? '#fff' : '#1e293b',
+            bodyColor: isDark ? '#cbd5e1' : '#64748b',
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+            borderWidth: 1,
+            padding: 12,
+            boxPadding: 6,
+            usePointStyle: true,
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ₱${ctx.parsed.y.toLocaleString()}`
+            }
+          }
+        }
       }
     });
   }
