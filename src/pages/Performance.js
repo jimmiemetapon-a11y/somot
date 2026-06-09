@@ -8,6 +8,145 @@ function getDayType(dateStr) {
   return (day === 0 || day === 6) ? 'Weekend' : 'Weekday';
 }
 
+function cleanNumber(val) {
+  if (val === undefined || val === null || val === '') return 0;
+  if (typeof val === 'number') return val;
+  let str = String(val).trim();
+  const isParenthesized = str.startsWith('(') && str.endsWith(')');
+  let cleaned = str.replace(/[^0-9.-]+/g, "");
+  let num = parseFloat(cleaned);
+  if (isNaN(num)) return 0;
+  return isParenthesized ? -Math.abs(num) : num;
+}
+
+function parseHourFromInOutTime(val) {
+  if (val === undefined || val === null) return 0;
+  const str = String(val).trim();
+  const firstPart = str.split('-')[0].trim();
+  const timeMatch = firstPart.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (timeMatch) {
+    let hh = parseInt(timeMatch[1], 10);
+    const ampm = timeMatch[3];
+    if (ampm) {
+      const ampmUpper = ampm.toUpperCase();
+      if (ampmUpper === 'PM' && hh < 12) hh += 12;
+      if (ampmUpper === 'AM' && hh === 12) hh = 0;
+    }
+    return hh;
+  }
+  return 0;
+}
+
+function parseDateAndHourFromRow(dateVal, timeVal) {
+  let dObj = null;
+  if (typeof dateVal === 'number') {
+    const totalDays = Math.floor(dateVal);
+    const daysSinceEpoch = totalDays - 25569;
+    dObj = new Date(1970, 0, 1 + daysSinceEpoch);
+  } else {
+    const str = String(dateVal).trim().split(' ')[0];
+    let y, m, d;
+    if (str.includes('/')) {
+      const p = str.split('/');
+      if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }
+      else if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }
+    } else if (str.includes('-')) {
+      const p = str.split('-');
+      if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }
+      else if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }
+    }
+    if (y && m && d) {
+      dObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    } else {
+      dObj = new Date(str);
+    }
+  }
+
+  if (!dObj || isNaN(dObj.getTime())) return null;
+
+  const hour = parseHourFromInOutTime(timeVal);
+
+  if (hour < 2) {
+    dObj.setDate(dObj.getDate() - 1);
+  }
+
+  const y = dObj.getFullYear();
+  const m = String(dObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dObj.getDate()).padStart(2, '0');
+  const dateKey = `${y}-${m}-${d}`;
+
+  return { dateKey, hour };
+}
+
+async function saveAyalaHourlyToDatabase(results) {
+  const batchId = `BATCH_AYALA_HOURLY_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  let totalRows = 0;
+  
+  const safeBranchName = 'AyalaCloverleaf';
+  const channelId = 'dinein';
+  const branchId = 'Ayala Cloverleaf';
+
+  const promises = Object.entries(results).map(async ([date, res]) => {
+    totalRows += (res.orders || 0);
+    const docId = `${channelId}_${safeBranchName}_${date}`;
+    const docRef = doc(db, "daily_sales", docId);
+
+    let dataToSave = {
+      channelId,
+      branchId,
+      date,
+      orders: res.orders,
+      financials: {
+        gross: res.gross,
+        net: res.net,
+        totalDeductions: res.totalDed
+      },
+      breakdown: {
+        deductions: {},
+        incomes: {}
+      },
+      hourlyNet: res.hourlyNet,
+      importBatchId: batchId,
+      updatedAt: serverTimestamp()
+    };
+
+    const existingSnap = await getDoc(docRef);
+    if (existingSnap.exists()) {
+      const old = existingSnap.data();
+
+      // Keep existing daily sales data to prevent double-counting
+      dataToSave.orders = old.orders || 0;
+      dataToSave.financials = old.financials || { gross: 0, net: 0, totalDeductions: 0 };
+      if (old.breakdown) {
+        dataToSave.breakdown = old.breakdown;
+      }
+
+      // Merge hourly breakdown only
+      const mergedHourly = { ...(old.hourlyNet || {}) };
+      Object.entries(res.hourlyNet).forEach(([hr, val]) => {
+        mergedHourly[hr] = (mergedHourly[hr] || 0) + val;
+      });
+      dataToSave.hourlyNet = mergedHourly;
+    }
+
+    return setDoc(docRef, dataToSave);
+  });
+
+  const logPromise = setDoc(doc(db, "import_logs", batchId), {
+    batchId,
+    timestamp: serverTimestamp(),
+    type: 'dinein',
+    branchId: 'Ayala Cloverleaf',
+    rowCount: totalRows,
+    collections: ["daily_sales"],
+    status: "active"
+  });
+
+  await Promise.all([...promises, logPromise]);
+  window.dispatchEvent(new CustomEvent('sales-updated'));
+}
+
+
 const DEFAULT_BRANCH_KPIS = {
   'Pioneer Center': {
     all: {
@@ -310,7 +449,7 @@ export function renderPerformancePage(user) {
   function renderPageContent() {
     const isAyalaDineIn = selectedBranch === 'Ayala Cloverleaf' && selectedChannel === 'dinein';
     const isAyalaAll = selectedBranch === 'Ayala Cloverleaf' && selectedChannel === 'all';
-    const showHourlyNA = isAyalaDineIn;
+    const showHourlyNA = false;
     
     const branchesToLoad = selectedBranch === 'All Branches'
       ? allowedBranches.filter(b => b !== 'All Branches')
@@ -394,12 +533,6 @@ export function renderPerformancePage(user) {
         targetDaily += (brLunchTarget + brAfternoonTarget + brDinnerTarget);
 
         if (brDocs.length > 0) {
-          // Define hourly vs non-hourly channels for this branch
-          const isAyala = br === 'Ayala Cloverleaf';
-          const hourlyChannels = isAyala
-            ? ['grabfood', 'foodpanda']
-            : ['dinein', 'grabfood', 'foodpanda'];
-
           let brLunch = 0;
           let brAfternoon = 0;
           let brDinner = 0;
@@ -409,16 +542,30 @@ export function renderPerformancePage(user) {
           const brKpi = brChannelsMap[firstCh] || DEFAULT_BRANCH_KPIS[br]?.all || DEFAULT_BRANCH_KPIS['Pioneer Center'].all;
 
           if (selectedChannel === 'all') {
-            // Calculate hourly windows for channels that support it
-            const hourlyDocs = brDocs.filter(d => hourlyChannels.includes(d.channelId));
-            hourlyDocs.forEach(d => {
-              const hourlyNet = d.hourlyNet || {};
-              brLunch += getWindowActual(hourlyNet, brKpi.lunchStart, brKpi.lunchEnd);
-              brAfternoon += getWindowActual(hourlyNet, brKpi.afternoonStart, brKpi.afternoonEnd);
-              if (brDayType === 'Weekday') {
-                brDinner += getWindowActual(hourlyNet, brKpi.dinnerStart, brKpi.dinnerEndWeekday);
+            let brDineInNonHourlyNet = 0;
+
+            brDocs.forEach(d => {
+              const isOnline = d.channelId === 'online';
+              const isDineIn = d.channelId === 'dinein';
+              const isAyala = br === 'Ayala Cloverleaf';
+
+              if (isOnline) {
+                return;
+              }
+
+              const isHourly = !isDineIn || !isAyala || (d.hourlyNet && Object.keys(d.hourlyNet).length > 0);
+
+              if (isHourly) {
+                const hourlyNet = d.hourlyNet || {};
+                brLunch += getWindowActual(hourlyNet, brKpi.lunchStart, brKpi.lunchEnd);
+                brAfternoon += getWindowActual(hourlyNet, brKpi.afternoonStart, brKpi.afternoonEnd);
+                if (brDayType === 'Weekday') {
+                  brDinner += getWindowActual(hourlyNet, brKpi.dinnerStart, brKpi.dinnerEndWeekday);
+                } else {
+                  brDinner += getWindowActual(hourlyNet, brKpi.dinnerStart, brKpi.dinnerEndWeekend);
+                }
               } else {
-                brDinner += getWindowActual(hourlyNet, brKpi.dinnerStart, brKpi.dinnerEndWeekend);
+                brDineInNonHourlyNet += cleanNum(d.financials?.net || d.net);
               }
             });
 
@@ -450,17 +597,10 @@ export function renderPerformancePage(user) {
               brDinner += onlineDinner;
             }
 
-            // Process Ayala Cloverleaf Dine-In: non-hourly, added directly to daily total (no hourly windows)
-            let ayalaDineInNet = 0;
-            if (isAyala) {
-              const dineInDocs = brDocs.filter(d => d.channelId === 'dinein');
-              ayalaDineInNet = dineInDocs.reduce((sum, d) => sum + cleanNum(d.financials?.net || d.net), 0);
-            }
-
             actualLunch += brLunch;
             actualAfternoon += brAfternoon;
             actualDinner += brDinner;
-            actualDaily += brLunch + brAfternoon + brDinner + ayalaDineInNet;
+            actualDaily += brLunch + brAfternoon + brDinner + brDineInNonHourlyNet;
 
           } else if (selectedChannel === 'online') {
             // Online channel selected specifically - distribute daily total to hourly windows
@@ -488,8 +628,11 @@ export function renderPerformancePage(user) {
             actualDaily += onlineNet;
 
           } else {
-            // Single hourly channel (or Ayala dinein)
-            if (hourlyChannels.includes(selectedChannel)) {
+            // Single hourly channel (dinein, grabfood, foodpanda)
+            const isAyalaDineInSingle = br === 'Ayala Cloverleaf' && selectedChannel === 'dinein';
+            const hasHourlyData = !isAyalaDineInSingle || brDocs.some(d => d.hourlyNet && Object.keys(d.hourlyNet).length > 0);
+
+            if (hasHourlyData) {
               brDocs.forEach(d => {
                 const hourlyNet = d.hourlyNet || {};
                 brLunch += getWindowActual(hourlyNet, brKpi.lunchStart, brKpi.lunchEnd);
@@ -505,7 +648,7 @@ export function renderPerformancePage(user) {
               actualDinner += brDinner;
               actualDaily += brLunch + brAfternoon + brDinner;
             } else {
-              // Ayala Cloverleaf Dine-In
+              // Ayala Cloverleaf Dine-In fallback if no hourly data uploaded yet
               const dailyNet = brDocs.reduce((sum, d) => sum + cleanNum(d.financials?.net || d.net), 0);
               actualDaily += dailyNet;
             }
@@ -771,20 +914,20 @@ export function renderPerformancePage(user) {
       <!-- Ayala / All Branches Warning Banners -->
       ${isAyalaDineIn ? `
         <div class="card-stagger flex items-center gap-4 p-4 rounded-2xl border border-amber-200 bg-amber-50/80 dark:border-amber-500/20 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 relative z-10" style="animation-delay: 0.1s">
-          <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
-          <p class="text-xs font-bold uppercase tracking-wide">Ayala Cloverleaf Dine-In data does not contain an hourly breakdown. Only the daily totals are available. Hourly windows are marked as N/A.</p>
+          <i data-lucide="info" class="w-5 h-5 shrink-0"></i>
+          <p class="text-xs font-bold uppercase tracking-wide">Ayala Cloverleaf Dine-In hourly tracking is supported. Upload the hourly transaction spreadsheet using the "Upload Ayala Hourly" button above to populate the hourly windows.</p>
         </div>
       ` : ''}
       ${isAyalaAll ? `
         <div class="card-stagger flex items-center gap-4 p-4 rounded-2xl border border-amber-200 bg-amber-50/80 dark:border-amber-500/20 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 relative z-10" style="animation-delay: 0.1s">
-          <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
-          <p class="text-xs font-bold uppercase tracking-wide">Ayala Cloverleaf Dine-In hourly data is not available. Dine-In sales are excluded from the Hourly Window columns, but are included in the Total Daily Revenue.</p>
+          <i data-lucide="info" class="w-5 h-5 shrink-0"></i>
+          <p class="text-xs font-bold uppercase tracking-wide">Ayala Cloverleaf Dine-In hourly breakdown is supported via file upload. If no hourly file has been uploaded for Dine-In, those sales are excluded from the Hourly Window columns, but included in the Total Daily Revenue.</p>
         </div>
       ` : ''}
       ${selectedBranch === 'All Branches' && (selectedChannel === 'dinein' || selectedChannel === 'all') ? `
         <div class="card-stagger flex items-center gap-4 p-4 rounded-2xl border border-amber-200 bg-amber-50/80 dark:border-amber-500/20 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 relative z-10" style="animation-delay: 0.1s">
-          <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0"></i>
-          <p class="text-xs font-bold uppercase tracking-wide">Ayala Cloverleaf Dine-In hourly data is not available. Ayala's Dine-In sales are excluded from the Hourly Window columns, but are included in the Total Daily Revenue.</p>
+          <i data-lucide="info" class="w-5 h-5 shrink-0"></i>
+          <p class="text-xs font-bold uppercase tracking-wide">Ayala Cloverleaf Dine-In hourly breakdown is supported via file upload. If no hourly file has been uploaded for Dine-In, those sales are excluded from the Hourly Window columns, but included in the Total Daily Revenue.</p>
         </div>
       ` : ''}
       ${selectedChannel === 'online' ? `
@@ -839,6 +982,13 @@ export function renderPerformancePage(user) {
            <button id="btn-edit-perf-kpi" class="excel-minimal-btn font-bold text-[#96588a] dark:text-purple-400">
               <i data-lucide="sliders" class="w-3.5 h-3.5"></i> Targets
            </button>
+           ` : ''}
+
+           ${selectedBranch === 'Ayala Cloverleaf' && selectedChannel === 'dinein' ? `
+           <button id="btn-upload-ayala-hourly" class="excel-minimal-btn font-bold text-emerald-600 dark:text-emerald-400">
+              <i data-lucide="file-up" class="w-3.5 h-3.5"></i> Upload Ayala Hourly
+           </button>
+           <input type="file" id="ayala-hourly-file-input" class="hidden" accept=".xlsx, .xls, .csv">
            ` : ''}
         </div>
 
@@ -1106,6 +1256,115 @@ export function renderPerformancePage(user) {
         }
       };
     });
+
+    // Ayala Cloverleaf Dine-In Hourly Upload Setup
+    const uploadAyalaBtn = page.querySelector('#btn-upload-ayala-hourly');
+    const fileInputAyala = page.querySelector('#ayala-hourly-file-input');
+
+    if (uploadAyalaBtn && fileInputAyala) {
+      uploadAyalaBtn.onclick = () => fileInputAyala.click();
+
+      fileInputAyala.onchange = async (e) => {
+        if (e.target.files.length > 0) {
+          const file = e.target.files[0];
+          uploadAyalaBtn.disabled = true;
+          const originalText = uploadAyalaBtn.innerHTML;
+          uploadAyalaBtn.innerHTML = '<div class="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div> Parsing...';
+
+          try {
+            const XLSX = await import('xlsx');
+            const data = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (evt) => {
+                try {
+                  const workbook = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+                  const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+                  resolve(sheetData);
+                } catch (err) { reject(err); }
+              };
+              reader.onerror = (err) => reject(err);
+              reader.readAsArrayBuffer(file);
+            });
+
+            if (!data || data.length <= 10) {
+              throw new Error("File has no valid data or starts after row 11.");
+            }
+
+            const seenInvoices = new Set();
+            const results = {};
+
+            for (let i = 10; i < data.length; i++) {
+              const row = data[i];
+              if (!row || row.length === 0) continue;
+
+              const invoiceNo = String(row[2] || '').trim();
+              if (!invoiceNo) continue;
+
+              if (seenInvoices.has(invoiceNo)) {
+                continue;
+              }
+              seenInvoices.add(invoiceNo);
+
+              const dateVal = row[0];
+              const timeVal = row[1];
+              const netAmount = cleanNumber(row[9]);
+
+              const parsed = parseDateAndHourFromRow(dateVal, timeVal);
+              if (!parsed) continue;
+
+              const { dateKey, hour } = parsed;
+
+              if (!results[dateKey]) {
+                results[dateKey] = {
+                  gross: 0,
+                  net: 0,
+                  totalDed: 0,
+                  orders: 0,
+                  hourlyNet: {}
+                };
+              }
+
+              results[dateKey].gross += netAmount;
+              results[dateKey].net += netAmount;
+              results[dateKey].orders += 1;
+
+              const hrStr = String(hour).padStart(2, '0');
+              results[dateKey].hourlyNet[hrStr] = (results[dateKey].hourlyNet[hrStr] || 0) + netAmount;
+            }
+
+            const datesFound = Object.keys(results);
+            if (datesFound.length === 0) {
+              throw new Error("No valid transactions found in the file.");
+            }
+
+            const confirmSave = confirm(`Found ${seenInvoices.size} unique transactions across ${datesFound.length} date(s). Would you like to save and merge this data into daily sales reports?`);
+            if (!confirmSave) {
+              uploadAyalaBtn.disabled = false;
+              uploadAyalaBtn.innerHTML = originalText;
+              fileInputAyala.value = '';
+              return;
+            }
+
+            uploadAyalaBtn.innerHTML = '<div class="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div> Saving...';
+            await saveAyalaHourlyToDatabase(results);
+
+            if (window.showToast) {
+              window.showToast("Ayala hourly data merged successfully!", "success");
+            } else {
+              alert("Ayala hourly data merged successfully!");
+            }
+            loadData();
+          } catch (error) {
+            console.error("Ayala upload error:", error);
+            alert("Error uploading Ayala hourly file: " + error.message);
+            uploadAyalaBtn.disabled = false;
+            uploadAyalaBtn.innerHTML = originalText;
+          } finally {
+            fileInputAyala.value = '';
+          }
+        }
+      };
+    }
 
     // Drawer Setup
     const openDrawerBtn = page.querySelector('#btn-edit-perf-kpi');
