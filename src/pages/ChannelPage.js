@@ -568,6 +568,14 @@ export function renderChannelPage(channelId, activeTab = 'history') {
           // Không set cell.fill hay cell.font để giữ format gốc của template
         });
 
+        const isDineIn = (channelId === 'dinein');
+        if (isDineIn) {
+          const startCol = 6 + dedKeyList.length;
+          worksheet.getCell(1, startCol).value = 'Cash';
+          worksheet.getCell(1, startCol + 1).value = 'Bank Card';
+          worksheet.getCell(1, startCol + 2).value = 'Bank Transfer';
+        }
+
         // Populate data starting from Row 2
         sortedItems.forEach((item, index) => {
           const rowNum = 2 + index;
@@ -583,6 +591,13 @@ export function renderChannelPage(channelId, activeTab = 'history') {
             const val = item.breakdown?.deductions?.[key] || 0;
             worksheet.getCell(rowNum, colNum).value = val;
           });
+
+          if (isDineIn) {
+            const startCol = 6 + dedKeyList.length;
+            worksheet.getCell(rowNum, startCol).value = item.paymentMethods?.cash || 0;
+            worksheet.getCell(rowNum, startCol + 1).value = item.paymentMethods?.bankCard || 0;
+            worksheet.getCell(rowNum, startCol + 2).value = item.paymentMethods?.bankTransfer || 0;
+          }
         });
 
         const buffer = await workbook.xlsx.writeBuffer();
@@ -898,6 +913,10 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
       updatedAt: serverTimestamp()
     };
 
+    if (res.paymentMethods) {
+      dataToSave.paymentMethods = res.paymentMethods;
+    }
+
     if (mode === 'merge') {
       const existingSnap = await getDoc(docRef);
       if (existingSnap.exists()) {
@@ -925,6 +944,15 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
             mergedHourly[hr] = (mergedHourly[hr] || 0) + val;
           });
           dataToSave.hourlyNet = mergedHourly;
+        }
+
+        // Merge paymentMethods
+        if (res.paymentMethods) {
+          const mergedPayments = { ...(old.paymentMethods || { cash: 0, bankCard: 0, bankTransfer: 0 }) };
+          mergedPayments.cash = (mergedPayments.cash || 0) + res.paymentMethods.cash;
+          mergedPayments.bankCard = (mergedPayments.bankCard || 0) + res.paymentMethods.bankCard;
+          mergedPayments.bankTransfer = (mergedPayments.bankTransfer || 0) + res.paymentMethods.bankTransfer;
+          dataToSave.paymentMethods = mergedPayments;
         }
       }
     }
@@ -1233,6 +1261,7 @@ function calculateAyalaDineIn(rows) {
 
 function calculateDineIn(rows, cfg) {
   let gross = 0, productDisc = 0, invoiceDisc = 0, totalBankTrans = 0, grabDineOut = 0, discount100 = 0;
+  let totalCash = 0, totalBankCard = 0, totalBankTransfer = 0;
   const ids = new Set();
 
   const orderRowsMap = {};
@@ -1315,6 +1344,10 @@ function calculateDineIn(rows, cfg) {
     invoiceDisc += orderInvoiceDisc;
     totalBankTrans += orderBankTrans;
 
+    totalCash += akVal;
+    totalBankCard += alVal;
+    totalBankTransfer += amVal;
+
     hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + orderNet;
   });
 
@@ -1347,7 +1380,12 @@ function calculateDineIn(rows, cfg) {
       { label: 'Bank Card Fee', val: bankFee, color: 'text-rose-500 font-medium', isDed: true },
       { label: 'Total Deduction', val: totalDed, color: 'text-rose-700 font-bold', isDed: true }
     ],
-    hourlyNet
+    hourlyNet,
+    paymentMethods: {
+      cash: totalCash,
+      bankCard: totalBankCard,
+      bankTransfer: totalBankTransfer
+    }
   };
 }
 

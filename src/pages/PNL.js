@@ -242,13 +242,13 @@ export function renderPNL(user = null) {
       }
 
       document.getElementById('pnl-branch').onchange = handleUpdate;
-
       const exportBtn = document.getElementById('pnl-export-excel');
       if (exportBtn) {
         exportBtn.onclick = async () => {
           window.showToast('Preparing Export...', 'info');
           try {
-            const ExcelJS = await import('exceljs');
+            const ExcelJSModule = await import('exceljs');
+            const ExcelJS = ExcelJSModule.default || ExcelJSModule;
             const { branches: allBr, data } = _pnlExportState;
             if (!allBr.length) { window.showToast('No data to export', 'error'); return; }
 
@@ -557,12 +557,12 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
       if (cat.includes('online')) return { type: 'opex', field: 'sales' };
       if (cat.includes('rental') || cat.includes('rent')) return { type: 'opex', field: 'rental' };
       
-      if (cat.includes('electricity') || cat.includes('electric') || cat.includes('gas') || cat.includes('water')) {
+      if (cat.includes('electricity') || cat.includes('electric') || cat.includes('gas') || cat.includes('water') ||
+          cat.includes('internet') || cat.includes('load')) {
         return { type: 'opex', field: 'utilities' };
       }
       
-      if (cat.includes('internet') || cat.includes('load') || cat.includes('maintenance') || 
-          cat.includes('representation') || cat.includes('stationery') || cat.includes('transport')) {
+      if (cat.includes('representation') || cat.includes('share')) {
         return { type: 'opex', field: 'management' };
       }
       
@@ -570,7 +570,8 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
         return { type: 'opex', field: 'depreciation' };
       }
       
-      if (cat.includes('cleaning') || cat.includes('clean') || cat.includes('share') || cat.includes('other')) {
+      if (cat.includes('cleaning') || cat.includes('clean') || cat.includes('other') ||
+          cat.includes('maintenance') || cat.includes('stationery') || cat.includes('transport')) {
         return { type: 'opex', field: 'other' };
       }
 

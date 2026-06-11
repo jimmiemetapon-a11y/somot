@@ -1,4 +1,18 @@
 // src/main.js
+// Handle Vite preload/dynamic import chunk load failures (common when new deployments replace old chunk hashes)
+window.addEventListener('vite:preloadError', (event) => {
+  console.warn('Vite preload error detected, reloading page to fetch latest version...', event);
+  window.location.reload();
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = event.reason?.message || '';
+  if (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Expected a JavaScript-or-Wasm module script')) {
+    console.warn('Dynamic import chunk load failure detected, reloading page...', event.reason);
+    window.location.reload();
+  }
+});
+
 import './style.css';
 import { renderHeader } from './components/Header.js';
 import { renderDashboard } from './pages/Dashboard.js';
