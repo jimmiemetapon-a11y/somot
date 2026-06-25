@@ -31,6 +31,7 @@ const CHANNELS = {
 };
 
 let chartMain = null, chartPie = null, chartMini = null, chartHourly = null;
+let confettiFired = false;
 
 function animateValue(el, end, formatter) {
   if (!el) return;
@@ -49,6 +50,84 @@ function animateValue(el, end, formatter) {
 function formatAbbreviated(n) {
   if (n >= 1000000) return (n / 1000000).toFixed(3) + 'M';
   return n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function triggerConfetti() {
+  const duration = 3000;
+  const animationEnd = Date.now() + duration;
+
+  const canvas = document.createElement('canvas');
+  canvas.style.position = 'fixed';
+  canvas.style.top = '0';
+  canvas.style.left = '0';
+  canvas.style.width = '100vw';
+  canvas.style.height = '100vh';
+  canvas.style.pointerEvents = 'none';
+  canvas.style.zIndex = '99999';
+  document.body.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  
+  const resizeCanvas = () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  };
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  const colors = ['#f43f5e', '#10b981', '#8b5cf6', '#f59e0b', '#3b82f6', '#ec4899'];
+  const particles = [];
+
+  for (let i = 0; i < 150; i++) {
+    particles.push({
+      x: canvas.width / 2,
+      y: canvas.height / 2 - 50,
+      vx: (Math.random() - 0.5) * 15,
+      vy: (Math.random() - 0.7) * 15 - 5,
+      r: Math.random() * 6 + 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      opacity: 1,
+      rotation: Math.random() * 360,
+      rotationSpeed: (Math.random() - 0.5) * 10
+    });
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.3;
+      p.vx *= 0.98;
+      p.rotation += p.rotationSpeed;
+
+      if (p.y < canvas.height && p.opacity > 0) {
+        alive = true;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.globalAlpha = p.opacity;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r);
+        ctx.restore();
+      }
+
+      if (Date.now() > animationEnd - 1000) {
+        p.opacity -= 0.02;
+      }
+    });
+
+    if (alive && Date.now() < animationEnd) {
+      requestAnimationFrame(animate);
+    } else {
+      window.removeEventListener('resize', resizeCanvas);
+      canvas.remove();
+    }
+  }
+
+  requestAnimationFrame(animate);
 }
 
 export function renderDashboard(user) {
@@ -88,7 +167,7 @@ export function renderDashboard(user) {
 
   page.innerHTML = `
     <!-- Floating Typographic Greeting (Option A - Borderless) -->
-    <div class="card-stagger relative mb-8 mt-4 px-2" style="animation-delay: 0.1s">
+    <div class="card-stagger relative mb-8 mt-4 px-2 flex justify-between items-center gap-4" style="animation-delay: 0.1s">
       <!-- Atmospheric Background Element -->
       <div class="absolute -top-10 -left-6 opacity-[0.08] dark:opacity-[0.08] pointer-events-none select-none text-slate-800/80 dark:text-white/100">
         <i data-lucide="${weatherIcon}" class="w-32 h-32 -rotate-12"></i>
@@ -110,6 +189,11 @@ export function renderDashboard(user) {
         <p class="text-slate-400 dark:text-white/30 text-xs font-medium tracking-wide">
           Welcome to <span class="text-slate-600 dark:text-white/50 font-bold">So Mot Vietnamese Cuisine!</span>
         </p>
+      </div>
+
+      <!-- KPI Status Icon (Right Side) -->
+      <div id="kpi-greeting-status" class="relative z-10 hidden sm:flex items-center justify-center h-28 w-36 overflow-hidden">
+        <img id="kpi-greeting-img" class="h-full w-full object-contain transition-all duration-500 hover:scale-110" src="/assets/Under70.png" alt="KPI Status" />
       </div>
     </div>
 
@@ -583,6 +667,7 @@ export function renderDashboard(user) {
 // ── Data Handling ────────────────────────────────────────────────────────────
 async function loadAndRender(page, branch, fromDate, toDate, trendFrom, trendTo, hourlyFrom, hourlyTo) {
   try {
+    confettiFired = false;
     // Calculate previous period for trend comparison
     const d1 = new Date(fromDate + 'T00:00:00');
     const d2 = new Date(toDate + 'T00:00:00');
@@ -763,6 +848,24 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   if (heroBar) heroBar.style.width = Math.min(kpiPct, 100) + '%';
   if (heroPct) heroPct.textContent = Math.round(kpiPct) + '% OF TARGET (' + days + ' DAYS)';
   if (heroTargetEl) heroTargetEl.textContent = 'Target: ' + fmtAbbr(totalKpiForPeriod);
+
+  // Update Greeting KPI Status Image and trigger confetti if achieved 100%
+  const kpiImg = page.querySelector('#kpi-greeting-img');
+  if (kpiImg) {
+    let imgSrc = '/assets/Under70.png';
+    if (kpiPct >= 100) {
+      imgSrc = '/assets/100%.png';
+      if (!confettiFired) {
+        triggerConfetti();
+        confettiFired = true;
+      }
+    } else if (kpiPct >= 90) {
+      imgSrc = '/assets/90-99.png';
+    } else if (kpiPct >= 70) {
+      imgSrc = '/assets/70-89.png';
+    }
+    kpiImg.src = imgSrc;
+  }
 
   // Animate Channels
   Object.entries(CHANNELS).forEach(([id, cfg]) => {

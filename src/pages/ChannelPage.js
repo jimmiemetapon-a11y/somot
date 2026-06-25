@@ -24,6 +24,30 @@ const CHANNEL_CONFIG = {
   },
 };
 
+// Mapping tên chi nhánh trong cột A file FoodPanda → branchId trong database
+const PANDA_BRANCH_MAP = {
+  'So Mot Vietnamese Cuisine - Unimart': 'Unimart Capitol',
+  'So Mot Vietnamese Cuisine - Ayala Malls Cloverleaf': 'Ayala Cloverleaf',
+  'So Mot Vietnamese Cuisine - Pioneer Center Supermarket': 'Pioneer Center',
+  'So Mot Vietnamese Cuisine - Tayuman': 'Catholic Trade'
+};
+
+// Mapping tên chi nhánh trong cột A file Dine In (KiotViet) → branchId trong database
+const DINEIN_BRANCH_MAP = {
+  'PC': 'Pioneer Center',
+  'Tayuman ( Catholic Trade )': 'Catholic Trade',
+  'Unimart Capitol Commons': 'Unimart Capitol'
+};
+
+// Mapping tên chi nhánh trong cột C file GrabFood → branchId trong database
+const GRAB_BRANCH_MAP = {
+  'So Mot Vietnamese Cuisine - Ayala Cloverleaf': 'Ayala Cloverleaf',
+  'So Mot Vietnamese Cuisine - Pioneer Center': 'Pioneer Center',
+  'So Mot Vietnamese Cuisine - Kapitolyo Pasig': 'Pioneer Center',
+  'So Mot Vietnamese Cuisine - Tayuman': 'Catholic Trade',
+  'So Mot Vietnamese Cuisine - Unimart': 'Unimart Capitol'
+};
+
 let historyItems = [];
 
 // Hàm hỗ trợ lấy ngày nội bộ (Local Time) tránh bị lùi 1 ngày do lệch múi giờ (Timezone Offset)
@@ -495,6 +519,290 @@ export function renderChannelPage(channelId, activeTab = 'history') {
 
     // Export Excel from Template logic
     page.querySelector('#btn-export-csv').onclick = async () => {
+      const branchId = (document.getElementById('db-branch')?.value || 'Pioneer Center').trim();
+      const isAllBranches = (branchId === 'All Branches');
+
+      if (isAllBranches) {
+        window.showToast('Preparing Consolidated All-Branches Export...', 'info');
+
+        try {
+          // 1. Get dates range
+          const rangeStr = document.getElementById('db-date-range')?.value || '';
+          let fromDate = '', toDate = '';
+          if (rangeStr.includes(' to ')) {
+            [fromDate, toDate] = rangeStr.split(' to ');
+          } else if (rangeStr) {
+            fromDate = toDate = rangeStr;
+          }
+
+          if (!fromDate || !toDate) {
+            const yest = new Date();
+            yest.setDate(yest.getDate() - 1);
+            const yestStr = getLocalDateString(yest);
+            fromDate = toDate = yestStr;
+          }
+
+          // 2. Fetch all channel and branch records from daily_sales
+          const q = query(
+            collection(db, "daily_sales"),
+            where("date", ">=", fromDate),
+            where("date", "<=", toDate)
+          );
+
+          const snapshot = await getDocs(q);
+          if (snapshot.empty) {
+            return alert('No database records found in the selected period to export.');
+          }
+
+          const branchNameMap = {
+            'Pioneer Center': 'PIONEER',
+            'Catholic Trade': 'TAYUMAN',
+            'Unimart Capitol': 'UNIMART',
+            'Ayala Cloverleaf': 'AYALA'
+          };
+
+          const consolidated = {};
+
+          snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            const rawBranch = data.branchId;
+            const mappedBranch = branchNameMap[rawBranch] || String(rawBranch).toUpperCase();
+
+            const dateStr = data.date;
+            if (!dateStr) return;
+
+            if (!consolidated[dateStr]) {
+              consolidated[dateStr] = {};
+            }
+            if (!consolidated[dateStr][mappedBranch]) {
+              consolidated[dateStr][mappedBranch] = {
+                dinein: { gross: 0, deduction: 0, cash: 0, bankTransfer: 0, card: 0, cardFee: 0, net: 0 },
+                grabfood: { gross: 0, deduction: 0, net: 0 },
+                foodpanda: { gross: 0, deduction: 0, net: 0 },
+                online: { net: 0, cash: 0, bankTransfer: 0 }
+              };
+            }
+
+            const branchData = consolidated[dateStr][mappedBranch];
+            const channel = data.channelId;
+
+            if (channel === 'dinein') {
+              branchData.dinein.gross += (data.financials?.gross || 0);
+              branchData.dinein.deduction += (data.financials?.totalDeductions || 0);
+              branchData.dinein.cash += (data.paymentMethods?.cash || 0);
+              branchData.dinein.bankTransfer += (data.paymentMethods?.bankTransfer || 0);
+              branchData.dinein.card += (data.paymentMethods?.bankCard || 0);
+              branchData.dinein.cardFee += (data.breakdown?.deductions?.bankCardFee || 0);
+              branchData.dinein.net += (data.financials?.net || 0);
+            } else if (channel === 'grabfood') {
+              branchData.grabfood.gross += (data.financials?.gross || 0);
+              branchData.grabfood.deduction += (data.financials?.totalDeductions || 0);
+              branchData.grabfood.net += (data.financials?.net || 0);
+            } else if (channel === 'foodpanda') {
+              branchData.foodpanda.gross += (data.financials?.gross || 0);
+              branchData.foodpanda.deduction += (data.financials?.totalDeductions || 0);
+              branchData.foodpanda.net += (data.financials?.net || 0);
+            } else if (channel === 'online') {
+              branchData.online.net += (data.financials?.net || 0);
+              branchData.online.cash += (data.paymentMethods?.cash || 0);
+              branchData.online.bankTransfer += (data.paymentMethods?.bankTransfer || 0);
+            }
+          });
+
+          // 4. Create ExcelJS workbook
+          const ExcelJSModule = await import('exceljs');
+          const ExcelJS = ExcelJSModule.default || ExcelJSModule;
+          const workbook = new ExcelJS.Workbook();
+          const worksheet = workbook.addWorksheet('Consolidated Report');
+
+          // Configure Columns
+          worksheet.columns = [
+            { key: 'date', width: 25 },
+            { key: 'branch', width: 15 },
+            // Dine In
+            { key: 'di_gross', width: 15 },
+            { key: 'di_ded', width: 15 },
+            { key: 'di_cash', width: 15 },
+            { key: 'di_bank', width: 18 },
+            { key: 'di_card', width: 15 },
+            { key: 'di_card_fee', width: 12 },
+            { key: 'di_net', width: 15 },
+            // GrabFood
+            { key: 'grab_gross', width: 15 },
+            { key: 'grab_ded', width: 15 },
+            { key: 'grab_net', width: 15 },
+            // FoodPanda
+            { key: 'panda_gross', width: 15 },
+            { key: 'panda_ded', width: 15 },
+            { key: 'panda_net', width: 15 },
+            // Online
+            { key: 'online_net', width: 15 },
+            { key: 'online_cash', width: 15 },
+            { key: 'online_bank', width: 18 }
+          ];
+
+          // Headers values & merge
+          worksheet.getCell('A1').value = 'DATE';
+          worksheet.getCell('B1').value = 'BRANCH';
+          worksheet.getCell('C1').value = 'DINE-IN (KIOTVIET)';
+          worksheet.getCell('J1').value = 'GRABFOOD';
+          worksheet.getCell('M1').value = 'FOODPANDA';
+          worksheet.getCell('P1').value = 'ONLINE';
+
+          worksheet.getCell('C2').value = 'GROSS SALE';
+          worksheet.getCell('D2').value = 'DEDUCTION';
+          worksheet.getCell('E2').value = 'CASH';
+          worksheet.getCell('F2').value = 'BANK TRANSFER';
+          worksheet.getCell('G2').value = 'CARD';
+          worksheet.getCell('H2').value = 'CARD FEE';
+          worksheet.getCell('I2').value = 'NET SALE';
+
+          worksheet.getCell('J2').value = 'GROSS';
+          worksheet.getCell('K2').value = 'DEDUCTION';
+          worksheet.getCell('L2').value = 'NET SALE';
+
+          worksheet.getCell('M2').value = 'GROSS';
+          worksheet.getCell('N2').value = 'DEDUCTION';
+          worksheet.getCell('O2').value = 'NET SALE';
+
+          worksheet.getCell('P2').value = 'NET SALE';
+          worksheet.getCell('Q2').value = 'CASH';
+          worksheet.getCell('R2').value = 'BANK TRANSFER';
+
+          worksheet.mergeCells('A1:A2');
+          worksheet.mergeCells('B1:B2');
+          worksheet.mergeCells('C1:I1');
+          worksheet.mergeCells('J1:L1');
+          worksheet.mergeCells('M1:O1');
+          worksheet.mergeCells('P1:R1');
+
+          // Styles for header
+          const grayFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAEAEA' } };
+          const purpleFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0E6F0' } };
+          const greenFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F5EC' } };
+          const pinkFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE8ED' } };
+          const violetFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0EBF9' } };
+
+          for (let r = 1; r <= 2; r++) {
+            worksheet.getCell(r, 1).fill = grayFill;
+            worksheet.getCell(r, 2).fill = grayFill;
+            for (let c = 3; c <= 9; c++) worksheet.getCell(r, c).fill = purpleFill;
+            for (let c = 10; c <= 12; c++) worksheet.getCell(r, c).fill = greenFill;
+            for (let c = 13; c <= 15; c++) worksheet.getCell(r, c).fill = pinkFill;
+            for (let c = 16; c <= 18; c++) worksheet.getCell(r, c).fill = violetFill;
+          }
+
+          const borderStyle = {
+            top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+            left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+            bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+            right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
+          };
+
+          const headerRefs = [
+            'A1', 'B1', 'C1', 'J1', 'M1', 'P1', 
+            'C2', 'D2', 'E2', 'F2', 'G2', 'H2', 'I2', 
+            'J2', 'K2', 'L2', 
+            'M2', 'N2', 'O2', 
+            'P2', 'Q2', 'R2'
+          ];
+
+          headerRefs.forEach(cellRef => {
+            const cell = worksheet.getCell(cellRef);
+            cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+            cell.font = { name: 'Arial', size: 9, bold: true };
+          });
+
+          for (let r = 1; r <= 2; r++) {
+            for (let c = 1; c <= 18; c++) {
+              worksheet.getCell(r, c).border = borderStyle;
+            }
+          }
+
+          // Sort dates chronologically
+          const sortedDates = Object.keys(consolidated).sort();
+
+          let rowNum = 3;
+          sortedDates.forEach(dateStr => {
+            // Format date string to "Monday, June 1, 2026"
+            const parts = dateStr.split('-');
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            const localDate = new Date(year, month, day);
+            const formattedDate = localDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            // Branch loop for this date
+            const branchesForDate = Object.keys(consolidated[dateStr]).sort();
+            branchesForDate.forEach(branch => {
+              const bData = consolidated[dateStr][branch];
+
+              worksheet.getCell(`A${rowNum}`).value = formattedDate;
+              worksheet.getCell(`B${rowNum}`).value = branch;
+
+              // Dine In
+              worksheet.getCell(`C${rowNum}`).value = bData.dinein.gross;
+              worksheet.getCell(`D${rowNum}`).value = bData.dinein.deduction;
+              worksheet.getCell(`E${rowNum}`).value = bData.dinein.cash;
+              worksheet.getCell(`F${rowNum}`).value = bData.dinein.bankTransfer;
+              worksheet.getCell(`G${rowNum}`).value = bData.dinein.card;
+              worksheet.getCell(`H${rowNum}`).value = bData.dinein.cardFee;
+              worksheet.getCell(`I${rowNum}`).value = bData.dinein.net;
+
+              // GrabFood
+              worksheet.getCell(`J${rowNum}`).value = bData.grabfood.gross;
+              worksheet.getCell(`K${rowNum}`).value = bData.grabfood.deduction;
+              worksheet.getCell(`L${rowNum}`).value = bData.grabfood.net;
+
+              // FoodPanda
+              worksheet.getCell(`M${rowNum}`).value = bData.foodpanda.gross;
+              worksheet.getCell(`N${rowNum}`).value = bData.foodpanda.deduction;
+              worksheet.getCell(`O${rowNum}`).value = bData.foodpanda.net;
+
+              // Online
+              worksheet.getCell(`P${rowNum}`).value = bData.online.net;
+              worksheet.getCell(`Q${rowNum}`).value = bData.online.cash;
+              worksheet.getCell(`R${rowNum}`).value = bData.online.bankTransfer;
+
+              // Formatting cells as currency/number where appropriate
+              for (let col = 3; col <= 18; col++) {
+                const cell = worksheet.getCell(rowNum, col);
+                cell.numFmt = '#,##0.00';
+                cell.alignment = { horizontal: 'right' };
+                cell.font = { name: 'Arial', size: 9 };
+                cell.border = borderStyle;
+              }
+
+              // Add border to date & branch cells
+              worksheet.getCell(rowNum, 1).border = borderStyle;
+              worksheet.getCell(rowNum, 2).border = borderStyle;
+              worksheet.getCell(rowNum, 1).font = { name: 'Arial', size: 9 };
+              worksheet.getCell(rowNum, 2).font = { name: 'Arial', size: 9 };
+              worksheet.getCell(rowNum, 1).alignment = { horizontal: 'left' };
+              worksheet.getCell(rowNum, 2).alignment = { horizontal: 'center' };
+
+              rowNum++;
+            });
+          });
+
+          // Write Workbook
+          const fileName = `Consolidated_Report_${fromDate}_${toDate}.xlsx`;
+          const buffer = await workbook.xlsx.writeBuffer();
+          const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          a.click();
+          window.URL.revokeObjectURL(url);
+          window.showToast('Consolidated Export successful!', 'success');
+        } catch (err) {
+          console.error(err);
+          window.showToast('Failed to export consolidated Excel file', 'error');
+        }
+        return;
+      }
+
       if (historyItems.length === 0) return alert('No data to export');
 
       // 1. Danh mục label phí
@@ -560,12 +868,11 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         worksheet.getCell('E1').value = 'Net Revenue';
 
         // 4. Ghi Tiêu đề cho các cột phí động (Bắt đầu từ cột F - cột số 6)
-        // Loại bỏ style cứng để template tự áp dụng định dạng (Conditional Formatting)
+        // Ptô màu tiêu đề cột động để dễ nhìn
         dedKeyList.forEach((key, i) => {
           const colNum = 6 + i;
           const cell = worksheet.getCell(1, colNum);
           cell.value = labelsMap[key] || key;
-          // Không set cell.fill hay cell.font để giữ format gốc của template
         });
 
         const isDineIn = (channelId === 'dinein');
@@ -821,7 +1128,10 @@ export function renderChannelPage(channelId, activeTab = 'history') {
       }
 
       // Group by Date cho toàn bộ dữ liệu đã gộp
-      const grouped = groupDataByDate(allDataRows, channelId, cfg, branchId);
+      const isAllBranches = (branchId === 'All Branches');
+      const grouped = (isAllBranches && (channelId === 'foodpanda' || channelId === 'dinein' || channelId === 'grabfood'))
+        ? groupDataByBranchAndDate(allDataRows, channelId, cfg)
+        : groupDataByDate(allDataRows, channelId, cfg, branchId);
       currentResults = grouped;
 
       try {
@@ -839,14 +1149,24 @@ export function renderChannelPage(channelId, activeTab = 'history') {
       }
     }
 
-    async function checkConflicts(channelId, branchId, dates) {
+    async function checkConflicts(channelId, branchId, dateKeys) {
       const conflicts = [];
-      const safeBranchName = branchId.replace(/\s+/g, '');
 
-      const promises = dates.map(async (date) => {
-        const docId = `${channelId}_${safeBranchName}_${date}`;
+      const promises = dateKeys.map(async (key) => {
+        let actualBranch = branchId;
+        let actualDate = key;
+
+        // Parse compound key cho All Branches: "branchId|||date"
+        if (key.includes('|||')) {
+          const parts = key.split('|||');
+          actualBranch = parts[0];
+          actualDate = parts[1];
+        }
+
+        const safeBranchName = actualBranch.replace(/\s+/g, '');
+        const docId = `${channelId}_${safeBranchName}_${actualDate}`;
         const snap = await getDocs(query(collection(db, "daily_sales"), where("__name__", "==", docId)));
-        if (!snap.empty) conflicts.push(date);
+        if (!snap.empty) conflicts.push(key);
       });
 
       await Promise.all(promises);
@@ -884,6 +1204,47 @@ function groupDataByDate(data, channelId, cfg, branchId) {
   return results;
 }
 
+// Hàm mới: Group theo Branch + Date cho All Branches
+// Đọc cột tương ứng để xác định chi nhánh (cột A cho dinein/panda, cột C cho grabfood), dùng compound key "branchId|||date"
+function groupDataByBranchAndDate(data, channelId, cfg) {
+  // Chọn branch map theo channel
+  const branchMap = (channelId === 'dinein') 
+    ? DINEIN_BRANCH_MAP 
+    : (channelId === 'grabfood') 
+      ? GRAB_BRANCH_MAP 
+      : PANDA_BRANCH_MAP;
+
+  const branchDailyData = {};
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i]; if (!row || row.length === 0) continue;
+
+    // Đọc cột xác định chi nhánh: grabfood dùng cột C (index 2), các kênh khác dùng cột A (index 0)
+    const colIdx = (channelId === 'grabfood') ? 2 : 0;
+    const rawBranch = String(row[colIdx] || '').trim();
+    const mappedBranch = branchMap[rawBranch];
+    if (!mappedBranch) continue; // Bỏ qua nếu không map được
+
+    const dateKey = standardizeDate(row[cfg.colDate], channelId);
+    if (!dateKey) continue;
+
+    const compoundKey = `${mappedBranch}|||${dateKey}`;
+    if (!branchDailyData[compoundKey]) branchDailyData[compoundKey] = [];
+    branchDailyData[compoundKey].push(row);
+  }
+
+  const results = {};
+  for (const [compoundKey, rows] of Object.entries(branchDailyData)) {
+    // Chọn hàm tính toán theo channel — logic tính toán KHÔNG thay đổi
+    results[compoundKey] = (channelId === 'dinein')
+      ? calculateDineIn(rows, cfg)
+      : (channelId === 'grabfood')
+        ? calculateGrab(rows, cfg)
+        : calculatePanda(rows, cfg);
+  }
+  return results;
+}
+
 async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') {
   const batchId = `BATCH_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
   let totalRows = 0;
@@ -892,15 +1253,26 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
   const safeBranchName = branchId.replace(/\s+/g, '');
 
   // Use a batch or individual updates? Since we might need to read first for merge, we'll process with a loop
-  const promises = Object.entries(results).map(async ([date, res]) => {
+  const promises = Object.entries(results).map(async ([key, res]) => {
     totalRows += (res.orders || 0);
-    const docId = `${channelId}_${safeBranchName}_${date}`;
+
+    // Parse compound key cho All Branches: "branchId|||date"
+    let actualBranch = branchId;
+    let actualDate = key;
+    if (key.includes('|||')) {
+      const parts = key.split('|||');
+      actualBranch = parts[0];
+      actualDate = parts[1];
+    }
+
+    const actualSafeBranch = actualBranch.replace(/\s+/g, '');
+    const docId = `${channelId}_${actualSafeBranch}_${actualDate}`;
     const docRef = doc(db, "daily_sales", docId);
 
     let dataToSave = {
       channelId,
-      branchId,
-      date,
+      branchId: actualBranch,
+      date: actualDate,
       orders: res.orders,
       financials: {
         gross: res.gross,
@@ -1406,6 +1778,15 @@ function updateUI(page, dailyResults, channelId, conflictDates = []) {
   const aggDeductions = {};
   const aggIncomes = {};
 
+  // Tính unique days và branches cho All Branches mode
+  const hasCompoundKeys = dates.some(d => d.includes('|||'));
+  const uniqueDays = hasCompoundKeys
+    ? new Set(dates.map(d => d.split('|||')[1])).size
+    : dates.length;
+  const uniqueBranches = hasCompoundKeys
+    ? new Set(dates.map(d => d.split('|||')[0])).size
+    : 0;
+
   dates.forEach(d => {
     const res = dailyResults[d];
     if (!res) return;
@@ -1505,8 +1886,14 @@ function updateUI(page, dailyResults, channelId, conflictDates = []) {
            </div>
            <div class="flex flex-col">
               <span class="text-[9px] font-black text-amber-500 uppercase tracking-widest">Days Found</span>
-              <span class="text-lg font-bold text-amber-600 dark:text-amber-500">${dates.length} Days</span>
+              <span class="text-lg font-bold text-amber-600 dark:text-amber-500">${uniqueDays} Days</span>
            </div>
+           ${uniqueBranches > 0 ? `
+           <div class="flex flex-col">
+              <span class="text-[9px] font-black text-[#96588a] uppercase tracking-widest">Branches</span>
+              <span class="text-lg font-bold text-[#96588a]">${uniqueBranches}</span>
+           </div>
+           ` : ''}
         </div>
       </div>
 
@@ -1706,28 +2093,48 @@ async function fetchChannelHistory(channelId) {
 
   try {
     let q;
-    if (fromDate && toDate) {
-      q = query(
-        collection(db, "daily_sales"),
-        where("channelId", "==", channelId),
-        where("branchId", "==", branchId),
-        where("date", ">=", fromDate),
-        where("date", "<=", toDate),
-        orderBy("date", "desc"),
-        limit(100)
-      );
+    if (branchId === 'All Branches') {
+      if (fromDate && toDate) {
+        q = query(
+          collection(db, "daily_sales"),
+          where("channelId", "==", channelId),
+          where("date", ">=", fromDate),
+          where("date", "<=", toDate)
+        );
+      } else {
+        const yest = new Date();
+        yest.setDate(yest.getDate() - 1);
+        const yestStr = getLocalDateString(yest);
+        q = query(
+          collection(db, "daily_sales"),
+          where("channelId", "==", channelId),
+          where("date", "==", yestStr)
+        );
+      }
     } else {
-      // DEFAULT: Yesterday
-      const yest = new Date();
-      yest.setDate(yest.getDate() - 1);
-      const yestStr = getLocalDateString(yest);
+      if (fromDate && toDate) {
+        q = query(
+          collection(db, "daily_sales"),
+          where("channelId", "==", channelId),
+          where("branchId", "==", branchId),
+          where("date", ">=", fromDate),
+          where("date", "<=", toDate),
+          orderBy("date", "desc"),
+          limit(100)
+        );
+      } else {
+        // DEFAULT: Yesterday
+        const yest = new Date();
+        yest.setDate(yest.getDate() - 1);
+        const yestStr = getLocalDateString(yest);
 
-      q = query(
-        collection(db, "daily_sales"),
-        where("channelId", "==", channelId),
-        where("branchId", "==", branchId),
-        where("date", "==", yestStr)
-      );
+        q = query(
+          collection(db, "daily_sales"),
+          where("channelId", "==", channelId),
+          where("branchId", "==", branchId),
+          where("date", "==", yestStr)
+        );
+      }
     }
 
     const snapshot = await getDocs(q);
@@ -1740,9 +2147,22 @@ async function fetchChannelHistory(channelId) {
     let listHtml = '';
     historyItems = []; // Reset local storage
 
+    // Chuyển snapshot thành mảng để sắp xếp ở client nếu cần
+    let docsList = [];
     snapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      const docId = docSnap.id;
+      docsList.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    if (branchId === 'All Branches') {
+      docsList.sort((a, b) => {
+        const dateComp = b.date.localeCompare(a.date);
+        if (dateComp !== 0) return dateComp;
+        return (a.branchId || '').localeCompare(b.branchId || '');
+      });
+    }
+
+    docsList.forEach(data => {
+      const docId = data.id;
 
       const dateStr = (data.date || '').toString();
       const ordersStr = String(data.orders ?? '');
@@ -1753,15 +2173,19 @@ async function fetchChannelHistory(channelId) {
 
       if (!matchesSearch) return;
 
-      historyItems.push({ id: docId, ...data });
+      historyItems.push(data);
       totalGross += data.financials.gross;
       totalNet += data.financials.net;
       totalOrders += data.orders;
       totalDeductions += data.financials.totalDeductions;
 
+      const displayDate = branchId === 'All Branches'
+        ? `${data.date}<br><span class="text-[9px] font-black text-[#96588a] uppercase">${data.branchId}</span>`
+        : data.date;
+
       listHtml += `
         <tr class="hover:bg-white/10 dark:hover:bg-white/5 transition-all group history-row cursor-pointer" data-id="${docId}">
-          <td class="px-6 py-5 text-[11px] font-bold text-slate-700 dark:text-slate-300">${data.date}</td>
+          <td class="px-6 py-5 text-[11px] font-bold text-slate-700 dark:text-slate-300">${displayDate}</td>
           <td class="px-6 py-5 text-[11px] font-bold text-slate-500 text-center">
             <span class="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400">${data.orders.toLocaleString()}</span>
           </td>
@@ -2153,12 +2577,16 @@ function renderPreviewTable(data, container, fileName, conflictDates = [], daily
          ${datesFound.map(d => {
            const res = dailyResults[d];
            const isConflict = conflictDates.includes(d);
+           const hasBranch = d.includes('|||');
+           const displayDate = hasBranch ? d.split('|||')[1] : d;
+           const displayBranch = hasBranch ? d.split('|||')[0] : '';
            return `
              <div class="p-3 rounded-2xl bg-white dark:bg-white/5 border ${isConflict ? 'border-amber-500/30 bg-amber-500/[0.02]' : 'border-slate-200 dark:border-white/10'} transition-all">
                 <div class="flex items-center justify-between mb-1">
-                   <p class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">${d}</p>
+                   <p class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">${displayDate}</p>
                    ${isConflict ? '<i data-lucide="history" class="w-2.5 h-2.5 text-amber-500"></i>' : ''}
                 </div>
+                ${displayBranch ? `<p class="text-[8px] font-black text-[#96588a] uppercase tracking-tighter mb-0.5">${displayBranch}</p>` : ''}
                 <p class="text-xs font-black text-slate-800 dark:text-white">${fmt.format(res.gross)}</p>
                 <p class="text-[8px] font-bold text-slate-400 uppercase mt-0.5">${res.orders} Orders</p>
              </div>
