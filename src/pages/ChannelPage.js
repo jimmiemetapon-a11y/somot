@@ -1377,7 +1377,7 @@ function calculateOnline(rows, cfg) {
 }
 
 function calculateGrab(rows, cfg) {
-  let gross = 0, merchantDisc = 0, deliveryDisc = 0, comm = 0, marketing = 0, orderComm = 0, orders = 0;
+  let gross = 0, net = 0, merchantDisc = 0, deliveryDisc = 0, comm = 0, marketing = 0, orderComm = 0, orders = 0;
 
   // Các biến mới để bóc tách từ cột BA (52)
   let ads_fee = 0;
@@ -1390,7 +1390,8 @@ function calculateGrab(rows, cfg) {
   let totalGeneralDeductions = 0;
 
   rows.forEach(row => {
-    let g = cleanNumber(row[cfg.colGross]);
+    const cat = String(row[cfg.colCategory] || '').trim();
+    const g = cleanNumber(row[cfg.colGross]);
     const orderId = String(row[cfg.colId] || '').trim();
 
     let rowMerchantDisc = 0;
@@ -1398,17 +1399,18 @@ function calculateGrab(rows, cfg) {
     let rowComm = 0;
     let rowMarketing = 0;
     let rowOrderComm = 0;
-    let rowAdsFee = 0;
-    let rowDineOut = 0;
-    let rowAdjustment = 0;
-    let rowOther = 0;
 
     const dateVal = row[cfg.colDate];
     const { hour } = standardizeDateWithHour(dateVal, 'grabfood');
     const hrStr = String(hour).padStart(2, '0');
 
-    if (g > 0) {
-      gross += g;
+    // Lũy kế Net bằng cách sum trực tiếp tất cả giá trị cột BA (cột BA tự sinh tự diệt âm dương)
+    const aVal = cleanNumber(row[cfg.colAds]);
+    net += aVal;
+
+    const isGeneralDeduction = (cat === 'Advertisement' || cat === 'Dine Out Discount' || cat === 'Adjustment');
+
+    if (g > 0 && !isGeneralDeduction) {
       rowMerchantDisc = Math.abs(cleanNumber(row[cfg.colMerchantDisc]));
       rowDeliveryDisc = Math.abs(cleanNumber(row[cfg.colDeliveryDisc]));
       rowComm = Math.abs(cleanNumber(row[cfg.colComm]));
@@ -1422,30 +1424,30 @@ function calculateGrab(rows, cfg) {
       orderComm += rowOrderComm;
 
       const rowSpecificDed = rowMerchantDisc + rowDeliveryDisc + rowComm + rowMarketing + rowOrderComm;
-      const rowNet = g - rowSpecificDed;
+      const rowGross = aVal + rowSpecificDed;
+      gross += rowGross;
 
-      hourlyGross[hrStr] = (hourlyGross[hrStr] || 0) + g;
-      hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + rowNet;
+      hourlyGross[hrStr] = (hourlyGross[hrStr] || 0) + rowGross;
+      hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + aVal;
     }
 
     // Đếm đơn dựa trên ID cột P (15)
     if (orderId !== '') orders++;
 
     // Xử lý thông minh cột BA (52) dựa trên Category (7)
-    let aVal = cleanNumber(row[cfg.colAds]);
-    if (aVal < 0) {
+    if (isGeneralDeduction) {
       const absVal = Math.abs(aVal);
-      const cat = String(row[cfg.colCategory] || '').trim();
-
       if (cat === 'Advertisement') {
         ads_fee += absVal;
       } else if (cat === 'Dine Out Discount') {
         dine_out_promo += absVal;
       } else if (cat === 'Adjustment') {
         adjustment_fee += absVal;
-      } else {
-        other_ba_fees += absVal;
       }
+      totalGeneralDeductions += absVal;
+    } else if (aVal < 0) {
+      const absVal = Math.abs(aVal);
+      other_ba_fees += absVal;
       totalGeneralDeductions += absVal;
     }
   });
@@ -1484,7 +1486,7 @@ function calculateGrab(rows, cfg) {
   };
 
   return {
-    net: gross - totalDed, gross, orders, totalDed, breakdown, details: [
+    net, gross, orders, totalDed, breakdown, details: [
       { label: 'Gross Sale', val: gross, color: 'text-slate-600' },
       { label: 'Commission', val: comm + orderComm, color: 'text-rose-500', isDed: true },
       { label: 'Merchant Discount', val: merchantDisc, color: 'text-rose-500', isDed: true },

@@ -175,7 +175,7 @@ export function renderDashboard(user) {
 
       <div class="relative z-10 flex flex-col gap-2">
         <div class="flex items-center gap-3 text-slate-400 dark:text-white/20 text-[9px] font-black uppercase tracking-[0.3em]">
-          <i data-lucide="calendar" class="w-3 h-3"></i>
+          <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
           <span>${dateStr}</span>
         </div>
 
