@@ -29,14 +29,16 @@ const PANDA_BRANCH_MAP = {
   'So Mot Vietnamese Cuisine - Unimart': 'Unimart Capitol',
   'So Mot Vietnamese Cuisine - Ayala Malls Cloverleaf': 'Ayala Cloverleaf',
   'So Mot Vietnamese Cuisine - Pioneer Center Supermarket': 'Pioneer Center',
-  'So Mot Vietnamese Cuisine - Tayuman': 'Catholic Trade'
+  'So Mot Vietnamese Cuisine - Tayuman': 'Catholic Trade',
+  'So Mot Vietnamese Cuisine - UST': 'UST'
 };
 
 // Mapping tên chi nhánh trong cột A file Dine In (KiotViet) → branchId trong database
 const DINEIN_BRANCH_MAP = {
   'PC': 'Pioneer Center',
   'Tayuman ( Catholic Trade )': 'Catholic Trade',
-  'Unimart Capitol Commons': 'Unimart Capitol'
+  'Unimart Capitol Commons': 'Unimart Capitol',
+  'UST': 'UST'
 };
 
 // Mapping tên chi nhánh trong cột C file GrabFood → branchId trong database
@@ -45,7 +47,8 @@ const GRAB_BRANCH_MAP = {
   'So Mot Vietnamese Cuisine - Pioneer Center': 'Pioneer Center',
   'So Mot Vietnamese Cuisine - Kapitolyo Pasig': 'Pioneer Center',
   'So Mot Vietnamese Cuisine - Tayuman': 'Catholic Trade',
-  'So Mot Vietnamese Cuisine - Unimart': 'Unimart Capitol'
+  'So Mot Vietnamese Cuisine - Unimart': 'Unimart Capitol',
+  'So Mot Vietnamese Cuisine - UST': 'UST'
 };
 
 let historyItems = [];
@@ -558,7 +561,8 @@ export function renderChannelPage(channelId, activeTab = 'history') {
             'Pioneer Center': 'PIONEER',
             'Catholic Trade': 'TAYUMAN',
             'Unimart Capitol': 'UNIMART',
-            'Ayala Cloverleaf': 'AYALA'
+            'Ayala Cloverleaf': 'AYALA',
+            'UST': 'UST'
           };
 
           const consolidated = {};
@@ -1222,7 +1226,9 @@ function groupDataByBranchAndDate(data, channelId, cfg) {
     // Đọc cột xác định chi nhánh: grabfood dùng cột C (index 2), các kênh khác dùng cột A (index 0)
     const colIdx = (channelId === 'grabfood') ? 2 : 0;
     const rawBranch = String(row[colIdx] || '').trim();
-    const mappedBranch = branchMap[rawBranch];
+    let mappedBranch = branchMap[rawBranch];
+    // Fuzzy fallback: nếu không match chính xác mà có chứa 'UST' → branch UST
+    if (!mappedBranch && rawBranch.toUpperCase().includes('UST')) mappedBranch = 'UST';
     if (!mappedBranch) continue; // Bỏ qua nếu không map được
 
     const dateKey = standardizeDate(row[cfg.colDate], channelId);

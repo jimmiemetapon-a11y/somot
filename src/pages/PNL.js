@@ -15,7 +15,7 @@ window.togglePnlDeductions = (rowId) => {
 };
 
 export function renderPNL(user = null) {
-  const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
   const isAdmin = user?.permissions?.isAdmin === true || ['jimmie.somot@gmail.com'].includes(user?.email);
   const allowedBranches = isAdmin ? DEFAULT_BRANCHES : (user?.permissions?.allowedBranches || DEFAULT_BRANCHES);
   const activeBranchSelect = allowedBranches.includes('All Branches') ? 'All Branches' : allowedBranches[0];
@@ -269,7 +269,35 @@ export function renderPNL(user = null) {
 
             // Template branch columns (ExcelJS is 1-indexed)
             // B=2, C=3, D=4, E=5, F=6, G=7, H=8, I=9
-            const templateBranches = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+            const templateBranches = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
+
+            // Template has 4 branches pre-built (cols B-I, i.e. 2-9).
+            // For each extra branch beyond 4, we copy the last branch column pair and append new columns.
+            const builtInCount = 4;
+            if (templateBranches.length > builtInCount) {
+              // Copy header styles from Ayala Cloverleaf (col 8 & 9) to new columns
+              const refAmtCol = 2 + (builtInCount - 1) * 2; // col 8
+              const refPctCol = 3 + (builtInCount - 1) * 2; // col 9
+              for (let extra = 0; extra < templateBranches.length - builtInCount; extra++) {
+                const newAmtCol = refAmtCol + 2 + extra * 2;
+                const newPctCol = refPctCol + 2 + extra * 2;
+                // Copy row 1 header (branch name cell)
+                const refHdrCell = ws.getCell(1, refAmtCol);
+                const newHdrCell = ws.getCell(1, newAmtCol);
+                newHdrCell.value = templateBranches[builtInCount + extra];
+                newHdrCell.style = JSON.parse(JSON.stringify(refHdrCell.style));
+                ws.getCell(1, newPctCol).style = JSON.parse(JSON.stringify(ws.getCell(1, refPctCol).style));
+                // Copy row 2 sub-headers
+                const refSubAmt = ws.getCell(2, refAmtCol);
+                const refSubPct = ws.getCell(2, refPctCol);
+                const newSubAmt = ws.getCell(2, newAmtCol);
+                const newSubPct = ws.getCell(2, newPctCol);
+                newSubAmt.value = refSubAmt.value;
+                newSubAmt.style = JSON.parse(JSON.stringify(refSubAmt.style));
+                newSubPct.value = refSubPct.value;
+                newSubPct.style = JSON.parse(JSON.stringify(refSubPct.style));
+              }
+            }
 
             // Data rows: ExcelJS rows are 1-indexed, so row 3 in 0-indexed = row 4 in ExcelJS
             const dataRows = [

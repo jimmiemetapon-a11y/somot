@@ -5,7 +5,7 @@ export function renderAdminPage() {
   const page = document.createElement('div');
   page.className = 'p-6 page-enter max-w-6xl mx-auto h-full flex flex-col space-y-6';
 
-  const ALL_BRANCHES = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const ALL_BRANCHES = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
   const ALL_TABS = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'performance', label: 'Performance' },

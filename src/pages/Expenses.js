@@ -32,7 +32,7 @@ export async function renderExpensesPage(activeTab = 'cashier', user = null) {
    let categoryMappings = {};
    let selectedFile = null;
 
-   const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+   const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
    const allowedBranches = isAdmin ? DEFAULT_BRANCHES : (user?.permissions?.allowedBranches || DEFAULT_BRANCHES);
    const globalBranch = document.getElementById('db-branch')?.value;
    let currentBranch = document.getElementById('exp-header-branch')?.value || (allowedBranches.includes(globalBranch) ? globalBranch : (allowedBranches[0] || 'Pioneer Center'));

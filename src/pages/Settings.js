@@ -6,7 +6,7 @@ export function renderSettings() {
   page.className = 'p-6 page-enter max-w-5xl mx-auto h-full flex flex-col';
   let expenseMappingState = [];
 
-  const BRANCHES = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const BRANCHES = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
   
   page.innerHTML = `
     <div class="flex flex-col md:flex-row h-full">

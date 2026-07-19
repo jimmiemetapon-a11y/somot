@@ -37,7 +37,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   const hideGlobalFilters = ['Expenses', 'Pantry Analysis', 'Operating Expenses', 'Settings', 'P&L Statement', 'Performance'].includes(title);
 
   // Define options based on user permissions
-  const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
   const isAdmin = user?.permissions?.isAdmin === true || ['jimmie.somot@gmail.com'].includes(user?.email);
   const allowedBranches = isAdmin ? DEFAULT_BRANCHES : (user?.permissions?.allowedBranches || DEFAULT_BRANCHES);
 

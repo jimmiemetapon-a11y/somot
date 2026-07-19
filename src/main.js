@@ -343,7 +343,7 @@ onAuthStateChanged(auth, async (user) => {
       } else if (isAdminEmail) {
         // Safe fallback for primary admin so they never get locked out
         user.permissions = {
-          allowedBranches: ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'],
+          allowedBranches: ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'],
           allowedTabs: ['dashboard', 'performance', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'],
           isAdmin: true
         };

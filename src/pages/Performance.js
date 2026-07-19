@@ -235,6 +235,28 @@ const DEFAULT_BRANCH_KPIS = {
       lunchStart: 10, lunchEnd: 13, afternoonStart: 13, afternoonEnd: 16, dinnerStart: 16, dinnerEndWeekday: 21, dinnerEndWeekend: 22,
       lunchWeekdayTarget: 3000, lunchWeekendTarget: 4200, afternoonWeekdayTarget: 1599, afternoonWeekendTarget: 1398, dinnerWeekdayTarget: 2695, dinnerWeekendTarget: 5000
     }
+  },
+  'UST': {
+    all: {
+      lunchStart: 7, lunchEnd: 13, afternoonStart: 13, afternoonEnd: 16, dinnerStart: 16, dinnerEndWeekday: 23, dinnerEndWeekend: 2,
+      lunchWeekdayTarget: 21000, lunchWeekendTarget: 30000, afternoonWeekdayTarget: 10000, afternoonWeekendTarget: 11000, dinnerWeekdayTarget: 30000, dinnerWeekendTarget: 60000
+    },
+    dinein: {
+      lunchStart: 7, lunchEnd: 13, afternoonStart: 13, afternoonEnd: 16, dinnerStart: 16, dinnerEndWeekday: 23, dinnerEndWeekend: 2,
+      lunchWeekdayTarget: 9000, lunchWeekendTarget: 12000, afternoonWeekdayTarget: 3000, afternoonWeekendTarget: 3600, dinnerWeekdayTarget: 12600, dinnerWeekendTarget: 25000
+    },
+    grabfood: {
+      lunchStart: 7, lunchEnd: 13, afternoonStart: 13, afternoonEnd: 16, dinnerStart: 16, dinnerEndWeekday: 23, dinnerEndWeekend: 2,
+      lunchWeekdayTarget: 6000, lunchWeekendTarget: 9000, afternoonWeekdayTarget: 3600, afternoonWeekendTarget: 3900, dinnerWeekdayTarget: 10500, dinnerWeekendTarget: 20000
+    },
+    foodpanda: {
+      lunchStart: 7, lunchEnd: 13, afternoonStart: 13, afternoonEnd: 16, dinnerStart: 16, dinnerEndWeekday: 23, dinnerEndWeekend: 2,
+      lunchWeekdayTarget: 3000, lunchWeekendTarget: 4800, afternoonWeekdayTarget: 1800, afternoonWeekendTarget: 2100, dinnerWeekdayTarget: 4200, dinnerWeekendTarget: 10000
+    },
+    online: {
+      lunchStart: 7, lunchEnd: 13, afternoonStart: 13, afternoonEnd: 16, dinnerStart: 16, dinnerEndWeekday: 23, dinnerEndWeekend: 2,
+      lunchWeekdayTarget: 3000, lunchWeekendTarget: 4200, afternoonWeekdayTarget: 1599, afternoonWeekendTarget: 1398, dinnerWeekdayTarget: 2695, dinnerWeekendTarget: 5000
+    }
   }
 };
 
@@ -276,7 +298,7 @@ export function renderPerformancePage(user) {
   page.className = 'p-5 space-y-6 page-enter relative min-h-full';
 
   // State
-  const DEFAULT_BRANCHES = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf'];
+  const DEFAULT_BRANCHES = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
   const isAdmin = user?.permissions?.isAdmin === true || ['jimmie.somot@gmail.com'].includes(user?.email);
   let allowedBranches = isAdmin ? [...DEFAULT_BRANCHES] : (user?.permissions?.allowedBranches || DEFAULT_BRANCHES).filter(b => b !== 'All Branches');
 
