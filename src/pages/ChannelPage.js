@@ -44,12 +44,77 @@ const DINEIN_BRANCH_MAP = {
 // Mapping tên chi nhánh trong cột C file GrabFood → branchId trong database
 const GRAB_BRANCH_MAP = {
   'So Mot Vietnamese Cuisine - Ayala Cloverleaf': 'Ayala Cloverleaf',
+  'So Mot Vietnamese Cuisine - Quezon City': 'Ayala Cloverleaf',
   'So Mot Vietnamese Cuisine - Pioneer Center': 'Pioneer Center',
   'So Mot Vietnamese Cuisine - Kapitolyo Pasig': 'Pioneer Center',
   'So Mot Vietnamese Cuisine - Tayuman': 'Catholic Trade',
+  'So Mot Vietnamese Cuisine - Manila City': 'Catholic Trade',
   'So Mot Vietnamese Cuisine - Unimart': 'Unimart Capitol',
   'So Mot Vietnamese Cuisine - UST': 'UST'
 };
+
+// Flexible Header Detection for GrabFood Excel Import
+function getGrabHeaderMap(headerRow) {
+  const map = {
+    colDate: 4,                  // Column E
+    colCategory: 7,              // Column H
+    colId: 15,                   // Column P
+    colGross: 29,                // Column AD
+    colMerchantProductDisc: 35,  // Column AJ
+    colMerchantDeliveryDisc: 36, // Column AK
+    colMarketing: 44,            // Column AS
+    colComm: 46,                 // Column AU
+    colOrderComm: 47,            // Column AV
+    colAds: 52,                  // Column BA (Net Payout / Net Amount)
+    colDesc: 62,                 // Column BK
+    colBranch: 2                 // Column C
+  };
+
+  if (!headerRow || !Array.isArray(headerRow)) return map;
+
+  headerRow.forEach((cell, idx) => {
+    if (!cell) return;
+    const txt = String(cell).trim().toLowerCase();
+    if (txt.includes('transaction date') || txt.includes('created date') || txt.includes('order date')) map.colDate = idx;
+    else if (txt === 'category' || txt.includes('transaction category')) map.colCategory = idx;
+    else if (txt === 'order id' || txt.includes('transaction id')) map.colId = idx;
+    else if (txt.includes('gross amount') || txt.includes('gross sales') || txt === 'amount') map.colGross = idx;
+    else if (txt.includes('merchant product discount') || txt.includes('merchant product promo')) map.colMerchantProductDisc = idx;
+    else if (txt.includes('merchant delivery discount') || txt.includes('merchant delivery promo')) map.colMerchantDeliveryDisc = idx;
+    else if (txt.includes('marketing success fee') || txt.includes('marketing fee')) map.colMarketing = idx;
+    else if (txt.includes('channel commission') || txt === 'commission fee' || txt === 'commission') map.colComm = idx;
+    else if (txt.includes('order commission')) map.colOrderComm = idx;
+    else if (txt.includes('net payout') || txt.includes('net amount') || txt.includes('payout amount')) map.colAds = idx;
+    else if (txt.includes('description') || txt.includes('campaign name') || txt.includes('details')) map.colDesc = idx;
+    else if (txt.includes('store name') || txt.includes('merchant name')) map.colBranch = idx;
+  });
+
+  return map;
+}
+
+// Campaign Normalization Helper (strip date patterns like - 2026-09-04)
+function normalizeGrabCampaign(rawDesc) {
+  if (!rawDesc || typeof rawDesc !== 'string') return 'Unspecified Campaign';
+  let str = rawDesc.trim();
+  if (!str) return 'Unspecified Campaign';
+
+  str = str.replace(/\s*[-_]\s*\d{4}[-/]\d{1,2}[-/]\d{1,2}$/i, '');
+  str = str.replace(/\s*[-_]\s*\d{1,2}[-/]\d{1,2}[-/]\d{4}$/i, '');
+  str = str.replace(/\s*\(\d{4}[-/]\d{1,2}[-/]\d{1,2}\)$/i, '');
+
+  return str.trim() || 'Unspecified Campaign';
+}
+
+// Reason Group Classifier for Adjustments & Deductions
+function classifyGrabReasonGroup(cat, subcat, desc) {
+  const combined = `${cat || ''} ${subcat || ''} ${desc || ''}`.toLowerCase();
+  if (combined.includes('missing') || combined.includes('thiếu')) return 'Missing Item';
+  if (combined.includes('wrong') || combined.includes('sai') || combined.includes('nhầm')) return 'Wrong Item';
+  if (combined.includes('quality') || combined.includes('chất lượng') || combined.includes('hỏng') || combined.includes('spoil')) return 'Food Quality';
+  if (combined.includes('cancel') || combined.includes('hủy')) return 'Cancellation';
+  if (combined.includes('adjustment') || combined.includes('điều chỉnh')) return 'Adjustment';
+  return 'Unclassified';
+}
 
 let historyItems = [];
 
@@ -291,8 +356,8 @@ export function renderChannelPage(channelId, activeTab = 'history') {
   page.className = 'p-6 space-y-6 page-enter';
 
   page.innerHTML = `
-    <!-- TAB: HISTORY -->
-    <div id="section-history" class="tab-content ${activeTab === 'history' ? '' : 'hidden'} space-y-4 page-enter">
+    <!-- TAB: HISTORY (Main View) -->
+    <div id="section-history" class="tab-content ${(!activeTab || activeTab === 'history') ? '' : 'hidden'} space-y-4 page-enter">
        <div id="channel-summary-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"></div>
 
        <!-- Optimized Action Bar: Exclusive Export & Import -->
@@ -330,6 +395,13 @@ export function renderChannelPage(channelId, activeTab = 'history') {
           </table>
        </div>
     </div>
+
+    <!-- TAB: ANALYTICS (New Report) -->
+    ${channelId === 'grabfood' ? `
+    <div id="section-analytics" class="tab-content ${activeTab === 'analytics' ? '' : 'hidden'} space-y-6 page-enter">
+       <div id="grab-analytics-container" class="w-full space-y-8"></div>
+    </div>
+    ` : ''}
 
     <!-- TAB: IMPORT (Current upload interface) -->
     <div id="section-import" class="tab-content ${activeTab === 'import' ? '' : 'hidden'} space-y-6 page-enter">
@@ -425,8 +497,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     };
 
     updateManualBtn();
-    
-    // Navigation Listeners
+
     const btnGotoImport = page.querySelector('#btn-goto-import');
     if (btnGotoImport) {
        btnGotoImport.onclick = () => {
@@ -1227,8 +1298,13 @@ function groupDataByBranchAndDate(data, channelId, cfg) {
     const colIdx = (channelId === 'grabfood') ? 2 : 0;
     const rawBranch = String(row[colIdx] || '').trim();
     let mappedBranch = branchMap[rawBranch];
-    // Fuzzy fallback: nếu không match chính xác mà có chứa 'UST' → branch UST
-    if (!mappedBranch && rawBranch.toUpperCase().includes('UST')) mappedBranch = 'UST';
+    // Fuzzy fallback: nếu không match chính xác, kiểm tra từ khóa chi nhánh
+    if (!mappedBranch) {
+      const rawUpper = rawBranch.toUpperCase();
+      if (rawUpper.includes('MANILA CITY')) mappedBranch = 'Catholic Trade';
+      else if (rawUpper.includes('QUEZON CITY')) mappedBranch = 'Ayala Cloverleaf';
+      else if (rawUpper.includes('UST')) mappedBranch = 'UST';
+    }
     if (!mappedBranch) continue; // Bỏ qua nếu không map được
 
     const dateKey = standardizeDate(row[cfg.colDate], channelId);
@@ -1291,8 +1367,17 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
       updatedAt: serverTimestamp()
     };
 
-    if (res.paymentMethods) {
-      dataToSave.paymentMethods = res.paymentMethods;
+    if (res.reconciliation) {
+      dataToSave.reconciliation = res.reconciliation;
+    }
+    if (res.actualNetPayout !== undefined) {
+      dataToSave.actualNetPayout = res.actualNetPayout;
+    }
+    if (res.dineOutPayout !== undefined) {
+      dataToSave.dineOutPayout = res.dineOutPayout;
+    }
+    if (res.adjustments !== undefined) {
+      dataToSave.adjustments = res.adjustments;
     }
 
     if (mode === 'merge') {
@@ -1335,6 +1420,48 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
       }
     }
 
+    // GrabFood specific extra collections
+    if (channelId === 'grabfood') {
+      if (res.campaignSummaries && res.campaignSummaries.length > 0) {
+        for (const camp of res.campaignSummaries) {
+          const campSlug = camp.campaignGroup.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+          const campDocId = `grab_ads_${actualSafeBranch}_${actualDate}_${campSlug}`;
+          await setDoc(doc(db, "grab_advertising_summary", campDocId), {
+            reportDate: actualDate,
+            branch: actualBranch,
+            campaignGroup: camp.campaignGroup,
+            entryCount: camp.entryCount,
+            spendExVAT: camp.spendExVAT,
+            vat: camp.vat,
+            totalCostInclVAT: camp.totalCostInclVAT,
+            importBatchId: batchId,
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+
+      if (res.adjustmentDetails && res.adjustmentDetails.length > 0) {
+        for (let idx = 0; idx < res.adjustmentDetails.length; idx++) {
+          const adj = res.adjustmentDetails[idx];
+          const adjDocId = `grab_adj_${actualSafeBranch}_${actualDate}_${idx}`;
+          await setDoc(doc(db, "grab_adjustments", adjDocId), {
+            transactionId: adj.transactionId,
+            linkedOrderId: adj.linkedOrderId,
+            branch: actualBranch,
+            date: actualDate,
+            category: adj.category,
+            subcategory: adj.subcategory || '',
+            reasonGroup: adj.reasonGroup,
+            originalDescription: adj.originalDescription,
+            payoutImpact: adj.payoutImpact,
+            sourceStatus: adj.sourceStatus || 'COMPLETED',
+            importBatchId: batchId,
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+    }
+
     return setDoc(docRef, dataToSave);
   });
 
@@ -1345,7 +1472,7 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
     type: channelId,
     branchId: branchId,
     rowCount: totalRows,
-    collections: ["daily_sales"],
+    collections: channelId === 'grabfood' ? ["daily_sales", "grab_advertising_summary", "grab_adjustments"] : ["daily_sales"],
     status: "active"
   });
 
@@ -1383,125 +1510,218 @@ function calculateOnline(rows, cfg) {
 }
 
 function calculateGrab(rows, cfg) {
-  let gross = 0, net = 0, merchantDisc = 0, deliveryDisc = 0, comm = 0, marketing = 0, orderComm = 0, orders = 0;
+  const map = getGrabHeaderMap(rows[0] && typeof rows[0][0] === 'string' ? rows[0] : null);
 
-  // Các biến mới để bóc tách từ cột BA (52)
-  let ads_fee = 0;
-  let dine_out_promo = 0;
-  let adjustment_fee = 0;
-  let other_ba_fees = 0;
+  let gross = 0;
+  let net = 0; // Actual Net Payout = Exact sum of Column BA
+  let merchantProdDisc = 0;
+  let merchantDelivDisc = 0;
+  let comm = 0;
+  let marketing = 0;
+  let orderComm = 0;
+  let feeTaxMemo = 0;
+  let dineOutPromo = 0;
+  let adsExVAT = 0;
+  let adVAT = 0;
+  let adsInclVAT = 0;
+  let totalDeductions = 0;
+  let totalCredits = 0;
+  let netAdjustment = 0;
+  let otherPayoutImpact = 0;
 
+  const campaignMap = {}; // campaignGroup -> { campaignGroup, entryCount, spendExVAT, vat, totalCostInclVAT }
+  const adjustmentDetails = [];
   const hourlyGross = {};
   const hourlyNet = {};
-  let totalGeneralDeductions = 0;
+  const orderIdSet = new Set();
 
-  rows.forEach(row => {
-    const cat = String(row[cfg.colCategory] || '').trim();
-    const g = cleanNumber(row[cfg.colGross]);
-    const orderId = String(row[cfg.colId] || '').trim();
+  rows.forEach((row, rowIdx) => {
+    if (!row || row.length === 0) return;
+    const cat = String(row[map.colCategory] || '').trim();
+    const catUpper = cat.toUpperCase();
+    const g = cleanNumber(row[map.colGross]);
+    const orderId = String(row[map.colId] || '').trim();
+    const desc = String(row[map.colDesc] || '').trim();
+    const aVal = cleanNumber(row[map.colAds]); // Column BA Payout Amount
 
-    let rowMerchantDisc = 0;
-    let rowDeliveryDisc = 0;
-    let rowComm = 0;
-    let rowMarketing = 0;
-    let rowOrderComm = 0;
+    // Accumulate total Net payout directly from Column BA
+    net += aVal;
 
-    const dateVal = row[cfg.colDate];
+    const dateVal = row[map.colDate];
     const { hour } = standardizeDateWithHour(dateVal, 'grabfood');
     const hrStr = String(hour).padStart(2, '0');
 
-    // Lũy kế Net bằng cách sum trực tiếp tất cả giá trị cột BA (cột BA tự sinh tự diệt âm dương)
-    const aVal = cleanNumber(row[cfg.colAds]);
-    net += aVal;
+    const descUpper = desc.toUpperCase();
+    const isAd = catUpper.includes('ADVERTISEMENT') || catUpper.includes('ADS') || descUpper.includes('ADVERTISEMENT') || descUpper.includes('ADS');
+    const isAdjustment = catUpper.includes('ADJUSTMENT') || catUpper.includes('REIMBURSEMENT') || catUpper.includes('PENALTY') || descUpper.includes('ADJUSTMENT') || descUpper.includes('REIMBURSEMENT') || descUpper.includes('PENALTY');
+    
+    const isIncomeCat = catUpper === 'INCOME' || catUpper.includes('INCOME') || catUpper.includes('GRAB DINEOUT') || catUpper.includes('DINEOUT') || descUpper.includes('INCOME');
+    const isDineOut = isIncomeCat ||
+                      catUpper.includes('DINE OUT') || catUpper.includes('DINE-OUT') || catUpper.includes('DINE_OUT') || catUpper.includes('DINE IN') || catUpper.includes('DINE-IN') ||
+                      descUpper.includes('DINE OUT') || descUpper.includes('DINEOUT') || descUpper.includes('DINE-OUT') || descUpper.includes('DINE_OUT') || descUpper.includes('DINE IN') || descUpper.includes('DINE-IN');
+    const isPayment = (g > 0 && !isAd && !isAdjustment && !isDineOut);
 
-    const isGeneralDeduction = (cat === 'Advertisement' || cat === 'Dine Out Discount' || cat === 'Adjustment');
+    if (isPayment) {
+      const pDisc = Math.abs(cleanNumber(row[map.colMerchantProductDisc || 35]));
+      const dDisc = Math.abs(cleanNumber(row[map.colMerchantDeliveryDisc || 36]));
+      const cFee = Math.abs(cleanNumber(row[map.colComm || 46]));
+      const mFee = Math.abs(cleanNumber(row[map.colMarketing || 44]));
+      const oComm = Math.abs(cleanNumber(row[map.colOrderComm || 47]));
 
-    if (g > 0 && !isGeneralDeduction) {
-      rowMerchantDisc = Math.abs(cleanNumber(row[cfg.colMerchantDisc]));
-      rowDeliveryDisc = Math.abs(cleanNumber(row[cfg.colDeliveryDisc]));
-      rowComm = Math.abs(cleanNumber(row[cfg.colComm]));
-      rowMarketing = Math.abs(cleanNumber(row[cfg.colMarketing]));
-      rowOrderComm = Math.abs(cleanNumber(row[cfg.colOrderComm]));
+      merchantProdDisc += pDisc;
+      merchantDelivDisc += dDisc;
+      comm += cFee;
+      marketing += mFee;
+      orderComm += oComm;
 
-      merchantDisc += rowMerchantDisc;
-      deliveryDisc += rowDeliveryDisc;
-      comm += rowComm;
-      marketing += rowMarketing;
-      orderComm += rowOrderComm;
-
-      const rowSpecificDed = rowMerchantDisc + rowDeliveryDisc + rowComm + rowMarketing + rowOrderComm;
-      const rowGross = aVal + rowSpecificDed;
+      const rowDeductions = pDisc + dDisc + cFee + mFee + oComm;
+      const rowGross = aVal + rowDeductions;
       gross += rowGross;
 
       hourlyGross[hrStr] = (hourlyGross[hrStr] || 0) + rowGross;
       hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) + aVal;
-    }
 
-    // Đếm đơn dựa trên ID cột P (15)
-    if (orderId !== '') orders++;
+      if (orderId) orderIdSet.add(orderId);
+    } else if (isAd) {
+      const absCost = Math.abs(aVal);
+      const vatPart = Math.round((absCost * 12 / 112) * 100) / 100;
+      const exVatPart = absCost - vatPart;
 
-    // Xử lý thông minh cột BA (52) dựa trên Category (7)
-    if (isGeneralDeduction) {
-      const absVal = Math.abs(aVal);
-      if (cat === 'Advertisement') {
-        ads_fee += absVal;
-      } else if (cat === 'Dine Out Discount') {
-        dine_out_promo += absVal;
-      } else if (cat === 'Adjustment') {
-        adjustment_fee += absVal;
+      adsInclVAT += absCost;
+      adVAT += vatPart;
+      adsExVAT += exVatPart;
+
+      const campName = normalizeGrabCampaign(desc);
+      if (!campaignMap[campName]) {
+        campaignMap[campName] = { campaignGroup: campName, entryCount: 0, spendExVAT: 0, vat: 0, totalCostInclVAT: 0 };
       }
-      totalGeneralDeductions += absVal;
-    } else if (aVal < 0) {
-      const absVal = Math.abs(aVal);
-      other_ba_fees += absVal;
-      totalGeneralDeductions += absVal;
+      campaignMap[campName].entryCount += 1;
+      campaignMap[campName].spendExVAT += exVatPart;
+      campaignMap[campName].vat += vatPart;
+      campaignMap[campName].totalCostInclVAT += absCost;
+    } else if (isAdjustment) {
+      if (aVal < 0) {
+        totalDeductions += Math.abs(aVal);
+      } else {
+        totalCredits += aVal;
+        gross += aVal;
+      }
+      netAdjustment += aVal;
+
+      const reasonGroup = classifyGrabReasonGroup(cat, '', desc);
+      adjustmentDetails.push({
+        transactionId: String(row[map.colId] || `TX_${rowIdx}`).trim(),
+        linkedOrderId: orderId,
+        category: cat,
+        subcategory: '',
+        reasonGroup,
+        originalDescription: desc,
+        payoutImpact: aVal,
+        sourceStatus: 'COMPLETED'
+      });
+    } else if (isDineOut) {
+      const dVal = Math.abs(aVal) || g;
+      dineOutPromo += dVal;
+      gross += dVal;
+    } else {
+      otherPayoutImpact += aVal;
+      if (aVal > 0) {
+        gross += aVal;
+      } else {
+        totalDeductions += Math.abs(aVal);
+        const reasonGroup = classifyGrabReasonGroup(cat, '', desc);
+        adjustmentDetails.push({
+          transactionId: String(row[map.colId] || `TX_${rowIdx}`).trim(),
+          linkedOrderId: orderId,
+          category: cat || 'Other',
+          subcategory: '',
+          reasonGroup,
+          originalDescription: desc,
+          payoutImpact: aVal,
+          sourceStatus: 'COMPLETED'
+        });
+      }
     }
   });
 
-  const totalDed = merchantDisc + deliveryDisc + comm + marketing + orderComm + ads_fee + dine_out_promo + adjustment_fee + other_ba_fees;
+  const orders = orderIdSet.size || rows.length;
+  const merchantPromo = merchantProdDisc + merchantDelivDisc;
+  const commissionAndSuccessFees = comm + marketing + orderComm;
 
-  // Phân bổ phí chung (General Deductions) theo tỷ lệ doanh thu Gross của từng giờ
-  if (totalGeneralDeductions > 0) {
-    if (gross > 0) {
-      Object.keys(hourlyNet).forEach(hr => {
-        const hrGross = hourlyGross[hr] || 0;
-        const share = totalGeneralDeductions * (hrGross / gross);
-        hourlyNet[hr] -= share;
-      });
-    } else {
-      for (let h = 0; h < 24; h++) {
-        const hrStr = String(h).padStart(2, '0');
-        hourlyNet[hrStr] = (hourlyNet[hrStr] || 0) - (totalGeneralDeductions / 24);
-      }
-    }
-  }
+  const deliveryOrderGross = gross - dineOutPromo - (netAdjustment > 0 ? netAdjustment : 0) - (otherPayoutImpact > 0 ? otherPayoutImpact : 0);
+  const calculatedOrderPayout = deliveryOrderGross - merchantPromo - commissionAndSuccessFees;
+
+  const calculatedNetPayout = gross - merchantPromo - commissionAndSuccessFees - adsInclVAT + (netAdjustment < 0 ? netAdjustment : 0) + (otherPayoutImpact < 0 ? otherPayoutImpact : 0);
+  const difference = Math.round((calculatedNetPayout - net) * 100) / 100;
+
+  const campaignSummaries = Object.values(campaignMap);
+
+  const totalDed = merchantPromo + commissionAndSuccessFees + adsInclVAT + Math.abs(netAdjustment < 0 ? netAdjustment : 0);
 
   const breakdown = {
     deductions: {
-      merchantDiscount: merchantDisc,
-      deliveryDiscount: deliveryDisc,
-      commission: comm,
-      marketingFee: marketing,
+      merchantProductDiscount: merchantProdDisc,
+      merchantDeliveryDiscount: merchantDelivDisc,
+      merchantDiscount: merchantPromo,
+      marketingSuccessFee: marketing,
+      channelCommission: comm,
       orderCommission: orderComm,
-      adsFee: ads_fee,
-      dineOutPromo: dine_out_promo,
-      adjustmentFee: adjustment_fee,
-      otherBaFees: other_ba_fees
+      commission: commissionAndSuccessFees,
+      adsFee: adsInclVAT,
+      adsExVAT: adsExVAT,
+      adVAT: adVAT,
+      adjustmentFee: Math.abs(netAdjustment < 0 ? netAdjustment : 0),
+      otherBaFees: Math.abs(otherPayoutImpact < 0 ? otherPayoutImpact : 0)
     },
-    incomes: {}
+    incomes: {
+      adjustmentCredits: netAdjustment > 0 ? netAdjustment : 0,
+      dineOutPayout: dineOutPromo > 0 ? dineOutPromo : 0,
+      otherIncomes: otherPayoutImpact > 0 ? otherPayoutImpact : 0
+    }
   };
 
   return {
-    net, gross, orders, totalDed, breakdown, details: [
-      { label: 'Gross Sale', val: gross, color: 'text-slate-600' },
-      { label: 'Commission', val: comm + orderComm, color: 'text-rose-500', isDed: true },
-      { label: 'Merchant Discount', val: merchantDisc, color: 'text-rose-500', isDed: true },
-      { label: 'Delivery Discount', val: deliveryDisc, color: 'text-rose-500', isDed: true },
-      { label: 'Marketing Fee', val: marketing, color: 'text-rose-500', isDed: true },
-      { label: 'True Ads Fee', val: ads_fee, color: 'text-rose-500 font-bold', isDed: true },
-      { label: 'Dine Out Promo', val: dine_out_promo, color: 'text-rose-500', isDed: true },
-      { label: 'Adjustments', val: adjustment_fee, color: 'text-amber-600', isDed: true },
-      { label: 'Total Deduction', val: totalDed, color: 'text-rose-700 font-black', isDed: true }
+    net, // Actual Net Payout from Column BA
+    gross,
+    orders,
+    merchantProductDiscount: merchantProdDisc,
+    merchantDeliveryDiscount: merchantDelivDisc,
+    merchantPromo,
+    marketingSuccessFee: marketing,
+    channelCommission: comm,
+    orderCommission: orderComm,
+    commissionAndSuccessFees,
+    feeTax: feeTaxMemo,
+    orderPayout: calculatedOrderPayout,
+    adsExVAT,
+    adVAT,
+    adsInclVAT,
+    adjustments: netAdjustment,
+    totalDeductions,
+    totalCredits,
+    dineOutPayout: dineOutPromo,
+    otherPayoutImpact,
+    actualNetPayout: net,
+    reconciliation: {
+      calculatedOrderPayout,
+      calculatedNetPayout,
+      actualNetPayout: net,
+      difference
+    },
+    campaignSummaries,
+    adjustmentDetails,
+    totalDed,
+    breakdown,
+    details: [
+      { label: 'Gross Sales', val: gross, color: 'text-slate-600' },
+      { label: 'Merchant Product Discount', val: merchantProdDisc, color: 'text-rose-500', isDed: true },
+      { label: 'Merchant Delivery Discount', val: merchantDelivDisc, color: 'text-rose-500', isDed: true },
+      { label: 'Marketing Success Fee', val: marketing, color: 'text-rose-500', isDed: true },
+      { label: 'Channel Commission', val: comm, color: 'text-rose-500', isDed: true },
+      { label: 'Order Commission', val: orderComm, color: 'text-rose-500', isDed: true },
+      { label: 'Ads incl VAT', val: adsInclVAT, color: 'text-rose-500 font-bold', isDed: true },
+      { label: 'Adjustments (Net)', val: netAdjustment, color: netAdjustment < 0 ? 'text-rose-500' : 'text-emerald-500' },
+      { label: 'Actual Net Payout (Col BA)', val: net, color: 'text-emerald-600 font-black' }
     ],
     hourlyNet
   };
@@ -2082,6 +2302,521 @@ function updateSummary(items, channelId, page) {
   if (window.lucide) window.lucide.createIcons();
 }
 
+// Render GrabFood Single Unified Analytics View
+function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
+  if (!container) return;
+  const fmt = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+  const fmtNum = n => (n || 0).toLocaleString();
+
+  // 1. Calculate Aggregated Sales Summary
+  let totalGross = 0;
+  let totalOrders = 0;
+  let totalMerchantProductDisc = 0;
+  let totalMerchantDeliveryDisc = 0;
+  let totalMerchantPromo = 0;
+  let totalMarketingSuccessFee = 0;
+  let totalChannelCommission = 0;
+  let totalOrderCommission = 0;
+  let totalCommissionAndSuccessFees = 0;
+  let totalFeeTax = 0;
+  let totalOrderPayout = 0;
+  let totalAdsExVAT = 0;
+  let totalAdVAT = 0;
+  let totalAdsInclVAT = 0;
+  let totalNetAdjustment = 0;
+  let totalDineOutPayout = 0;
+  let totalOtherPayoutImpact = 0;
+  let totalActualNetPayout = 0;
+
+  // Group by branch for Branch Performance table
+  const branchMap = {};
+
+  salesDocs.forEach(item => {
+    const b = item.branchId || 'Unknown Branch';
+    if (!branchMap[b]) {
+      branchMap[b] = {
+        branch: b,
+        orders: 0,
+        gross: 0,
+        merchantProductDisc: 0,
+        merchantDeliveryDisc: 0,
+        merchantPromo: 0,
+        marketingSuccessFee: 0,
+        channelCommission: 0,
+        orderCommission: 0,
+        commissionAndSuccessFees: 0,
+        feeTax: 0,
+        orderPayout: 0,
+        adsExVAT: 0,
+        adVAT: 0,
+        adsInclVAT: 0,
+        adjustments: 0,
+        dineOutPayout: 0,
+        otherPayoutImpact: 0,
+        actualNetPayout: 0
+      };
+    }
+
+    const bObj = branchMap[b];
+
+    const g = item.financials?.gross || item.gross || 0;
+    const net = item.actualNetPayout !== undefined ? item.actualNetPayout : (item.financials?.net || 0);
+    const ord = item.orders || 0;
+
+    const bD = item.breakdown?.deductions || {};
+    const bInc = item.breakdown?.incomes || {};
+
+    const pDisc = item.merchantProductDiscount || bD.merchantProductDiscount || 0;
+    const dDisc = item.merchantDeliveryDiscount || bD.deliveryDiscount || 0;
+    const promo = item.merchantPromo || (pDisc + dDisc) || bD.merchantDiscount || 0;
+
+    const mFee = item.marketingSuccessFee || bD.marketingFee || 0;
+    const cFee = item.channelCommission || bD.commission || 0;
+    const oComm = item.orderCommission || bD.orderCommission || 0;
+    const comm = item.commissionAndSuccessFees || (mFee + cFee + oComm) || 0;
+
+    const adsVal = item.adsInclVAT || bD.adsFee || 0;
+    const adsExV = item.adsExVAT || bD.adsExVAT || (adsVal * 100 / 112);
+    const vatV = item.adVAT || bD.adVAT || (adsVal - adsExV);
+
+    const adjNet = item.adjustments !== undefined ? item.adjustments : ((bInc.adjustmentCredits || 0) - (bD.adjustmentFee || 0));
+    const dineOut = (item.dineOutPayout !== undefined && item.dineOutPayout > 0) ? item.dineOutPayout : ((bInc.dineOutPayout || 0) + (bInc.otherIncomes || 0) + (bD.dineOutPromo || 0));
+    const otherImp = item.otherPayoutImpact || (bD.otherBaFees ? -bD.otherBaFees : 0);
+
+    const ordPayout = item.orderPayout !== undefined ? item.orderPayout : (g - dineOut - promo - comm);
+
+    // Accumulate total
+    totalGross += g;
+    totalOrders += ord;
+    totalMerchantProductDisc += pDisc;
+    totalMerchantDeliveryDisc += dDisc;
+    totalMerchantPromo += promo;
+    totalMarketingSuccessFee += mFee;
+    totalChannelCommission += cFee;
+    totalOrderCommission += oComm;
+    totalCommissionAndSuccessFees += comm;
+    totalFeeTax += item.feeTax || 0;
+    totalOrderPayout += ordPayout;
+    totalAdsExVAT += adsExV;
+    totalAdVAT += vatV;
+    totalAdsInclVAT += adsVal;
+    totalNetAdjustment += adjNet;
+    totalDineOutPayout += dineOut;
+    totalOtherPayoutImpact += otherImp;
+    totalActualNetPayout += net;
+
+    // Accumulate branch
+    bObj.orders += ord;
+    bObj.gross += g;
+    bObj.merchantProductDisc += pDisc;
+    bObj.merchantDeliveryDisc += dDisc;
+    bObj.merchantPromo += promo;
+    bObj.marketingSuccessFee += mFee;
+    bObj.channelCommission += cFee;
+    bObj.orderCommission += oComm;
+    bObj.commissionAndSuccessFees += comm;
+    bObj.feeTax += item.feeTax || 0;
+    bObj.orderPayout += ordPayout;
+    bObj.adsExVAT += adsExV;
+    bObj.adVAT += vatV;
+    bObj.adsInclVAT += adsVal;
+    bObj.adjustments += adjNet;
+    bObj.dineOutPayout += dineOut;
+    bObj.otherPayoutImpact += otherImp;
+    bObj.actualNetPayout += net;
+  });
+
+  // Calculate Reconciliation formula
+  const calcNetPayout = totalOrderPayout - totalAdsInclVAT + totalNetAdjustment + totalDineOutPayout + totalOtherPayoutImpact;
+  const unexplainedDiff = Math.round((calcNetPayout - totalActualNetPayout) * 100) / 100;
+  const isReconciled = Math.abs(unexplainedDiff) < 0.01;
+
+  // 2. Aggregate Advertising Summary
+  const campaignMap = {};
+  let totalAdEntries = 0;
+  let totalCampaignSpendExVat = 0;
+  let totalCampaignVat = 0;
+  let totalCampaignCostInclVat = 0;
+
+  adsDocs.forEach(ad => {
+    const cName = ad.campaignGroup || 'Unspecified Campaign';
+    if (!campaignMap[cName]) {
+      campaignMap[cName] = { campaignGroup: cName, entryCount: 0, spendExVAT: 0, vat: 0, totalCostInclVAT: 0 };
+    }
+    const cObj = campaignMap[cName];
+    const exV = ad.spendExVAT || 0;
+    const vV = ad.vat || 0;
+    const cIncl = ad.totalCostInclVAT || (exV + vV);
+
+    cObj.entryCount += ad.entryCount || 1;
+    cObj.spendExVAT += exV;
+    cObj.vat += vV;
+    cObj.totalCostInclVAT += cIncl;
+
+    totalAdEntries += ad.entryCount || 1;
+    totalCampaignSpendExVat += exV;
+    totalCampaignVat += vV;
+    totalCampaignCostInclVat += cIncl;
+  });
+
+  const campaignList = Object.values(campaignMap).sort((a, b) => b.totalCostInclVAT - a.totalCostInclVAT);
+
+  // 3. Aggregate Adjustments & Deductions
+  let totalAdjDeductions = 0;
+  let totalAdjCredits = 0;
+  const reasonSummaryMap = {};
+
+  adjDocs.forEach(adj => {
+    const rGroup = adj.reasonGroup || 'Unclassified';
+    const impact = adj.payoutImpact || 0;
+    if (impact < 0) totalAdjDeductions += Math.abs(impact);
+    else totalAdjCredits += impact;
+
+    if (!reasonSummaryMap[rGroup]) {
+      reasonSummaryMap[rGroup] = { reasonGroup: rGroup, count: 0, totalImpact: 0 };
+    }
+    reasonSummaryMap[rGroup].count += 1;
+    reasonSummaryMap[rGroup].totalImpact += impact;
+  });
+
+  const reasonList = Object.values(reasonSummaryMap).sort((a, b) => Math.abs(b.totalImpact) - Math.abs(a.totalImpact));
+
+  // 4. Data Sanity Checks
+  const passPayout = isReconciled;
+  const passAds = salesDocs.length === 0 || Math.abs(totalCampaignCostInclVat - totalAdsInclVAT) < 1.0;
+  const passAdj = salesDocs.length === 0 || Math.abs(totalAdjCredits - totalAdjDeductions - totalNetAdjustment) < 1.0;
+  const passBranches = Object.keys(branchMap).length > 0;
+  const passSanity = passPayout && passAds && passAdj && passBranches;
+
+  // Render Section HTML
+  container.innerHTML = `
+    <!-- SECTION 1: SALES & BRANCH PERFORMANCE -->
+    <div class="space-y-6">
+      <div class="flex justify-between items-center px-2">
+        <div>
+           <h3 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">1. Sales & Branch Performance</h3>
+           <p class="text-[10px] text-slate-400 dark:text-white/50 font-bold uppercase tracking-widest mt-0.5">Revenue, orders, promotions & platform commissions</p>
+        </div>
+      </div>
+
+      <!-- KPI Grid -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">Gross Sales</p>
+           <h4 class="text-lg font-black text-slate-800 dark:text-white tracking-tighter mt-1">${fmt.format(totalGross)}</h4>
+           <p class="text-[8px] text-slate-400 font-bold mt-1 uppercase">Payment Gross Amount</p>
+        </div>
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">Total Orders</p>
+           <h4 class="text-lg font-black text-slate-800 dark:text-white tracking-tighter mt-1">${fmtNum(totalOrders)}</h4>
+           <p class="text-[8px] text-slate-400 font-bold mt-1 uppercase">Order Volume</p>
+        </div>
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">Merchant Promo</p>
+           <h4 class="text-lg font-black text-rose-500 tracking-tighter mt-1">-${fmt.format(totalMerchantPromo)}</h4>
+           <p class="text-[8px] text-slate-400 font-bold mt-1 uppercase">Product + Delivery Disc.</p>
+        </div>
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">Commissions & Fees</p>
+           <h4 class="text-lg font-black text-rose-500 tracking-tighter mt-1">-${fmt.format(totalCommissionAndSuccessFees)}</h4>
+           <p class="text-[8px] text-slate-400 font-bold mt-1 uppercase">Channel + Marketing + Order</p>
+        </div>
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">Ads incl VAT</p>
+           <h4 class="text-lg font-black text-amber-500 tracking-tighter mt-1">-${fmt.format(totalAdsInclVAT)}</h4>
+           <p class="text-[8px] text-slate-400 font-bold mt-1 uppercase">Total Campaign Cost</p>
+        </div>
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10 bg-emerald-500/5 border-emerald-500/20">
+           <p class="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Actual Net Payout</p>
+           <h4 class="text-lg font-black text-emerald-600 dark:text-emerald-400 tracking-tighter mt-1">${fmt.format(totalActualNetPayout)}</h4>
+           <p class="text-[8px] text-emerald-600/70 dark:text-emerald-400/70 font-bold mt-1 uppercase">Source Column BA Total</p>
+        </div>
+      </div>
+
+      <!-- Branch Performance Table -->
+      <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl overflow-hidden shadow-xl border-t border-white/60 dark:border-white/10">
+         <div class="px-8 py-5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
+            <h4 class="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest">Branch Performance Table</h4>
+            <div class="text-[10px] font-bold text-slate-400">Net/Gross Ratio: <span class="text-emerald-500 font-black">${totalGross > 0 ? ((totalActualNetPayout / totalGross) * 100).toFixed(1) : '0.0'}%</span></div>
+         </div>
+         <div class="overflow-x-auto">
+           <table class="w-full text-left border-collapse min-w-[900px]">
+             <thead>
+               <tr class="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5">
+                 <th class="px-6 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Branch</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider text-center">Orders</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Gross Sales</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Merchant Promo</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Commissions</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Order Payout</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Ads incl VAT</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Adjustments</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Actual Net Payout</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider text-right">Payout %</th>
+               </tr>
+             </thead>
+             <tbody class="divide-y divide-slate-100 dark:divide-white/5 text-[11px]">
+               ${Object.values(branchMap).length === 0 ? `<tr><td colspan="10" class="px-6 py-8 text-center text-slate-400 italic">No sales data found for selected period.</td></tr>` : Object.values(branchMap).map(b => {
+                 const pRatio = b.gross > 0 ? ((b.actualNetPayout / b.gross) * 100).toFixed(1) : '0.0';
+                 return `
+                   <tr class="hover:bg-white/10 dark:hover:bg-white/5 transition-all">
+                     <td class="px-6 py-4 font-bold text-slate-800 dark:text-white">${b.branch}</td>
+                     <td class="px-4 py-4 text-center font-bold text-slate-500">${fmtNum(b.orders)}</td>
+                     <td class="px-4 py-4 font-bold text-slate-700 dark:text-white/80">${fmt.format(b.gross)}</td>
+                     <td class="px-4 py-4 font-bold text-rose-500">-${fmt.format(b.merchantPromo)}</td>
+                     <td class="px-4 py-4 font-bold text-rose-500">-${fmt.format(b.commissionAndSuccessFees)}</td>
+                     <td class="px-4 py-4 font-bold text-indigo-600 dark:text-indigo-400">${fmt.format(b.orderPayout)}</td>
+                     <td class="px-4 py-4 font-bold text-amber-500">-${fmt.format(b.adsInclVAT)}</td>
+                     <td class="px-4 py-4 font-bold ${b.adjustments < 0 ? 'text-rose-500' : 'text-emerald-500'}">${b.adjustments >= 0 ? '+' : ''}${fmt.format(b.adjustments)}</td>
+                     <td class="px-4 py-4 font-black text-emerald-600 dark:text-emerald-400">${fmt.format(b.actualNetPayout)}</td>
+                     <td class="px-4 py-4 text-right font-black text-slate-700 dark:text-white">${pRatio}%</td>
+                   </tr>
+                 `;
+               }).join('')}
+               <tr class="bg-slate-100/50 dark:bg-white/[0.05] font-black text-slate-900 dark:text-white">
+                 <td class="px-6 py-4 uppercase">Total System</td>
+                 <td class="px-4 py-4 text-center">${fmtNum(totalOrders)}</td>
+                 <td class="px-4 py-4">${fmt.format(totalGross)}</td>
+                 <td class="px-4 py-4 text-rose-500">-${fmt.format(totalMerchantPromo)}</td>
+                 <td class="px-4 py-4 text-rose-500">-${fmt.format(totalCommissionAndSuccessFees)}</td>
+                 <td class="px-4 py-4 text-indigo-600 dark:text-indigo-400">${fmt.format(totalOrderPayout)}</td>
+                 <td class="px-4 py-4 text-amber-500">-${fmt.format(totalAdsInclVAT)}</td>
+                 <td class="px-4 py-4 ${totalNetAdjustment < 0 ? 'text-rose-500' : 'text-emerald-500'}">${totalNetAdjustment >= 0 ? '+' : ''}${fmt.format(totalNetAdjustment)}</td>
+                 <td class="px-4 py-4 text-emerald-600 dark:text-emerald-400">${fmt.format(totalActualNetPayout)}</td>
+                 <td class="px-4 py-4 text-right">${totalGross > 0 ? ((totalActualNetPayout / totalGross) * 100).toFixed(1) : '0.0'}%</td>
+               </tr>
+             </tbody>
+           </table>
+         </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: PAYOUT RECONCILIATION & ADJUSTMENTS -->
+    <div class="space-y-6 pt-6 border-t border-slate-200 dark:border-white/10">
+      <div>
+         <h3 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">2. Payout Reconciliation & Adjustments</h3>
+         <p class="text-[10px] text-slate-400 dark:text-white/50 font-bold uppercase tracking-widest mt-0.5">Waterfall calculation formula & adjustment details</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Waterfall Table (Left 50%) -->
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-6 border-t border-white/60 dark:border-white/10 space-y-3 flex flex-col justify-between">
+           <div>
+              <h4 class="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest mb-4">Reconciliation Waterfall Step-by-Step</h4>
+
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-bold text-slate-600 dark:text-white/80">Gross Sales (Payment Transactions)</span>
+                 <span class="font-bold text-slate-900 dark:text-white">${fmt.format(totalGross)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-medium text-rose-500 pl-4">− Merchant Product Discount</span>
+                 <span class="font-bold text-rose-500">-${fmt.format(totalMerchantProductDisc)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-medium text-rose-500 pl-4">− Merchant Delivery Discount</span>
+                 <span class="font-bold text-rose-500">-${fmt.format(totalMerchantDeliveryDisc)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-medium text-rose-500 pl-4">− Marketing Success Fee</span>
+                 <span class="font-bold text-rose-500">-${fmt.format(totalMarketingSuccessFee)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-medium text-rose-500 pl-4">− Channel Commission</span>
+                 <span class="font-bold text-rose-500">-${fmt.format(totalChannelCommission)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-medium text-rose-500 pl-4">− Order Commission</span>
+                 <span class="font-bold text-rose-500">-${fmt.format(totalOrderCommission)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-2 bg-indigo-50/50 dark:bg-indigo-500/10 px-3 rounded-xl font-black">
+                 <span class="text-indigo-600 dark:text-indigo-400 uppercase">= Calculated Order Payout</span>
+                 <span class="text-indigo-600 dark:text-indigo-400">${fmt.format(totalOrderPayout)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-medium text-amber-500 pl-4">− Ads incl VAT</span>
+                 <span class="font-bold text-amber-500">-${fmt.format(totalAdsInclVAT)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-medium text-slate-600 dark:text-white/80 pl-4">+/− Net Adjustments</span>
+                 <span class="font-bold ${totalNetAdjustment < 0 ? 'text-rose-500' : 'text-emerald-500'}">${totalNetAdjustment >= 0 ? '+' : ''}${fmt.format(totalNetAdjustment)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-medium text-slate-600 dark:text-white/80 pl-4">+ Dine Out Payout</span>
+                 <span class="font-bold text-emerald-500">+${fmt.format(totalDineOutPayout)}</span>
+              </div>
+              <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
+                 <span class="font-medium text-slate-600 dark:text-white/80 pl-4">+/− Other Payout Impact</span>
+                 <span class="font-bold ${totalOtherPayoutImpact < 0 ? 'text-rose-500' : 'text-emerald-500'}">${totalOtherPayoutImpact >= 0 ? '+' : ''}${fmt.format(totalOtherPayoutImpact)}</span>
+              </div>
+              <div class="flex justify-between text-[12px] py-3 bg-emerald-500/10 px-4 rounded-xl font-black mt-2">
+                 <span class="text-emerald-600 dark:text-emerald-400 uppercase">= Calculated Actual Net Payout</span>
+                 <span class="text-emerald-600 dark:text-emerald-400">${fmt.format(calcNetPayout)}</span>
+              </div>
+           </div>
+        </div>
+
+        <!-- Adjustments & Deductions (Right 50% - Replaces Source BA Comparison) -->
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-6 border-t border-white/60 dark:border-white/10 space-y-4 flex flex-col justify-between">
+           <div>
+              <div class="flex justify-between items-center mb-3">
+                 <h4 class="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest">Adjustments & Deductions</h4>
+                 <span class="text-[10px] font-black ${totalNetAdjustment < 0 ? 'text-rose-500' : 'text-emerald-500'}">
+                   Net: ${totalNetAdjustment >= 0 ? '+' : ''}${fmt.format(totalNetAdjustment)}
+                 </span>
+              </div>
+
+              <!-- Adjustment Mini KPIs -->
+              <div class="grid grid-cols-2 gap-3 mb-3">
+                 <div class="p-3 rounded-xl bg-slate-100/50 dark:bg-white/5">
+                    <p class="text-[8px] font-black text-slate-400 uppercase">Deductions (-)</p>
+                    <p class="text-sm font-black text-rose-500 mt-0.5">-${fmt.format(totalAdjDeductions)}</p>
+                 </div>
+                 <div class="p-3 rounded-xl bg-slate-100/50 dark:bg-white/5">
+                    <p class="text-[8px] font-black text-slate-400 uppercase">Credits (+)</p>
+                    <p class="text-sm font-black text-emerald-500 mt-0.5">+${fmt.format(totalAdjCredits)}</p>
+                 </div>
+              </div>
+
+              <!-- Reason Summary Badges -->
+              <div class="flex flex-wrap gap-1.5 mb-3">
+                ${reasonList.map(r => `
+                  <div class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center gap-1.5">
+                     <span class="text-[9px] font-black text-slate-700 dark:text-white uppercase">${r.reasonGroup}:</span>
+                     <span class="text-[9px] font-black ${r.totalImpact < 0 ? 'text-rose-500' : 'text-emerald-500'}">${r.totalImpact >= 0 ? '+' : ''}${fmt.format(r.totalImpact)}</span>
+                  </div>
+                `).join('')}
+              </div>
+
+              <!-- Search Bar & Detail Table -->
+              <div class="space-y-2">
+                 <div class="w-full">
+                    <input type="text" id="grab-adj-search" placeholder="Search Order ID or Description..." class="w-full h-8 px-3 rounded-xl text-[10px] font-bold bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:outline-none focus:border-[#96588a]">
+                 </div>
+                 <div class="overflow-x-auto max-h-[310px] scrollbar-hide">
+                   <table class="w-full text-left border-collapse">
+                     <thead class="sticky top-0 bg-slate-100 dark:bg-[#1a1a1a] z-10">
+                       <tr class="border-b border-slate-200 dark:border-white/10">
+                         <th class="px-3 py-2 text-[8px] font-black text-slate-400 dark:text-white/40 uppercase">Date/Branch</th>
+                         <th class="px-3 py-2 text-[8px] font-black text-slate-400 dark:text-white/40 uppercase">Reason</th>
+                         <th class="px-3 py-2 text-[8px] font-black text-slate-400 dark:text-white/40 uppercase text-right">Impact</th>
+                       </tr>
+                     </thead>
+                     <tbody id="grab-adj-table-body" class="divide-y divide-slate-100 dark:divide-white/5 text-[10px]">
+                       ${adjDocs.length === 0 ? `<tr><td colspan="3" class="px-4 py-6 text-center text-slate-400 italic">No adjustment records.</td></tr>` : adjDocs.slice(0, 50).map(adj => `
+                         <tr class="hover:bg-white/10 dark:hover:bg-white/5 transition-all">
+                           <td class="px-3 py-2 font-bold text-slate-700 dark:text-white/80">${adj.date || ''} <span class="text-[8px] text-[#96588a]">(${adj.branch || ''})</span></td>
+                           <td class="px-3 py-2 font-bold text-slate-600 dark:text-white/70 max-w-[120px] truncate" title="${adj.originalDescription || adj.reasonGroup}">${adj.reasonGroup || 'Unclassified'}</td>
+                           <td class="px-3 py-2 text-right font-black ${adj.payoutImpact < 0 ? 'text-rose-500' : 'text-emerald-500'}">${adj.payoutImpact >= 0 ? '+' : ''}${fmt.format(adj.payoutImpact)}</td>
+                         </tr>
+                       `).join('')}
+                     </tbody>
+                   </table>
+                 </div>
+              </div>
+           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 3: ADVERTISING BREAKDOWN -->
+    <div class="space-y-6 pt-6 border-t border-slate-200 dark:border-white/10 pb-8">
+      <div class="flex justify-between items-center">
+         <div>
+            <h3 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">3. Advertising Breakdown</h3>
+            <p class="text-[10px] text-slate-400 dark:text-white/50 font-bold uppercase tracking-widest mt-0.5">Campaign cost ex VAT, VAT, total cost incl VAT and revenue share</p>
+         </div>
+      </div>
+
+      <!-- Campaign KPI Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">Spend ex VAT</p>
+           <h4 class="text-lg font-black text-slate-800 dark:text-white tracking-tighter mt-1">${fmt.format(totalAdsExVAT)}</h4>
+           <p class="text-[8px] text-slate-400 font-bold mt-1 uppercase">Net Ad Cost</p>
+        </div>
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">Ad VAT (12%)</p>
+           <h4 class="text-lg font-black text-amber-500 tracking-tighter mt-1">${fmt.format(totalAdVAT)}</h4>
+           <p class="text-[8px] text-slate-400 font-bold mt-1 uppercase">Tax Charge</p>
+        </div>
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">Total Cost incl VAT</p>
+           <h4 class="text-lg font-black text-amber-600 tracking-tighter mt-1">${fmt.format(totalAdsInclVAT)}</h4>
+           <p class="text-[8px] text-slate-400 font-bold mt-1 uppercase">Total Campaign Cost</p>
+        </div>
+        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-5 border-t border-white/60 dark:border-white/10">
+           <p class="text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-widest">Ad Spend / Gross Sales</p>
+           <h4 class="text-lg font-black text-indigo-600 dark:text-indigo-400 tracking-tighter mt-1">${totalGross > 0 ? ((totalAdsInclVAT / totalGross) * 100).toFixed(1) : '0.0'}%</h4>
+           <p class="text-[8px] text-slate-400 font-bold mt-1 uppercase">Marketing Intensity Ratio</p>
+        </div>
+      </div>
+
+      <!-- Campaign Table -->
+      <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl overflow-hidden shadow-xl border-t border-white/60 dark:border-white/10">
+         <div class="px-8 py-5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
+            <h4 class="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest">Campaign Performance Breakdown (${campaignList.length} Campaigns)</h4>
+         </div>
+         <div class="overflow-x-auto">
+           <table class="w-full text-left border-collapse">
+             <thead>
+               <tr class="bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5">
+                 <th class="px-6 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Campaign Group</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider text-center">Log Entries</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Spend ex VAT</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">VAT</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider">Total Cost incl VAT</th>
+                 <th class="px-4 py-4 text-[9px] font-black text-slate-400 dark:text-white/40 uppercase tracking-wider text-right">Share of Ad Spend</th>
+               </tr>
+             </thead>
+             <tbody class="divide-y divide-slate-100 dark:divide-white/5 text-[11px]">
+               ${campaignList.length === 0 ? `<tr><td colspan="6" class="px-6 py-8 text-center text-slate-400 italic">No campaign breakdown found for this period. Re-import GrabFood file to generate.</td></tr>` : campaignList.map(c => {
+                 const share = totalAdsInclVAT > 0 ? ((c.totalCostInclVAT / totalAdsInclVAT) * 100).toFixed(1) : '0.0';
+                 return `
+                   <tr class="hover:bg-white/10 dark:hover:bg-white/5 transition-all">
+                     <td class="px-6 py-4 font-bold text-slate-800 dark:text-white">${c.campaignGroup}</td>
+                     <td class="px-4 py-4 text-center font-bold text-slate-500">${fmtNum(c.entryCount)}</td>
+                     <td class="px-4 py-4 font-bold text-slate-700 dark:text-white/80">${fmt.format(c.spendExVAT)}</td>
+                     <td class="px-4 py-4 font-bold text-amber-500">${fmt.format(c.vat)}</td>
+                     <td class="px-4 py-4 font-black text-amber-600 dark:text-amber-400">${fmt.format(c.totalCostInclVAT)}</td>
+                     <td class="px-4 py-4 text-right font-black text-indigo-600 dark:text-indigo-400">${share}%</td>
+                   </tr>
+                 `;
+               }).join('')}
+             </tbody>
+           </table>
+         </div>
+      </div>
+    </div>
+  `;
+
+  // Attach search listener for Adjustments Table
+  const searchInput = container.querySelector('#grab-adj-search');
+  const adjTbody = container.querySelector('#grab-adj-table-body');
+  if (searchInput && adjTbody) {
+    searchInput.oninput = () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = adjDocs.filter(a =>
+        (a.linkedOrderId || '').toLowerCase().includes(q) ||
+        (a.transactionId || '').toLowerCase().includes(q) ||
+        (a.originalDescription || '').toLowerCase().includes(q) ||
+        (a.reasonGroup || '').toLowerCase().includes(q)
+      );
+
+      adjTbody.innerHTML = filtered.length === 0 ? `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400 italic">No adjustments match search.</td></tr>` : filtered.slice(0, 50).map(adj => `
+        <tr class="hover:bg-white/10 dark:hover:bg-white/5 transition-all">
+          <td class="px-4 py-3 font-bold text-slate-700 dark:text-white/80">${adj.date || ''}<br><span class="text-[9px] text-[#96588a] font-black">${adj.branch || ''}</span></td>
+          <td class="px-4 py-3 font-mono font-bold text-slate-600 dark:text-white/70">${adj.linkedOrderId || adj.transactionId || 'N/A'}</td>
+          <td class="px-4 py-3 font-bold"><span class="px-2 py-0.5 rounded-full bg-slate-200/60 dark:bg-white/10 text-slate-700 dark:text-white text-[9px] font-black">${adj.reasonGroup || 'Unclassified'}</span></td>
+          <td class="px-4 py-3 text-slate-500 dark:text-white/60 max-w-xs truncate">${adj.originalDescription || 'N/A'}</td>
+          <td class="px-4 py-3 text-right font-black ${adj.payoutImpact < 0 ? 'text-rose-500' : 'text-emerald-500'}">${adj.payoutImpact >= 0 ? '+' : ''}${fmt.format(adj.payoutImpact)}</td>
+        </tr>
+      `).join('');
+    };
+  }
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
 async function fetchChannelHistory(channelId) {
   const branchId = (document.getElementById('db-branch')?.value || 'Pioneer Center').trim();
   const rangeStr = document.getElementById('db-date-range')?.value || '';
@@ -2146,16 +2881,6 @@ async function fetchChannelHistory(channelId) {
     }
 
     const snapshot = await getDocs(q);
-    if (snapshot.empty) {
-      if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-xs text-slate-400 dark:text-white italic">No historical data found for <span class="font-bold text-slate-600 dark:text-white">${branchId}</span> on this channel. <br><span class="text-[10px] mt-2 block dark:text-white/80">Try importing a file in the "Import Data" tab and click "Save to Database".</span></td></tr>`;
-      return;
-    }
-
-    let totalGross = 0, totalNet = 0, totalOrders = 0, totalDeductions = 0;
-    let listHtml = '';
-    historyItems = []; // Reset local storage
-
-    // Chuyển snapshot thành mảng để sắp xếp ở client nếu cần
     let docsList = [];
     snapshot.forEach(docSnap => {
       docsList.push({ id: docSnap.id, ...docSnap.data() });
@@ -2168,6 +2893,56 @@ async function fetchChannelHistory(channelId) {
         return (a.branchId || '').localeCompare(b.branchId || '');
       });
     }
+
+    // Special GrabFood unified dashboard handling
+    if (channelId === 'grabfood') {
+      let adsDocs = [];
+      let adjDocs = [];
+
+      try {
+        const adsQuery = fromDate && toDate 
+          ? query(collection(db, "grab_advertising_summary"), where("reportDate", ">=", fromDate), where("reportDate", "<=", toDate))
+          : query(collection(db, "grab_advertising_summary"), limit(500));
+          
+        const adjQuery = fromDate && toDate
+          ? query(collection(db, "grab_adjustments"), where("date", ">=", fromDate), where("date", "<=", toDate))
+          : query(collection(db, "grab_adjustments"), limit(500));
+
+        const [adsSnap, adjSnap] = await Promise.all([getDocs(adsQuery), getDocs(adjQuery)]);
+
+        const matchBranch = (b) => {
+          if (!branchId || branchId === 'All Branches') return true;
+          if (!b) return false;
+          return b.trim().toLowerCase() === branchId.trim().toLowerCase();
+        };
+
+        adsSnap.forEach(d => {
+          const data = d.data();
+          if (matchBranch(data.branch)) adsDocs.push(data);
+        });
+
+        adjSnap.forEach(d => {
+          const data = d.data();
+          if (matchBranch(data.branch)) adjDocs.push(data);
+        });
+      } catch (err) {
+        console.warn("Could not fetch extra GrabFood collections:", err);
+      }
+
+      const analyticsContainer = document.getElementById('grab-analytics-container');
+      if (analyticsContainer) {
+        renderGrabfoodDashboard(analyticsContainer, docsList, adsDocs, adjDocs);
+      }
+    }
+
+    if (snapshot.empty) {
+      if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-xs text-slate-400 dark:text-white italic">No historical data found for <span class="font-bold text-slate-600 dark:text-white">${branchId}</span> on this channel. <br><span class="text-[10px] mt-2 block dark:text-white/80">Try importing a file in the "Import Data" tab and click "Save to Database".</span></td></tr>`;
+      return;
+    }
+
+    let totalGross = 0, totalNet = 0, totalOrders = 0, totalDeductions = 0;
+    let listHtml = '';
+    historyItems = []; // Reset local storage
 
     docsList.forEach(data => {
       const docId = data.id;

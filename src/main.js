@@ -50,7 +50,12 @@ const PAGE_TITLES = {
   admin: ['User Permissions', 'Configure branch & page access for managers and admin accounts', null, null],
 };
 
-const SUB_TABS_CONFIG = {};
+const SUB_TABS_CONFIG = {
+  grabfood: [
+    { id: 'history', label: 'Sales History' },
+    { id: 'analytics', label: 'Payout & Ad Analytics' }
+  ]
+};
 
 const PAGE_MAP = {
   dashboard: () => renderDashboard(currentUser),

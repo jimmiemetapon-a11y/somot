@@ -469,13 +469,27 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
       // Revenue (Use Gross)
       if (ch === 'dinein') pnlMap[b].rev.dinein += gross;
       else if (ch === 'online') pnlMap[b].rev.online += gross;
-      else if (ch === 'grabfood') pnlMap[b].rev.grabfood += gross;
-      else if (ch === 'foodpanda') pnlMap[b].rev.foodpanda += gross;
+      else if (ch === 'grabfood') {
+        pnlMap[b].rev.grabfood += gross;
 
-      // Process Incomes (e.g. Vendor Refunds)
-      Object.values(inc).forEach(v => {
-        pnlMap[b].rev.other += (parseFloat(v) || 0);
-      });
+        // Backward compatibility: If document was saved before new gross schema
+        const hasNewIncomeSchema = inc.dineOutPayout !== undefined || inc.adjustmentCredits !== undefined;
+        if (!hasNewIncomeSchema) {
+          const legacyDineOut = parseFloat(s.dineOutPayout) || parseFloat(s.dineOutPromo) || parseFloat(brk.dineOutPromo) || parseFloat(brk.dineOutPayout) || 0;
+          if (legacyDineOut > 0) {
+            pnlMap[b].rev.grabfood += legacyDineOut;
+          }
+          const legacyCredits = parseFloat(inc.adjustmentCredits) || (parseFloat(s.adjustments) > 0 ? parseFloat(s.adjustments) : 0);
+          if (legacyCredits > 0) {
+            pnlMap[b].rev.grabfood += legacyCredits;
+          }
+        }
+      } else if (ch === 'foodpanda') {
+        pnlMap[b].rev.foodpanda += gross;
+        Object.values(inc).forEach(v => {
+          pnlMap[b].rev.foodpanda += (parseFloat(v) || 0);
+        });
+      }
 
       // Deductions Breakdown
       if (ch === 'dinein') {
@@ -512,7 +526,6 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
         const ocomm = parseFloat(brk.orderCommission) || 0;
         const mdisc = parseFloat(brk.merchantDiscount) || 0;
         const ddisc = parseFloat(brk.deliveryDiscount) || 0;
-        const dPromo = parseFloat(brk.dineOutPromo) || 0;
         const ads = parseFloat(brk.adsFee) || 0;
         const mFee = parseFloat(brk.marketingFee) || 0;
         const adj = parseFloat(brk.adjustmentFee) || 0;
@@ -522,7 +535,6 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
         pnlMap[b].dedDetails.grab.orderCommission += ocomm;
         pnlMap[b].dedDetails.grab.merchantDiscount += mdisc;
         pnlMap[b].dedDetails.grab.deliveryDiscount += ddisc;
-        pnlMap[b].dedDetails.grab.dineOutPromo += dPromo;
         pnlMap[b].dedDetails.grab.adsFee += ads;
         pnlMap[b].dedDetails.grab.marketingFee += mFee;
         pnlMap[b].dedDetails.grab.adjustmentFee += adj;
@@ -552,7 +564,7 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
 
     // Recalculate Totals
     displayBranches.forEach(b => {
-      pnlMap[b].rev.total = pnlMap[b].rev.dinein + pnlMap[b].rev.grocery + pnlMap[b].rev.online + pnlMap[b].rev.grabfood + pnlMap[b].rev.foodpanda + pnlMap[b].rev.other;
+      pnlMap[b].rev.total = pnlMap[b].rev.dinein + pnlMap[b].rev.grocery + pnlMap[b].rev.online + pnlMap[b].rev.grabfood + pnlMap[b].rev.foodpanda;
       pnlMap[b].ded.total = pnlMap[b].ded.instore + pnlMap[b].ded.grab + pnlMap[b].ded.panda + pnlMap[b].ded.bank;
       pnlMap[b].netRev = pnlMap[b].rev.total - pnlMap[b].ded.total;
     });
@@ -794,7 +806,6 @@ function renderPNLTable(page, branches, data, targetMonth) {
   html += row('Sales Online', d => d.rev.online);
   html += row('GrabFood', d => d.rev.grabfood);
   html += row('FoodPanda', d => d.rev.foodpanda);
-  html += row('Vendor Refunds (Panda)', d => d.rev.other);
   html += row('TOTAL REVENUE', d => d.rev.total, true, 'text-emerald-600 dark:text-emerald-400', '100.0%');
 
   // 2. Deductions
@@ -812,7 +823,7 @@ function renderPNLTable(page, branches, data, targetMonth) {
 
   html += row('Grab food deductions', d => d.ded.grab, false, '', '', false, { rowId: 'grab', hasChildren: true });
   html += row('Commission', d => d.dedDetails.grab.commission + d.dedDetails.grab.orderCommission, false, '', '', false, { parentId: 'grab', isChild: true });
-  html += row('Merchant Promo/Discounts', d => d.dedDetails.grab.merchantDiscount + d.dedDetails.grab.deliveryDiscount + d.dedDetails.grab.dineOutPromo, false, '', '', false, { parentId: 'grab', isChild: true });
+  html += row('Merchant Promo/Discounts', d => d.dedDetails.grab.merchantDiscount + d.dedDetails.grab.deliveryDiscount, false, '', '', false, { parentId: 'grab', isChild: true });
   html += row('Ads & Marketing', d => d.dedDetails.grab.adsFee + d.dedDetails.grab.marketingFee, false, '', '', false, { parentId: 'grab', isChild: true });
   html += row('Adjustment Fee', d => d.dedDetails.grab.adjustmentFee, false, '', '', false, { parentId: 'grab', isChild: true });
   html += row('Other Fees', d => d.dedDetails.grab.otherBaFees, false, '', '', false, { parentId: 'grab', isChild: true });

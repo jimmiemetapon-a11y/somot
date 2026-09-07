@@ -104,7 +104,31 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
         `}
  
         <!-- Local Filters Anchor -->
-        <div id="header-local-filters" class="flex items-center gap-4 ml-2"></div>
+        <div id="header-local-filters" class="flex items-center gap-4 ml-2">
+          ${(subTabs && subTabs.length > 0) ? (() => {
+            const currentSub = subTabs.find(st => st.id === activeSubTab) || subTabs[0];
+            const activeLabel = currentSub ? currentSub.label : '';
+            return `
+              <div class="flex items-center gap-4 pl-4 border-l border-slate-200 dark:border-white/10">
+                <div class="relative group cursor-pointer flex items-center gap-1.5 h-6" id="header-subtab-dropdown">
+                  <i data-lucide="layers" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
+                  <span id="header-subtab-label" class="text-[11px] font-black text-slate-600 dark:text-white uppercase tracking-wider group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors">${activeLabel}</span>
+                  <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 group-hover:text-[#96588a] dark:group-hover:text-[#d4afcd] transition-colors"></i>
+                  
+                  <div class="absolute top-full left-0 mt-2 w-56 bg-white/90 dark:bg-[#141414]/95 rounded-2xl shadow-2xl opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[90] overflow-hidden backdrop-blur-2xl border border-white/60 dark:border-white/10">
+                    <div class="py-2">
+                      ${subTabs.map(st => `
+                        <div class="header-subtab-option px-5 py-3 text-[10px] font-black uppercase tracking-[0.15em] transition-all cursor-pointer ${(activeSubTab === st.id || (!activeSubTab && st.id === subTabs[0].id)) ? 'text-[#96588a] font-black bg-slate-50 dark:bg-white/5' : 'text-slate-600 dark:text-white/80 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-[#96588a] dark:hover:text-white'}" data-tab="${st.id}">
+                          ${st.label}
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          })() : ''}
+        </div>
       </div>
     </div>
  
@@ -360,9 +384,10 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
     if (window.lucide) window.lucide.createIcons();
   }, 100);
 
-  header.querySelectorAll('.sub-tab-link').forEach(btn => {
-    btn.onclick = () => {
-      const tabId = btn.dataset.tabId;
+  header.querySelectorAll('.sub-tab-link, .header-subtab-option').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const tabId = btn.dataset.tabId || btn.dataset.tab;
       window.dispatchEvent(new CustomEvent('switch-sub-tab', { detail: { tabId } }));
     };
   });
