@@ -37,51 +37,52 @@ export function getUTCDateString(dateObj) {
 export function standardizeDate(val) {
    if (val === undefined || val === null || String(val).trim() === '') return null;
 
-   let year, month, day;
-
    if (val instanceof Date) {
-      // Dùng local time getters để tránh lệch múi giờ
-      year = val.getFullYear();
-      month = val.getMonth(); // 0-indexed
-      day = val.getDate();
-   } else if (typeof val === 'number') {
-      // Excel serial number: phần nguyên = ngày, KHÔNG chuyển qua UTC milliseconds
+      return getLocalDateString(val);
+   }
+
+   let year = 0, month = 0, day = 0;
+
+   if (typeof val === 'number') {
       const totalDays = Math.floor(val);
-      // Serial 25569 = 1 Jan 1970 (epoch), dùng Local Time constructor
       const refDate = new Date(1970, 0, 1 + (totalDays - 25569));
-      year = refDate.getFullYear();
-      month = refDate.getMonth();
-      day = refDate.getDate();
-   } else {
-      // Chuỗi text
-      const str = String(val).trim();
-      try {
-         const datePart = str.split(' ')[0];
-         let y, m, d;
+      return getLocalDateString(refDate);
+   }
 
-         if (datePart.includes('-')) {
-            const parts = datePart.split('-');
-            if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
-            else if (parts[2].length === 4) { y = parts[2]; m = parts[1]; d = parts[0]; }
-         } else if (datePart.includes('/')) {
-            const parts = datePart.split('/');
-            if (parts[2].length === 4) { y = parts[2]; m = parts[1]; d = parts[0]; }
-            else if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
-         }
+   const str = String(val).trim();
+   const datePart = str.split(' ')[0];
+   const sep = datePart.includes('/') ? '/' : (datePart.includes('-') ? '-' : null);
 
-         if (y && m && d) {
-            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-         }
+   if (sep) {
+      const parts = datePart.split(sep);
+      if (parts.length >= 3) {
+         const p0 = parseInt(parts[0], 10);
+         const p1 = parseInt(parts[1], 10);
+         const p2 = parseInt(parts[2], 10);
 
-         const fallback = new Date(str);
-         if (!isNaN(fallback.getTime())) {
-            return getLocalDateString(fallback);
+         if (parts[0].length === 4) {
+            year = p0; month = p1 - 1; day = p2;
+         } else if (parts[2].length === 4) {
+            year = p2;
+            if (p1 > 12) {
+               month = p0 - 1; day = p1;
+            } else if (p0 > 12) {
+               day = p0; month = p1 - 1;
+            } else {
+               month = p0 - 1; day = p1;
+            }
          }
-      } catch (e) { return null; }
+      }
+   }
+
+   if (!year || month < 0 || month > 11 || !day || day < 1 || day > 31) {
+      const fallback = new Date(str);
+      if (!isNaN(fallback.getTime())) {
+         return getLocalDateString(fallback);
+      }
       return null;
    }
 
-   // Format từ year/month/day đã bóc tách
    const result = new Date(year, month, day);
    return getLocalDateString(result);
 }

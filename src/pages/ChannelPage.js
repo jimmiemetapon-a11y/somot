@@ -132,79 +132,102 @@ function formatAbbreviated(n) {
 }
 
 // Chuẩn hóa ngày về YYYY-MM-DD (Siêu bền bỉ cho mọi định dạng)
-// FIX: Tránh lệch múi giờ UTC bằng cách bóc tách trực tiếp từ Serial Number
-function standardizeDate(val, channelId) {
+// Helper bóc tách ngày giờ thông minh (hỗ trợ cả MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD, AM/PM, và Excel Serial)
+function parseDateComponents(val) {
   if (val === undefined || val === null || String(val).trim() === '') return null;
 
-  let year, month, day, hours = 0, minutes = 0;
+  let year = 0, month = 0, day = 0, hours = 0, minutes = 0;
 
-  // 1. Nếu Excel đọc ra dưới dạng Serial Number (ví dụ: 46156.987)
-  //    Phần nguyên = số ngày kể từ 1/1/1900, Phần thập phân = thời gian trong ngày
   if (typeof val === 'number') {
-    const totalDays = Math.floor(val);       // Phần nguyên = ngày
-    const timeFraction = val - totalDays;     // Phần thập phân = giờ
-
-    // Bóc tách giờ/phút từ phần thập phân
+    const totalDays = Math.floor(val);
+    const timeFraction = val - totalDays;
     const totalMinutes = Math.round(timeFraction * 24 * 60);
     hours = Math.floor(totalMinutes / 60);
     minutes = totalMinutes % 60;
 
-    // Chuyển serial thành ngày bằng cách dùng epoch cố định (Local Time)
-    // Serial 1 = 1 Jan 1900, nhưng Excel có bug Lotus 1-2-3 (thêm 29/2/1900 không tồn tại)
-    // → Dùng mốc: Serial 25569 = 1 Jan 1970
     const daysSinceEpoch = totalDays - 25569;
     const refDate = new Date(1970, 0, 1 + daysSinceEpoch, hours, minutes);
 
-    year = refDate.getFullYear();
-    month = refDate.getMonth();  // 0-indexed
-    day = refDate.getDate();
-    hours = refDate.getHours();
-    minutes = refDate.getMinutes();
-  } else {
-    const str = String(val).trim();
-    const datePart = str.split(' ')[0];
+    return {
+      year: refDate.getFullYear(),
+      month: refDate.getMonth(), // 0-indexed
+      day: refDate.getDate(),
+      hours: refDate.getHours(),
+      minutes: refDate.getMinutes()
+    };
+  }
 
-    // Thử tách y, m, d từ các định dạng phổ biến
-    let y, m, d;
-    if (datePart.includes('/')) {
-      const p = datePart.split('/');
-      if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }       // DD/MM/YYYY
-      else if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }   // YYYY/MM/DD
-    } else if (datePart.includes('-')) {
-      const p = datePart.split('-');
-      if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }       // YYYY-MM-DD
-      else if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }   // DD-MM-YYYY
+  const str = String(val).trim();
+
+  // Bóc tách giờ/phút kèm hỗ trợ AM/PM
+  const timeMatch = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?/i);
+  if (timeMatch) {
+    let hh = parseInt(timeMatch[1], 10);
+    const mm = parseInt(timeMatch[2], 10);
+    const ampm = timeMatch[4] ? timeMatch[4].toUpperCase() : null;
+    if (ampm) {
+      if (ampm === 'PM' && hh < 12) hh += 12;
+      if (ampm === 'AM' && hh === 12) hh = 0;
     }
+    hours = hh;
+    minutes = mm;
+  }
 
-    if (y && m && d) {
-      const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
-      year = parseInt(y);
-      month = parseInt(m) - 1;  // 0-indexed
-      day = parseInt(d);
-      hours = timeMatch ? parseInt(timeMatch[1]) : 0;
-      minutes = timeMatch ? parseInt(timeMatch[2]) : 0;
-    } else {
-      // Fallback: thử parse trực tiếp (ít tin cậy)
-      const fallback = new Date(str);
-      if (!isNaN(fallback.getTime())) {
-        year = fallback.getFullYear();
-        month = fallback.getMonth();
-        day = fallback.getDate();
-        hours = fallback.getHours();
-        minutes = fallback.getMinutes();
-      } else {
-        return null;
+  const datePart = str.split(' ')[0];
+  const sep = datePart.includes('/') ? '/' : (datePart.includes('-') ? '-' : null);
+
+  if (sep) {
+    const parts = datePart.split(sep);
+    if (parts.length >= 3) {
+      const p0 = parseInt(parts[0], 10);
+      const p1 = parseInt(parts[1], 10);
+      const p2 = parseInt(parts[2], 10);
+
+      if (parts[0].length === 4) {
+        // YYYY-MM-DD hoặc YYYY/MM/DD
+        year = p0; month = p1 - 1; day = p2;
+      } else if (parts[2].length === 4) {
+        year = p2;
+        // Xử lý thông minh MM/DD/YYYY (vd: 09/13/2026) vs DD/MM/YYYY (vd: 13/09/2026)
+        if (p1 > 12) {
+          // p1 > 12 bắt buộc là Day (13), p0 là Month (9)
+          month = p0 - 1; day = p1;
+        } else if (p0 > 12) {
+          // p0 > 12 bắt buộc là Day (13), p1 là Month (9)
+          day = p0; month = p1 - 1;
+        } else {
+          // Cả p0 và p1 <= 12 (vd: 09/05/2026): mặc định p0 là Tháng (MM/DD/YYYY)
+          month = p0 - 1; day = p1;
+        }
       }
     }
   }
 
-  // Tạo Date object bằng Local Time constructor (KHÔNG BAO GIỜ dùng UTC)
-  const dObj = new Date(year, month, day, hours, minutes);
+  // Fallback nếu không tách được theo pattern trên
+  if (!year || month < 0 || month > 11 || !day || day < 1 || day > 31) {
+    const fallback = new Date(str);
+    if (!isNaN(fallback.getTime())) {
+      year = fallback.getFullYear();
+      month = fallback.getMonth();
+      day = fallback.getDate();
+      hours = fallback.getHours();
+      minutes = fallback.getMinutes();
+    } else {
+      return null;
+    }
+  }
 
+  return { year, month, day, hours, minutes };
+}
+
+function standardizeDate(val, channelId) {
+  const comp = parseDateComponents(val);
+  if (!comp) return null;
+
+  const dObj = new Date(comp.year, comp.month, comp.day, comp.hours, comp.minutes);
   if (isNaN(dObj.getTime())) return null;
 
-  // Logic lùi ngày cho Dine In: đơn trước 2:00 AM thuộc về ngày kinh doanh hôm trước
-  if (channelId === 'dinein' && hours < 2) {
+  if (channelId === 'dinein' && comp.hours < 2) {
     dObj.setDate(dObj.getDate() - 1);
   }
 
@@ -212,69 +235,15 @@ function standardizeDate(val, channelId) {
 }
 
 function standardizeDateWithHour(val, channelId) {
-  if (val === undefined || val === null || String(val).trim() === '') return { dateKey: null, hour: 0 };
+  const comp = parseDateComponents(val);
+  if (!comp) return { dateKey: null, hour: 0 };
 
-  let year, month, day, hours = 0, minutes = 0;
-
-  if (typeof val === 'number') {
-    const totalDays = Math.floor(val);
-    const timeFraction = val - totalDays;
-
-    const totalMinutes = Math.round(timeFraction * 24 * 60);
-    hours = Math.floor(totalMinutes / 60);
-    minutes = totalMinutes % 60;
-
-    const daysSinceEpoch = totalDays - 25569;
-    const refDate = new Date(1970, 0, 1 + daysSinceEpoch, hours, minutes);
-
-    year = refDate.getFullYear();
-    month = refDate.getMonth();
-    day = refDate.getDate();
-    hours = refDate.getHours();
-    minutes = refDate.getMinutes();
-  } else {
-    const str = String(val).trim();
-    const datePart = str.split(' ')[0];
-
-    let y, m, d;
-    if (datePart.includes('/')) {
-      const p = datePart.split('/');
-      if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }
-      else if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }
-    } else if (datePart.includes('-')) {
-      const p = datePart.split('-');
-      if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }
-      else if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }
-    }
-
-    if (y && m && d) {
-      const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
-      year = parseInt(y);
-      month = parseInt(m) - 1;
-      day = parseInt(d);
-      hours = timeMatch ? parseInt(timeMatch[1]) : 0;
-      minutes = timeMatch ? parseInt(timeMatch[2]) : 0;
-    } else {
-      const fallback = new Date(str);
-      if (!isNaN(fallback.getTime())) {
-        year = fallback.getFullYear();
-        month = fallback.getMonth();
-        day = fallback.getDate();
-        hours = fallback.getHours();
-        minutes = fallback.getMinutes();
-      } else {
-        return { dateKey: null, hour: 0 };
-      }
-    }
-  }
-
-  const dObj = new Date(year, month, day, hours, minutes);
-
+  const dObj = new Date(comp.year, comp.month, comp.day, comp.hours, comp.minutes);
   if (isNaN(dObj.getTime())) return { dateKey: null, hour: 0 };
 
-  const originalHour = hours;
+  const originalHour = comp.hours;
 
-  if (channelId === 'dinein' && hours < 2) {
+  if (channelId === 'dinein' && comp.hours < 2) {
     dObj.setDate(dObj.getDate() - 1);
   }
 
@@ -288,43 +257,19 @@ function parseAyalaDate(val) {
   if (!val) return null;
   let str = String(val).trim();
 
-  // Case: DD/MM/YYYY HH:mm (Column E in Ayala POS)
-  if (str.includes('/') || str.includes('-')) {
-    const datePart = str.split(' ')[0];
-    const sep = datePart.includes('/') ? '/' : '-';
-    const parts = datePart.split(sep);
-
-    if (parts.length >= 3) {
-      let d, m, y;
-      if (parts[2].length === 4) { d = parts[0]; m = parts[1]; y = parts[2]; }
-      else if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
-
-      if (y && m && d) {
-        const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
-        const hh = timeMatch ? parseInt(timeMatch[1]) : 0;
-        const mm = timeMatch ? parseInt(timeMatch[2]) : 0;
-        const resultDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d), hh, mm);
-        
-        if (hh < 2) {
-          resultDate.setDate(resultDate.getDate() - 1);
-        }
-        return getLocalDateString(resultDate);
-      }
-    }
-  }
-
-  // Fallback: MMDDYYYY (8 digits) or MDDYYYY (7 digits)
+  // Chuỗi số nén MMDDYYYY (8 chữ số) hoặc MDDYYYY (7 chữ số)
   if (/^\d{7,8}$/.test(str)) {
     if (str.length === 7) str = '0' + str;
-    const mm = str.substring(0, 2);
-    const dd = str.substring(2, 4);
-    const yyyy = str.substring(4, 8);
-    const monthVal = parseInt(mm), dayVal = parseInt(dd);
-    if (monthVal >= 1 && monthVal <= 12 && dayVal >= 1 && dayVal <= 31) {
-      return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+    const mm = parseInt(str.substring(0, 2), 10);
+    const dd = parseInt(str.substring(2, 4), 10);
+    const yyyy = parseInt(str.substring(4, 8), 10);
+    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+      const dObj = new Date(yyyy, mm - 1, dd);
+      return getLocalDateString(dObj);
     }
   }
-  return standardizeDate(val);
+
+  return standardizeDate(val, 'dinein');
 }
 
 function cleanNumber(val) {
