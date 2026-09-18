@@ -6,13 +6,14 @@ const IC = {
   grab: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>`,
   panda: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 11h.01"/><path d="M11 15h.01"/><path d="M16 16h.01"/><path d="m2 16 20 6-6-20A20 20 0 0 0 2 16"/><path d="M5.71 17.11a17.04 17.04 0 0 1 11.4-11.4"/></svg>`,
   online: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
-  expenses: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17V7"/></svg>`,
+  expenses: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1-2-1 2 1-2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17V7"/></svg>`,
   analytics: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
   opex: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
   pnl: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
   settings: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`,
   admin: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`,
-  performance: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15a8 8 0 0 1 16 0"/><circle cx="12" cy="14" r="2"/><path d="M12 8v4"/></svg>`
+  performance: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15a8 8 0 0 1 16 0"/><circle cx="12" cy="14" r="2"/><path d="M12 8v4"/></svg>`,
+  kpi_rewards: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>`
 };
 
 export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'All Branches', dateRange = null, user = null, onSignOut = null, subTabs = [], activeSubTab = null, darkLogoUrl = null, activeTab = 'dashboard', onNavigate = null) {
@@ -134,6 +135,12 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
  
     <!-- Right: Profile & Theme -->
     <div class="flex items-center gap-3">
+      <!-- Quick Open KPI Missions Modal -->
+      <button id="btn-kpi-modal-trigger" title="Open Today's KPI Missions" class="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:scale-105 active:scale-95 text-white font-black text-[11px] uppercase tracking-wider shadow-lg shadow-purple-500/20 flex items-center gap-1.5 transition-all cursor-pointer">
+        <i data-lucide="target" class="w-4 h-4"></i>
+        <span class="hidden sm:inline">KPI Missions</span>
+      </button>
+
       <!-- Refresh -->
       <button id="db-refresh" aria-label="Refresh Data" class="w-10 h-10 flex items-center justify-center rounded-full bg-[#96588a] hover:bg-[#7a4671] text-white shadow-lg shadow-purple-200 dark:shadow-none transition-all active:scale-90 group">
         <i data-lucide="rotate-cw" class="w-4 h-4 group-hover:rotate-180 transition-transform duration-500"></i>
@@ -176,11 +183,12 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   `;
 
   // Sidebar Island Navigation Element
-  const DEFAULT_TABS = ['dashboard', 'performance', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
+  const DEFAULT_TABS = ['dashboard', 'performance', 'kpi_rewards', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
   const allowedTabs = isAdmin ? DEFAULT_TABS : (user?.permissions?.allowedTabs || DEFAULT_TABS);
   const TAB_LABELS = {
     dashboard: 'Dashboard',
     performance: 'Performance',
+    kpi_rewards: 'KPI & Rewards',
     dinein: 'Dine In',
     grabfood: 'GrabFood',
     foodpanda: 'FoodPanda',
@@ -195,6 +203,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   const TAB_ICONS = {
     dashboard: IC.dash,
     performance: IC.performance,
+    kpi_rewards: IC.kpi_rewards,
     dinein: IC.dinein,
     grabfood: IC.grab,
     foodpanda: IC.panda,
@@ -248,6 +257,14 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
 
   setTimeout(() => {
     if (window.lucide) window.lucide.createIcons();
+
+    const kpiModalBtn = document.getElementById('btn-kpi-modal-trigger');
+    if (kpiModalBtn) {
+      kpiModalBtn.onclick = (e) => {
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent('open-kpi-modal'));
+      };
+    }
 
     // Toggle sub-header navigation with Hamburger Button
     const hamburgerBtn = document.getElementById('hamburger-btn');

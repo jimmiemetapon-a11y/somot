@@ -38,35 +38,96 @@ function parseHourFromInOutTime(val) {
 }
 
 function parseDateAndHourFromRow(dateVal, timeVal) {
-  let dObj = null;
+  if (dateVal === undefined || dateVal === null || String(dateVal).trim() === '') return null;
+
+  let year = 0, month = 0, day = 0, hours = 0, minutes = 0;
+
   if (typeof dateVal === 'number') {
     const totalDays = Math.floor(dateVal);
+    const timeFraction = dateVal - totalDays;
+    const totalMinutes = Math.round(timeFraction * 24 * 60);
+    hours = Math.floor(totalMinutes / 60);
+    minutes = totalMinutes % 60;
+
     const daysSinceEpoch = totalDays - 25569;
-    dObj = new Date(1970, 0, 1 + daysSinceEpoch);
+    const refDate = new Date(1970, 0, 1 + daysSinceEpoch, hours, minutes);
+    year = refDate.getFullYear();
+    month = refDate.getMonth();
+    day = refDate.getDate();
   } else {
-    const str = String(dateVal).trim().split(' ')[0];
-    let y, m, d;
-    if (str.includes('/')) {
-      const p = str.split('/');
-      if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }
-      else if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }
-    } else if (str.includes('-')) {
-      const p = str.split('-');
-      if (p[0]?.length === 4) { y = p[0]; m = p[1]; d = p[2]; }
-      else if (p[2]?.length === 4) { y = p[2]; m = p[1]; d = p[0]; }
+    const str = String(dateVal).trim();
+    
+    // Check if time is in date string (e.g. "09/16/2026 10:05 AM")
+    const timeInDateMatch = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?/i);
+    if (timeInDateMatch) {
+      let hh = parseInt(timeInDateMatch[1], 10);
+      const ampm = timeInDateMatch[4] ? timeInDateMatch[4].toUpperCase() : null;
+      if (ampm) {
+        if (ampm === 'PM' && hh < 12) hh += 12;
+        if (ampm === 'AM' && hh === 12) hh = 0;
+      }
+      hours = hh;
+      minutes = parseInt(timeInDateMatch[2], 10);
     }
-    if (y && m && d) {
-      dObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-    } else {
-      dObj = new Date(str);
+
+    const datePart = str.split(' ')[0];
+    const sep = datePart.includes('/') ? '/' : (datePart.includes('-') ? '-' : null);
+
+    if (sep) {
+      const parts = datePart.split(sep);
+      if (parts.length >= 3) {
+        const p0 = parseInt(parts[0], 10);
+        const p1 = parseInt(parts[1], 10);
+        const p2 = parseInt(parts[2], 10);
+
+        if (parts[0].length === 4) {
+          // YYYY-MM-DD or YYYY/MM/DD
+          year = p0; month = p1 - 1; day = p2;
+        } else if (parts[2].length === 4) {
+          year = p2;
+          // Handles MM/DD/YYYY (e.g. 09/16/2026) vs DD/MM/YYYY (e.g. 16/09/2026)
+          if (p1 > 12) {
+            // p1 > 12 is Day (16), p0 is Month (9)
+            month = p0 - 1; day = p1;
+          } else if (p0 > 12) {
+            // p0 > 12 is Day (16), p1 is Month (9)
+            day = p0; month = p1 - 1;
+          } else {
+            // Ambiguous (both <= 12): default p0 = Month, p1 = Day (MM/DD/YYYY)
+            month = p0 - 1; day = p1;
+          }
+        }
+      }
+    }
+
+    if (!year || month < 0 || month > 11 || !day || day < 1 || day > 31) {
+      const fallback = new Date(str);
+      if (!isNaN(fallback.getTime())) {
+        year = fallback.getFullYear();
+        month = fallback.getMonth();
+        day = fallback.getDate();
+        if (!timeInDateMatch) hours = fallback.getHours();
+      } else {
+        return null;
+      }
     }
   }
 
-  if (!dObj || isNaN(dObj.getTime())) return null;
+  // If separate timeVal was passed (e.g. Column B), override if valid
+  if (timeVal !== undefined && timeVal !== null && String(timeVal).trim() !== '') {
+    const hourFromTimeVal = parseHourFromInOutTime(timeVal);
+    if (hourFromTimeVal !== 0 || !hours) {
+      hours = hourFromTimeVal;
+    }
+  }
 
-  const hour = parseHourFromInOutTime(timeVal);
+  const dObj = new Date(year, month, day, hours, minutes);
+  if (isNaN(dObj.getTime())) return null;
 
-  if (hour < 2) {
+  const originalHour = hours;
+
+  // Business-day cutoff for Dine-In (orders before 2:00 AM belong to previous business day)
+  if (hours < 2) {
     dObj.setDate(dObj.getDate() - 1);
   }
 
@@ -75,7 +136,7 @@ function parseDateAndHourFromRow(dateVal, timeVal) {
   const d = String(dObj.getDate()).padStart(2, '0');
   const dateKey = `${y}-${m}-${d}`;
 
-  return { dateKey, hour };
+  return { dateKey, hour: originalHour };
 }
 
 async function saveAyalaHourlyToDatabase(results) {

@@ -24,7 +24,8 @@ import { renderOPEX } from './pages/OPEX.js';
 import { renderPNL } from './pages/PNL.js';
 import { renderSettings } from './pages/Settings.js';
 import { renderAdminPage } from './pages/Admin.js';
-import { renderLoginPage } from './pages/Login.js';
+import { renderKPITrackingPage, fetchTodayBranchKPI } from './pages/KPITracking.js';
+import { showKPIMissionModal } from './components/KPIMissionModal.js';
 import { auth, db } from './firebase.js';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -38,6 +39,7 @@ const router = new Router();
 const PAGE_TITLES = {
   dashboard: ['Dashboard', 'Revenue overview across all channels', null, null],
   performance: ['Performance', 'Hourly sales progress report', null, null],
+  kpi_rewards: ['KPI & Rewards', 'KPI missions, hit rates & branch rewards', null, null],
   dinein: ['Dine In', 'In-house dining revenue', 'id_VcqlrDV_1777185371840.svg', 'kiotviet_dark.svg'],
   grabfood: ['GrabFood', 'GrabFood delivery channel', 'GrabFood.svg', 'Grab_dark.svg'],
   foodpanda: ['FoodPanda', 'FoodPanda delivery channel', 'Foodpanda.svg', 'panda_dark.svg'],
@@ -58,8 +60,21 @@ const SUB_TABS_CONFIG = {
 };
 
 const PAGE_MAP = {
-  dashboard: () => renderDashboard(currentUser),
+  dashboard: () => {
+    setTimeout(async () => {
+      let branchData = null;
+      try {
+        const branchName = currentUser?.permissions?.allowedBranches?.[0] || 'Ayala Cloverleaf';
+        branchData = await fetchTodayBranchKPI(branchName);
+      } catch (e) {
+        console.error('Failed to load today KPI metrics for modal:', e);
+      }
+      showKPIMissionModal(currentUser, branchData, () => router.navigate('/kpi_rewards'));
+    }, 500);
+    return renderDashboard(currentUser);
+  },
   performance: () => renderPerformancePage(currentUser),
+  kpi_rewards: () => renderKPITrackingPage(currentUser),
   dinein: () => renderChannelPage('dinein', activeSubTab),
   grabfood: () => renderChannelPage('grabfood', activeSubTab),
   foodpanda: () => renderChannelPage('foodpanda', activeSubTab),
@@ -388,6 +403,9 @@ onAuthStateChanged(auth, async (user) => {
       .add('/performance', () => {
         runWithPermission('performance', () => { currentTab = 'performance'; activeSubTab = null; buildShell(); });
       })
+      .add('/kpi_rewards', () => {
+        runWithPermission('kpi_rewards', () => { currentTab = 'kpi_rewards'; activeSubTab = null; buildShell(); });
+      })
       .add('/expenses', () => {
         runWithPermission('expenses', () => {
           const firstAllowedSubTab = getFirstAllowedSubTab();
@@ -436,6 +454,18 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 initDarkMode();
+
+// Global listener to re-open KPI Mission Modal anytime when requested by user
+window.addEventListener('open-kpi-modal', async () => {
+  let branchData = null;
+  try {
+    const branchName = currentUser?.permissions?.allowedBranches?.[0] || 'Ayala Cloverleaf';
+    branchData = await fetchTodayBranchKPI(branchName);
+  } catch (e) {
+    console.error('Failed to load today KPI metrics for modal:', e);
+  }
+  showKPIMissionModal(currentUser, branchData, () => router.navigate('/kpi_rewards'), true);
+});
 
 // --- Global Utilities (Toast & Modal) ---
 
