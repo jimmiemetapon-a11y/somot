@@ -411,9 +411,12 @@
   grid-area: 1 / 1;
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  min-height: 0;
   aspect-ratio: 2804 / 561;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: right center;
+  align-self: stretch;
 }
 .dashboard-greeting-copy {
   grid-area: 1 / 1;
@@ -426,7 +429,7 @@
 @container (max-width: 900px) {
   .dashboard-page .dashboard-greeting { background-color: var(--dashboard-surface); }
   .dashboard-greeting-copy { grid-area: 1 / 1; width: 100%; padding: 20px; }
-  .dashboard-greeting-art { grid-area: 2 / 1; }
+  .dashboard-greeting-art { grid-area: 2 / 1; height: auto; object-fit: contain; }
 }
 .dark .dashboard-page .dashboard-greeting {
   background-color: #191d24;
