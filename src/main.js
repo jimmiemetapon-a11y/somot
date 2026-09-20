@@ -15,6 +15,7 @@ window.addEventListener('unhandledrejection', (event) => {
 
 import './style.css';
 import { renderHeader } from './components/Header.js';
+import { renderLoginPage } from './pages/Login.js';
 import { renderDashboard } from './pages/Dashboard.js';
 import { renderChannelPage } from './pages/ChannelPage.js';
 import { renderExpensesPage } from './pages/Expenses.js';
