@@ -1,4 +1,6 @@
 import { Chart, registerables } from 'chart.js';
+import { sparklineRange, revenueSparkline } from '../utils/revenueSparkline.js';
+import { showSalesAuditModal } from '../components/SalesAuditModal.js';
 import { db } from '../firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 Chart.register(...registerables);
@@ -132,7 +134,59 @@ function triggerConfetti() {
 
 export function renderDashboard(user) {
   const page = document.createElement('div');
-  page.className = 'p-5 space-y-5 page-enter relative min-h-full';
+  page.className = 'dashboard-page p-5 space-y-5 page-enter relative min-h-full';
+  const allRankingBranches = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
+  const rankingPermissions = user?.permissions?.allowedBranches || [];
+  const rankingBranches = user?.permissions?.isAdmin === true || user?.email === 'jimmie.somot@gmail.com' || rankingPermissions.includes('All Branches')
+    ? allRankingBranches : allRankingBranches.filter(branch => rankingPermissions.includes(branch));
+  let rankingRequest = 0;
+  let sparklineRequest = 0;
+  async function updateRevenueBackdrop(branch, from, to) {
+    const request = ++sparklineRequest;
+    const svg = page.querySelector('.dashboard-revenue-sparkline');
+    if (!svg) return;
+    svg.replaceChildren();
+    try {
+      const range = sparklineRange(from, to);
+      const docs = await fetchSalesData(branch, range.from, range.to);
+      if (request !== sparklineRequest) return;
+      svg.innerHTML = revenueSparkline(docs, range.from, range.to);
+    } catch (error) {
+      console.warn('Could not load revenue background chart:', error);
+    }
+  }
+  async function updateBranchRanking(selected, from, to) {
+    const request = ++rankingRequest;
+    const list = page.querySelector('#dashboard-branch-ranking');
+    if (!list) return;
+    list.textContent = 'Loading branch revenue…';
+    const results = await Promise.allSettled(rankingBranches.map(async branch => {
+      const docs = await fetchSalesData(branch, from, to);
+      return { branch, net: docs.length ? docs.reduce((sum, row) => sum + getNet(row), 0) : null };
+    }));
+    if (request !== rankingRequest) return;
+    const rows = results.map((result, i) => result.status === 'fulfilled' ? result.value : { branch: rankingBranches[i], net: null, error: true });
+    rows.sort((a, b) => (b.net ?? -Infinity) - (a.net ?? -Infinity) || a.branch.localeCompare(b.branch));
+    list.replaceChildren();
+    let lastValue, rank = 0;
+    rows.forEach((row, i) => {
+      if (row.net !== null && row.net !== lastValue) rank = i + 1;
+      lastValue = row.net;
+      const item = document.createElement('li');
+      item.className = 'dashboard-rank-row' + (selected === row.branch ? ' is-selected' : '');
+      if (selected === row.branch) item.setAttribute('aria-current', 'true');
+      const position = document.createElement('span');
+      position.className = 'dashboard-rank-number';
+      position.textContent = row.net === null ? '—' : `#${rank}`;
+      const name = document.createElement('span');
+      name.textContent = row.branch;
+      const amount = document.createElement('strong');
+      amount.textContent = row.error ? 'Unavailable' : row.net === null ? '—' : '₱' + formatAbbreviated(row.net);
+      item.append(position, name, amount);
+      list.appendChild(item);
+    });
+    if (!rows.length) list.textContent = 'No branch access assigned.';
+  }
 
   function getGreetingInfo() {
     const hour = new Date().getHours();
@@ -166,20 +220,16 @@ export function renderDashboard(user) {
   let hourlyTo = yesterdayStr;
 
   page.innerHTML = `
-    <!-- Floating Typographic Greeting (Option A - Borderless) -->
-    <div class="card-stagger relative mb-8 mt-4 px-2 flex justify-between items-center gap-4" style="animation-delay: 0.1s">
-      <!-- Atmospheric Background Element -->
-      <div class="absolute -top-10 -left-6 opacity-[0.08] dark:opacity-[0.08] pointer-events-none select-none text-slate-800/80 dark:text-white/100">
-        <i data-lucide="${weatherIcon}" class="w-32 h-32 -rotate-12"></i>
-      </div>
-
-      <div class="relative z-10 flex flex-col gap-2">
+    <!-- Greeting and existing KPI status -->
+    <div class="dashboard-greeting card-stagger relative mb-4 mt-4 p-6 flex justify-between items-center gap-4 bg-white/40 dark:bg-[#141414]/60 rounded-[2rem] shadow-xl border-t border-white/60 dark:border-white/10 overflow-hidden" style="animation-delay: 0.1s">
+      <img class="dashboard-greeting-art" src="/assets/under70.png?v=kpi-bg-2" width="2804" height="561" alt="KPI below 70% — Keep going" />
+      <div class="dashboard-greeting-copy relative z-10 flex flex-col gap-2">
         <div class="flex items-center gap-3 text-slate-400 dark:text-white/20 text-[9px] font-black uppercase tracking-[0.3em]">
           <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
           <span>${dateStr}</span>
         </div>
 
-        <h1 class="text-3xl md:text-4xl font-black tracking-tighter text-slate-800 dark:text-white leading-tight whitespace-nowrap">
+        <h1 class="text-3xl md:text-4xl font-black tracking-tighter text-slate-800 dark:text-white leading-tight">
           ${greeting}, 
           <span class="whitespace-nowrap bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
             ${userName}
@@ -189,23 +239,27 @@ export function renderDashboard(user) {
         <p class="text-slate-400 dark:text-white/30 text-xs font-medium tracking-wide">
           Welcome to <span class="text-slate-600 dark:text-white/50 font-bold">So Mot Vietnamese Cuisine!</span>
         </p>
+        <div class="dashboard-greeting-actions">
+        <button id="btn-kpi-modal-trigger" type="button" title="Open Today's KPI Missions" class="self-start mt-1 h-8 px-3 rounded-lg bg-[#245443] hover:bg-[#193E31] text-white text-[10px] font-black uppercase tracking-wide shadow-sm hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-1.5">
+          <i data-lucide="bell-ring" class="w-3.5 h-3.5"></i>
+          View Daily Missions
+        </button>
+        <button id="btn-sales-audit" type="button"><i data-lucide="file-up" class="w-3.5 h-3.5"></i> Import Sales Reports</button>
+        </div>
       </div>
 
-      <!-- KPI Status Icon (Right Side) -->
-      <div id="kpi-greeting-status" class="relative z-10 hidden sm:flex items-center justify-center h-28 w-36 overflow-hidden">
-        <img id="kpi-greeting-img" class="h-full w-full object-contain transition-all duration-500 hover:scale-110" src="/assets/Under70.png" alt="KPI Status" />
-      </div>
     </div>
 
-  <!-- Unified Command Center (Compact Single Glass Panel) -->
-  <div class="card-stagger luxury-card relative bg-white/40 dark:bg-[#141414]/60 rounded-[2.5rem] p-6 mb-8 text-white shadow-xl dark:shadow-2xl backdrop-blur-3xl border-t border-white/60 dark:border-white/10 group overflow-hidden" style="animation-delay: 0.2s">
-    <div class="luxury-shine"></div>
-    <div class="channel-card-accent" style="background-color: #f97316; opacity: 0.15; transform: scale(2.5); filter: blur(100px); top: -20%; left: -10%;"></div>
+  <div class="dashboard-utility-row" aria-label="Dashboard actions"></div>
+
+  <!-- Business overview: primary revenue, four metrics, then channels -->
+  <div class="dashboard-business card-stagger relative mb-8" style="animation-delay: 0.2s">
     
-    <div class="relative z-10 flex flex-col lg:flex-row items-center gap-10">
+    <div class="dashboard-summary-grid relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
       
       <!-- Primary Section: Net Revenue -->
-      <div class="flex-1 w-full lg:w-auto">
+      <div class="dashboard-net-card relative min-w-0 flex flex-col justify-between bg-white/40 dark:bg-[#141414]/60 rounded-[2rem] p-6 shadow-xl border-t border-white/60 dark:border-white/10 overflow-hidden">
+        <svg class="dashboard-revenue-sparkline" viewBox="0 0 800 140" preserveAspectRatio="none" aria-hidden="true" focusable="false"></svg>
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
@@ -234,11 +288,12 @@ export function renderDashboard(user) {
         </div>
       </div>
 
-      <!-- Secondary Section: Nested Dark Hub (Adaptive Colors) -->
-      <div class="flex-1 w-full lg:w-auto bg-slate-100/50 dark:bg-[#1c1c1c]/70 backdrop-blur-2xl rounded-[1.5rem] p-5 shadow-sm dark:shadow-lg border border-slate-200/50 dark:border-white/[0.08] grid grid-cols-2 gap-x-8 gap-y-5">
+      <!-- Financial breakdown: existing values and comparison formulas. -->
+      <div class="dashboard-secondary-grid dashboard-breakdown min-w-0">
+        <h2><i data-lucide="list-filter" aria-hidden="true"></i>Financial Breakdown</h2>
         
         <!-- Gross Sale -->
-        <div class="flex flex-col gap-1">
+        <div class="dashboard-metric-card flex flex-col justify-center gap-2">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5 text-slate-400 dark:text-white/60">
               <i data-lucide="trending-up" class="w-3 h-3"></i>
@@ -250,7 +305,7 @@ export function renderDashboard(user) {
         </div>
 
         <!-- Net Profit -->
-        <div class="flex items-center justify-between gap-4">
+        <div class="dashboard-metric-card flex items-center justify-between gap-4">
           <div class="flex flex-col gap-1">
             <div class="flex items-center gap-1.5 text-slate-400 dark:text-white/60">
               <i data-lucide="bar-chart-3" class="w-3 h-3"></i>
@@ -258,6 +313,7 @@ export function renderDashboard(user) {
             </div>
             <h3 id="hero-profit" class="text-lg font-black text-slate-900 dark:text-white tracking-tight">₱0.00</h3>
           </div>
+          <span id="hero-profit-ratio" class="dashboard-ratio">—</span>
           <!-- Apple-style Circular Progress (Larger, Minimalist) -->
           <div class="relative flex items-center justify-center w-10 h-10 shrink-0">
             <svg class="w-full h-full -rotate-90" viewBox="0 0 40 40">
@@ -268,7 +324,7 @@ export function renderDashboard(user) {
         </div>
 
         <!-- Expenses -->
-        <div class="flex flex-col gap-1">
+        <div class="dashboard-metric-card flex flex-col justify-center gap-2">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5 text-slate-400 dark:text-white/60">
               <i data-lucide="receipt" class="w-3 h-3"></i>
@@ -280,7 +336,7 @@ export function renderDashboard(user) {
         </div>
 
         <!-- Deduction -->
-        <div class="flex items-center justify-between gap-4">
+        <div class="dashboard-metric-card flex items-center justify-between gap-4">
           <div class="flex flex-col gap-1">
             <div class="flex items-center gap-1.5 text-slate-400 dark:text-white/60">
               <i data-lucide="scissors" class="w-3 h-3"></i>
@@ -288,6 +344,7 @@ export function renderDashboard(user) {
             </div>
             <h3 id="hero-ded" class="text-lg font-black text-rose-600 dark:text-rose-500 tracking-tight">₱0.00</h3>
           </div>
+          <span id="hero-ded-ratio" class="dashboard-ratio">—</span>
           <!-- Apple-style Circular Progress (Larger, Minimalist) -->
           <div class="relative flex items-center justify-center w-10 h-10 shrink-0">
             <svg class="w-full h-full -rotate-90" viewBox="0 0 40 40">
@@ -298,13 +355,21 @@ export function renderDashboard(user) {
         </div>
 
       </div>
-
+      <section class="dashboard-branch-race">
+        <h2><i data-lucide="trophy" aria-hidden="true"></i>Branch Revenue Ranking</h2>
+        <ol id="dashboard-branch-ranking" aria-live="polite">Loading branch revenue…</ol>
+      </section>
       </div>
 
-      <!-- Channel Management Row (Integrated into Unified Surface) -->
-      <div class="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Channel performance is a separate full-width section. -->
+      <section class="dashboard-channels mt-4 p-4 sm:p-5 bg-white/40 dark:bg-[#141414]/60 rounded-[2rem] shadow-xl border-t border-white/60 dark:border-white/10">
+        <div class="mb-4">
+          <h2 class="text-sm font-black text-slate-800 dark:text-white/80">Channel Performance</h2>
+          <p class="text-[10px] text-slate-400 dark:text-white/40 mt-1">Sales and KPI progress by channel</p>
+        </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         ${Object.entries(CHANNELS).map(([id, ch]) => `
-          <div class="card-stagger relative bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-md rounded-2xl overflow-hidden shadow-lg border border-white/20 dark:border-white/5 h-52 flex flex-col group transition-all cursor-pointer"
+          <div class="dashboard-channel-card card-stagger relative bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-md rounded-2xl overflow-hidden shadow-lg border border-white/20 dark:border-white/5 h-52 flex flex-col group transition-all cursor-pointer"
                style="animation-delay: ${0.5 + (Object.keys(CHANNELS).indexOf(id) * 0.1)}s"
                onmouseover="this.style.borderColor='${ch.color}44'" 
                onmouseout="this.style.borderColor='transparent'">
@@ -354,8 +419,9 @@ export function renderDashboard(user) {
         `).join('')}
       </div>
 
-    </div>
+      </section>
   </div>
+
 
     <!-- Charts Row -->
     <div class="card-stagger grid grid-cols-1 lg:grid-cols-3 gap-6" style="animation-delay: 0.9s">
@@ -455,6 +521,8 @@ export function renderDashboard(user) {
         }
 
         loadAndRender(page, branch, from, to, trendFrom, trendTo, hourlyFrom, hourlyTo);
+        updateBranchRanking(branch, from, to);
+        updateRevenueBackdrop(branch, from, to);
       };
 
       // Trend chart date update function
@@ -661,6 +729,11 @@ export function renderDashboard(user) {
       if (window.lucide) window.lucide.createIcons();
     }, 0);
 
+  page.querySelector('#btn-kpi-modal-trigger').onclick = (event) => {
+    event.stopPropagation();
+    window.dispatchEvent(new CustomEvent('open-kpi-modal'));
+  };
+  page.querySelector('#btn-sales-audit').onclick = () => showSalesAuditModal(user, rankingBranches);
   return page;
 }
 
@@ -817,6 +890,7 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   if (profitEl) profitEl.className = `text-lg font-black ${profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`;
 
   const efficiency = totalNet > 0 ? (profit / totalNet) * 100 : 0;
+  page.querySelector('#hero-profit-ratio').textContent = `${efficiency.toFixed(1)}% margin`;
   const ring = page.querySelector('#profit-ring');
   if (ring) {
     const val = Math.max(0, Math.min(100, Math.round(efficiency)));
@@ -827,6 +901,7 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
 
   // Update Deduction Ring
   const dedRatio = totalGross > 0 ? (totalDed / totalGross) * 100 : 0;
+  page.querySelector('#hero-ded-ratio').textContent = `${dedRatio.toFixed(1)}% of gross`;
   const dRing = page.querySelector('#ded-ring');
   if (dRing) {
     const val = Math.max(0, Math.min(100, Math.round(dedRatio)));
@@ -849,22 +924,27 @@ function updateCards(page, docs, prevDocs, expenseDocs = [], prevExpenseDocs = [
   if (heroPct) heroPct.textContent = Math.round(kpiPct) + '% OF TARGET (' + days + ' DAYS)';
   if (heroTargetEl) heroTargetEl.textContent = 'Target: ' + fmtAbbr(totalKpiForPeriod);
 
-  // Update Greeting KPI Status Image and trigger confetti if achieved 100%
-  const kpiImg = page.querySelector('#kpi-greeting-img');
-  if (kpiImg) {
-    let imgSrc = '/assets/Under70.png';
-    if (kpiPct >= 100) {
-      imgSrc = '/assets/100%.png';
-      if (!confettiFired) {
-        triggerConfetti();
-        confettiFired = true;
-      }
-    } else if (kpiPct >= 90) {
-      imgSrc = '/assets/90-99.png';
-    } else if (kpiPct >= 70) {
-      imgSrc = '/assets/70-89.png';
+  // Use the existing KPI thresholds to select full-card background artwork.
+  const greetingCard = page.querySelector('.dashboard-greeting');
+  if (greetingCard) {
+    greetingCard.dataset.kpiTier = kpiPct >= 100 ? 'achieved'
+      : kpiPct >= 90 ? 'near-target'
+      : kpiPct >= 70 ? 'progressing' : 'below-target';
+    const greetingImage = kpiPct >= 100 ? '100%.png'
+      : kpiPct >= 90 ? '90-99.png'
+      : kpiPct >= 70 ? '70-89.png' : 'under70.png';
+    const greetingArt = greetingCard.querySelector('.dashboard-greeting-art');
+    if (greetingArt) {
+      greetingArt.src = `/assets/${encodeURIComponent(greetingImage)}?v=kpi-bg-2`;
+      greetingArt.alt = kpiPct >= 100 ? 'KPI target achieved — 100% or above'
+        : kpiPct >= 90 ? 'KPI progress: 90% to below 100%'
+        : kpiPct >= 70 ? 'KPI progress: 70% to below 90%'
+        : 'KPI below 70% — Keep going';
     }
-    kpiImg.src = imgSrc;
+  }
+  if (kpiPct >= 100 && !confettiFired) {
+    triggerConfetti();
+    confettiFired = true;
   }
 
   // Animate Channels

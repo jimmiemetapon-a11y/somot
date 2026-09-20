@@ -12,7 +12,6 @@ const IC = {
   pnl: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
   settings: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`,
   admin: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`,
-  performance: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15a8 8 0 0 1 16 0"/><circle cx="12" cy="14" r="2"/><path d="M12 8v4"/></svg>`,
   kpi_rewards: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>`
 };
 
@@ -35,7 +34,10 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   header.className = 'topbar transition-all duration-300';
 
   const isDashboard = title === 'Dashboard';
-  const hideGlobalFilters = ['Expenses', 'Pantry Analysis', 'Operating Expenses', 'Settings', 'P&L Statement', 'Performance'].includes(title);
+  if (isDashboard) header.classList.add('dashboard-banner-toolbar');
+  const isKPI = activeTab === 'kpi_rewards';
+  const hideGlobalFilters = isKPI || ['Expenses', 'Pantry Analysis', 'Operating Expenses', 'Settings', 'P&L Statement'].includes(title);
+  if (isKPI) header.classList.add('kpi-topbar');
 
   // Define options based on user permissions
   const DEFAULT_BRANCHES = ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
@@ -105,8 +107,9 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
         `}
  
         <!-- Local Filters Anchor -->
+        ${isKPI ? `<div id="kpi-header-controls" data-initial-branch="${branch}" aria-label="KPI filters"></div>` : ''}
         <div id="header-local-filters" class="flex items-center gap-4 ml-2">
-          ${(subTabs && subTabs.length > 0) ? (() => {
+          ${(!isKPI && subTabs && subTabs.length > 0) ? (() => {
             const currentSub = subTabs.find(st => st.id === activeSubTab) || subTabs[0];
             const activeLabel = currentSub ? currentSub.label : '';
             return `
@@ -134,13 +137,7 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
     </div>
  
     <!-- Right: Profile & Theme -->
-    <div class="flex items-center gap-3">
-      <!-- Quick Open KPI Missions Modal -->
-      <button id="btn-kpi-modal-trigger" title="Open Today's KPI Missions" class="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:scale-105 active:scale-95 text-white font-black text-[11px] uppercase tracking-wider shadow-lg shadow-purple-500/20 flex items-center gap-1.5 transition-all cursor-pointer">
-        <i data-lucide="target" class="w-4 h-4"></i>
-        <span class="hidden sm:inline">KPI Missions</span>
-      </button>
-
+    <div class="header-user-actions flex items-center gap-3">
       <!-- Refresh -->
       <button id="db-refresh" aria-label="Refresh Data" class="w-10 h-10 flex items-center justify-center rounded-full bg-[#96588a] hover:bg-[#7a4671] text-white shadow-lg shadow-purple-200 dark:shadow-none transition-all active:scale-90 group">
         <i data-lucide="rotate-cw" class="w-4 h-4 group-hover:rotate-180 transition-transform duration-500"></i>
@@ -183,11 +180,10 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   `;
 
   // Sidebar Island Navigation Element
-  const DEFAULT_TABS = ['dashboard', 'performance', 'kpi_rewards', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
+  const DEFAULT_TABS = ['dashboard', 'kpi_rewards', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
   const allowedTabs = isAdmin ? DEFAULT_TABS : (user?.permissions?.allowedTabs || DEFAULT_TABS);
   const TAB_LABELS = {
     dashboard: 'Dashboard',
-    performance: 'Performance',
     kpi_rewards: 'KPI & Rewards',
     dinein: 'Dine In',
     grabfood: 'GrabFood',
@@ -202,7 +198,6 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
   };
   const TAB_ICONS = {
     dashboard: IC.dash,
-    performance: IC.performance,
     kpi_rewards: IC.kpi_rewards,
     dinein: IC.dinein,
     grabfood: IC.grab,
@@ -257,14 +252,6 @@ export function renderHeader(title, subtitle, onToggleDark, logoUrl, branch = 'A
 
   setTimeout(() => {
     if (window.lucide) window.lucide.createIcons();
-
-    const kpiModalBtn = document.getElementById('btn-kpi-modal-trigger');
-    if (kpiModalBtn) {
-      kpiModalBtn.onclick = (e) => {
-        e.stopPropagation();
-        window.dispatchEvent(new CustomEvent('open-kpi-modal'));
-      };
-    }
 
     // Toggle sub-header navigation with Hamburger Button
     const hamburgerBtn = document.getElementById('hamburger-btn');

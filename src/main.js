@@ -16,7 +16,6 @@ window.addEventListener('unhandledrejection', (event) => {
 import './style.css';
 import { renderHeader } from './components/Header.js';
 import { renderDashboard } from './pages/Dashboard.js';
-import { renderPerformancePage } from './pages/Performance.js';
 import { renderChannelPage } from './pages/ChannelPage.js';
 import { renderExpensesPage } from './pages/Expenses.js';
 import { renderPantryAnalysis } from './pages/PantryAnalysis.js';
@@ -38,7 +37,6 @@ const router = new Router();
 
 const PAGE_TITLES = {
   dashboard: ['Dashboard', 'Revenue overview across all channels', null, null],
-  performance: ['Performance', 'Hourly sales progress report', null, null],
   kpi_rewards: ['KPI & Rewards', 'KPI missions, hit rates & branch rewards', null, null],
   dinein: ['Dine In', 'In-house dining revenue', 'id_VcqlrDV_1777185371840.svg', 'kiotviet_dark.svg'],
   grabfood: ['GrabFood', 'GrabFood delivery channel', 'GrabFood.svg', 'Grab_dark.svg'],
@@ -64,16 +62,16 @@ const PAGE_MAP = {
     setTimeout(async () => {
       let branchData = null;
       try {
-        const branchName = currentUser?.permissions?.allowedBranches?.[0] || 'Ayala Cloverleaf';
+        const branchName = resolveKPIBranch();
         branchData = await fetchTodayBranchKPI(branchName);
       } catch (e) {
         console.error('Failed to load today KPI metrics for modal:', e);
+        branchData = { branchId: resolveKPIBranch(), loadError: true };
       }
       showKPIMissionModal(currentUser, branchData, () => router.navigate('/kpi_rewards'));
     }, 500);
     return renderDashboard(currentUser);
   },
-  performance: () => renderPerformancePage(currentUser),
   kpi_rewards: () => renderKPITrackingPage(currentUser),
   dinein: () => renderChannelPage('dinein', activeSubTab),
   grabfood: () => renderChannelPage('grabfood', activeSubTab),
@@ -118,7 +116,7 @@ function isAdminUser() {
 
 function hasPermission(tabId) {
   if (isAdminUser()) return true;
-  const DEFAULT_TABS = ['dashboard', 'performance', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
+  const DEFAULT_TABS = ['dashboard', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
   const allowedTabs = currentUser?.permissions?.allowedTabs || DEFAULT_TABS;
 
   if (tabId === 'expenses') {
@@ -130,10 +128,11 @@ function hasPermission(tabId) {
 
 function getFirstAllowedTab() {
   if (isAdminUser()) return 'dashboard';
-  const DEFAULT_TABS = ['dashboard', 'performance', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
+  const DEFAULT_TABS = ['dashboard', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'];
   const allowedTabs = currentUser?.permissions?.allowedTabs || DEFAULT_TABS;
-  if (allowedTabs.length > 0) {
-    return allowedTabs[0];
+  const availableTabs = allowedTabs.filter(tab => Object.hasOwn(PAGE_MAP, tab.split('/')[0]));
+  if (availableTabs.length > 0) {
+    return availableTabs[0];
   }
   return 'dashboard';
 }
@@ -248,6 +247,19 @@ function buildShell() {
     });
   }
 
+  // Keep the profile in the persistent sidebar while refreshing its user data.
+  const sidebarNav = document.getElementById('subheader-nav');
+  const profileControl = header.querySelector('#user-profile-btn');
+  if (sidebarNav && profileControl) {
+    let profileFooter = sidebarNav.querySelector('.sidebar-profile-footer');
+    if (!profileFooter) {
+      profileFooter = document.createElement('div');
+      profileFooter.className = 'sidebar-profile-footer';
+      sidebarNav.appendChild(profileFooter);
+    }
+    profileFooter.replaceChildren(profileControl);
+  }
+
   // 4. Trigger Page Rendering
   renderPage(currentTab);
   attachFilterListeners();
@@ -282,6 +294,63 @@ async function renderPage(tabId) {
       const pageElement = await renderFn();
       contentArea.innerHTML = '';
       contentArea.appendChild(pageElement);
+      const isChannelCover = ['dinein', 'grabfood', 'foodpanda', 'online'].includes(tabId);
+      if (tabId === 'kpi_rewards' || isChannelCover) {
+        const kpiHeader = document.querySelector('#header-container .topbar');
+        if (kpiHeader) {
+          if (isChannelCover) kpiHeader.classList.add('kpi-topbar', 'channel-cover-toolbar');
+          // Keep the header outside KPI's frequently re-rendered page content.
+          const shell = document.createElement('div');
+          shell.className = 'kpi-banner-shell' + (isChannelCover ? ' channel-banner-shell' : '');
+          const cover = document.createElement('section');
+          cover.className = 'kpi-page-cover' + (isChannelCover ? ' channel-page-cover' : '');
+          cover.innerHTML = isChannelCover
+            ? `<img src="/assets/chanelcover.png" width="2804" height="561" alt="Sales Channels — Daily report import and performance view" />
+              <div class="kpi-cover-copy"><h1>${PAGE_TITLES[tabId][0]}</h1><p>${PAGE_TITLES[tabId][1]}</p></div>`
+            : `<img src="/assets/KPI%20COVER.png" width="2804" height="561" alt="Challenge Accepted! Reach the KPI target, unlock rewards, and grow together." />
+              <div class="kpi-cover-copy"><h1>KPI &amp; Rewards</h1><p>Every mission brings your branch closer to the next milestone.</p></div>`;
+          contentArea.replaceChildren(shell);
+          shell.append(kpiHeader, cover, pageElement);
+          if (pageElement.kpiViewNavigation) cover.querySelector('.kpi-cover-copy').appendChild(pageElement.kpiViewNavigation);
+          const syncScroll = () => kpiHeader.classList.toggle('is-scrolled', contentArea.scrollTop > 8);
+          const syncHeight = () => shell.style.setProperty('--kpi-toolbar-height', `${kpiHeader.offsetHeight}px`);
+          const observer = new ResizeObserver(syncHeight);
+          observer.observe(kpiHeader);
+          syncHeight();
+          syncScroll();
+          contentArea.addEventListener('scroll', syncScroll, { passive: true });
+          window.addEventListener('cleanup-page', () => {
+            observer.disconnect();
+            contentArea.removeEventListener('scroll', syncScroll);
+          }, { once: true });
+        }
+      }
+      // Dashboard prototype: preserve existing controls/listeners while joining
+      // the toolbar and greeting into a single scrolling banner.
+      if (tabId === 'dashboard') {
+        const dashboardHeader = document.querySelector('#header-container .dashboard-banner-toolbar');
+        const utilityRow = pageElement.querySelector('.dashboard-utility-row');
+        if (dashboardHeader && utilityRow) {
+          const actions = dashboardHeader.querySelector('.header-user-actions');
+          if (actions) utilityRow.appendChild(actions);
+          pageElement.prepend(dashboardHeader);
+          const updateBannerScroll = () => {
+            dashboardHeader.classList.toggle('is-scrolled', contentArea.scrollTop > 8);
+          };
+          const measureBannerToolbar = () => {
+            pageElement.style.setProperty('--banner-toolbar-height', `${dashboardHeader.offsetHeight}px`);
+          };
+          const bannerObserver = new ResizeObserver(measureBannerToolbar);
+          bannerObserver.observe(dashboardHeader);
+          measureBannerToolbar();
+          updateBannerScroll();
+          contentArea.addEventListener('scroll', updateBannerScroll, { passive: true });
+          window.addEventListener('cleanup-page', () => {
+            contentArea.removeEventListener('scroll', updateBannerScroll);
+            bannerObserver.disconnect();
+          }, { once: true });
+        }
+      }
       if (window.lucide) window.lucide.createIcons();
     } catch (err) {
       console.error("Error rendering page:", err);
@@ -330,6 +399,15 @@ function navigateTo(tabId, subTabId = null) {
   router.navigate(path);
 }
 
+window.addEventListener('open-sales-audit-channel', ({ detail }) => {
+  if (!detail || !['dinein', 'grabfood', 'foodpanda', 'online'].includes(detail.channel)) return;
+  filterState.branch = detail.branch;
+  filterState.from = detail.from;
+  filterState.to = detail.to;
+  filterState.dateRange = `${detail.from} to ${detail.to}`;
+  navigateTo(detail.channel, 'history');
+});
+
 
 function toggleDarkMode() {
   document.documentElement.classList.toggle('dark');
@@ -364,7 +442,7 @@ onAuthStateChanged(auth, async (user) => {
         // Safe fallback for primary admin so they never get locked out
         user.permissions = {
           allowedBranches: ['All Branches', 'Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'],
-          allowedTabs: ['dashboard', 'performance', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'],
+          allowedTabs: ['dashboard', 'dinein', 'grabfood', 'foodpanda', 'online', 'expenses', 'pantry_analysis', 'opex', 'pnl', 'settings'],
           isAdmin: true
         };
         // Auto-save admin record to Firestore for consistency
@@ -399,9 +477,6 @@ onAuthStateChanged(auth, async (user) => {
     router
       .add('/dashboard', () => {
         runWithPermission('dashboard', () => { currentTab = 'dashboard'; activeSubTab = null; buildShell(); });
-      })
-      .add('/performance', () => {
-        runWithPermission('performance', () => { currentTab = 'performance'; activeSubTab = null; buildShell(); });
       })
       .add('/kpi_rewards', () => {
         runWithPermission('kpi_rewards', () => { currentTab = 'kpi_rewards'; activeSubTab = null; buildShell(); });
@@ -455,14 +530,24 @@ onAuthStateChanged(auth, async (user) => {
 
 initDarkMode();
 
+function resolveKPIBranch(requested) {
+  const allowed = currentUser?.permissions?.allowedBranches || [];
+  const isAll = isAdminUser() || allowed.includes('All Branches');
+  const valid = ['Pioneer Center', 'Catholic Trade', 'Unimart Capitol', 'Ayala Cloverleaf', 'UST'];
+  const candidate = requested || document.getElementById('db-branch')?.value;
+  if (valid.includes(candidate) && (isAll || allowed.includes(candidate))) return candidate;
+  return valid.find(branch => isAll || allowed.includes(branch));
+}
+
 // Global listener to re-open KPI Mission Modal anytime when requested by user
-window.addEventListener('open-kpi-modal', async () => {
+window.addEventListener('open-kpi-modal', async (event) => {
   let branchData = null;
   try {
-    const branchName = currentUser?.permissions?.allowedBranches?.[0] || 'Ayala Cloverleaf';
-    branchData = await fetchTodayBranchKPI(branchName);
+    const branchName = resolveKPIBranch(event.detail?.branch);
+    branchData = await fetchTodayBranchKPI(branchName, { year: event.detail?.year, month: event.detail?.month });
   } catch (e) {
     console.error('Failed to load today KPI metrics for modal:', e);
+    branchData = { branchId: resolveKPIBranch(event.detail?.branch), loadError: true };
   }
   showKPIMissionModal(currentUser, branchData, () => router.navigate('/kpi_rewards'), true);
 });

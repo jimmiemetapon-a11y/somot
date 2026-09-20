@@ -1,3 +1,7 @@
+import { showAyalaProductImport } from '../components/AyalaProductImport.js';
+import { countDineInDrinkOrders, countIncidentOrders } from '../utils/kpiMetrics.js';
+import { Chart, registerables } from 'chart.js';
+Chart.register(...registerables);
 import { db } from '../firebase';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, orderBy, limit, updateDoc, deleteDoc } from 'firebase/firestore';
 
@@ -67,6 +71,7 @@ function getGrabHeaderMap(headerRow) {
     colOrderComm: 47,            // Column AV
     colAds: 52,                  // Column BA (Net Payout / Net Amount)
     colDesc: 62,                 // Column BK
+    colDetail: 64,               // Column BM
     colBranch: 2                 // Column C
   };
 
@@ -85,7 +90,8 @@ function getGrabHeaderMap(headerRow) {
     else if (txt.includes('channel commission') || txt === 'commission fee' || txt === 'commission') map.colComm = idx;
     else if (txt.includes('order commission')) map.colOrderComm = idx;
     else if (txt.includes('net payout') || txt.includes('net amount') || txt.includes('payout amount')) map.colAds = idx;
-    else if (txt.includes('description') || txt.includes('campaign name') || txt.includes('details')) map.colDesc = idx;
+    else if (txt.includes('description') || txt.includes('campaign name')) map.colDesc = idx;
+    else if (txt.includes('detail') || txt.includes('remark') || txt.includes('reason detail')) map.colDetail = idx;
     else if (txt.includes('store name') || txt.includes('merchant name')) map.colBranch = idx;
   });
 
@@ -300,29 +306,33 @@ export function renderChannelPage(channelId, activeTab = 'history') {
   const page = document.createElement('div');
   page.className = 'p-6 space-y-6 page-enter';
 
+  const viewNavigation = document.createElement('nav');
+  viewNavigation.className = 'kpi-view-buttons';
+  viewNavigation.setAttribute('aria-label', 'Channel actions');
+  viewNavigation.innerHTML = `
+    <button type="button" class="kpi-view-button" id="btn-goto-import" aria-pressed="true">
+      <i data-lucide="file-up" class="w-3.5 h-3.5 inline-block mr-1"></i> Import Data
+    </button>
+    <button type="button" class="kpi-view-button" id="btn-export-csv" aria-pressed="true">
+      <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 inline-block mr-1"></i> Export Report
+    </button>
+  `;
+  page.kpiViewNavigation = viewNavigation;
+
   page.innerHTML = `
     <!-- TAB: HISTORY (Main View) -->
     <div id="section-history" class="tab-content ${(!activeTab || activeTab === 'history') ? '' : 'hidden'} space-y-4 page-enter">
        <div id="channel-summary-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"></div>
+       <section id="history-branch-performance" class="history-branch-performance" aria-label="Branch performance"></section>
 
        <!-- Optimized Action Bar: Exclusive Export & Import -->
-       <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl overflow-hidden shadow-xl border-t border-white/60 dark:border-white/10 transition-all">
+       <div class="history-data-card">
           <!-- Subdued Table Header Action Area -->
-          <div class="px-8 pt-6 pb-2 flex justify-between items-center">
-             <p class="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-[0.2em]">Historical Data</p>
-             <div class="flex items-center gap-6">
-                <button id="btn-goto-import" class="flex items-center gap-2 text-[9px] font-black text-slate-400 hover:text-[#96588a] dark:text-white/30 dark:hover:text-white uppercase tracking-widest transition-all group">
-                   <i data-lucide="file-up" class="w-3 h-3 group-hover:scale-110 transition-transform"></i>
-                   Import Data
-                </button>
-                <div class="w-px h-3 bg-slate-200 dark:bg-white/10"></div>
-                <button id="btn-export-csv" class="flex items-center gap-2 text-[9px] font-black text-slate-400 hover:text-[#96588a] dark:text-white/30 dark:hover:text-white uppercase tracking-widest transition-all group">
-                   <i data-lucide="file-spreadsheet" class="w-3 h-3 group-hover:scale-110 transition-transform"></i>
-                   Export Report
-                </button>
-             </div>
+          <div class="history-data-heading">
+             <h3>Historical Data</h3>
           </div>
 
+          <div class="history-data-scroll">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-transparent">
@@ -338,6 +348,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
                <tr><td colspan="6" class="px-6 py-10 text-center text-[11px] text-slate-400 italic">Fetching data from database...</td></tr>
             </tbody>
           </table>
+          </div>
        </div>
     </div>
 
@@ -378,7 +389,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
             </div>
             <div class="flex gap-3 w-full">
                <button id="btn-choose" class="flex-1 h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 bg-[#96588a]">Browse Files</button>
-               <button id="btn-manual" class="flex-1 h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 bg-emerald-600 hidden">Manual Entry</button>
+               <button id="btn-manual" class="flex-1 h-12 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 bg-emerald-600 hidden">Product Import</button>
             </div>
           </div>
 
@@ -443,10 +454,11 @@ export function renderChannelPage(channelId, activeTab = 'history') {
 
     updateManualBtn();
 
-    const btnGotoImport = page.querySelector('#btn-goto-import');
+    const btnGotoImport = viewNavigation.querySelector('#btn-goto-import') || document.getElementById('btn-goto-import');
     if (btnGotoImport) {
        btnGotoImport.onclick = () => {
-          window.dispatchEvent(new CustomEvent('switch-sub-tab', { detail: { tabId: 'import' } }));
+          const targetTab = (activeTab === 'import') ? 'history' : 'import';
+          window.dispatchEvent(new CustomEvent('switch-sub-tab', { detail: { tabId: targetTab } }));
        };
     }
 
@@ -458,7 +470,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     }
 
     btnChoose.onclick = () => fileInput.click();
-    if (btnManual) btnManual.onclick = () => showManualEntryModal();
+    if (btnManual) btnManual.onclick = () => showAyalaProductImport(() => fetchChannelHistory(channelId));
     fileInput.onchange = (e) => { if (e.target.files.length > 0) processFiles(e.target.files); };
     dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('border-indigo-400'); };
     dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('border-indigo-400'); if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files); };
@@ -537,7 +549,9 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     ensureModal();
 
     // Export Excel from Template logic
-    page.querySelector('#btn-export-csv').onclick = async () => {
+    const btnExportCsv = viewNavigation.querySelector('#btn-export-csv') || document.getElementById('btn-export-csv');
+    if (btnExportCsv) {
+      btnExportCsv.onclick = async () => {
       const branchId = (document.getElementById('db-branch')?.value || 'Pioneer Center').trim();
       const isAllBranches = (branchId === 'All Branches');
 
@@ -830,7 +844,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         merchantDiscount: 'Merchant Discount',
         deliveryDiscount: 'Delivery Discount',
         commission: 'Commission',
-        marketingFee: 'Marketing Fee',
+        marketingFee: channelId === 'foodpanda' ? 'Wait time fee' : 'Marketing Fee',
         orderCommission: 'Order Commission',
         adsFee: 'Ads Fee',
         dineOutPromo: 'Dine Out Promo',
@@ -941,6 +955,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         window.showToast('Failed to export Excel file', 'error');
       }
     };
+    }
 
     // --- GLOBAL FILTERS LOGIC ---
     const refreshData = () => {
@@ -1324,6 +1339,12 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
     if (res.adjustments !== undefined) {
       dataToSave.adjustments = res.adjustments;
     }
+    if (res.incidentCount !== undefined) {
+      dataToSave.incidentCount = res.incidentCount;
+      if (!dataToSave.breakdown) dataToSave.breakdown = {};
+      if (!dataToSave.breakdown.kpi) dataToSave.breakdown.kpi = {};
+      dataToSave.breakdown.kpi.incidentCount = res.incidentCount;
+    }
 
     if (mode === 'merge') {
       const existingSnap = await getDoc(docRef);
@@ -1343,6 +1364,16 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
             mergedDeductions[k] = (mergedDeductions[k] || 0) + v;
           });
           dataToSave.breakdown.deductions = mergedDeductions;
+        }
+
+        // Add beverage counts only when both batches have known SKU coverage.
+        if (channelId === 'dinein') {
+          const oldCount = old.breakdown?.kpi?.drinkOrders;
+          const newCount = res.breakdown?.kpi?.drinkOrders;
+          dataToSave.breakdown.kpi = {
+            ...(res.breakdown?.kpi || {}),
+            drinkOrders: Number.isFinite(oldCount) && Number.isFinite(newCount) ? oldCount + newCount : null
+          };
         }
 
         // Merge hourlyNet
@@ -1388,6 +1419,8 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
       if (res.adjustmentDetails && res.adjustmentDetails.length > 0) {
         for (let idx = 0; idx < res.adjustmentDetails.length; idx++) {
           const adj = res.adjustmentDetails[idx];
+          // Skip empty fallback records without changing stable import indices.
+          if (adj.reasonGroup === 'Unclassified' && adj.payoutImpact === 0) continue;
           const adjDocId = `grab_adj_${actualSafeBranch}_${actualDate}_${idx}`;
           await setDoc(doc(db, "grab_adjustments", adjDocId), {
             transactionId: adj.transactionId,
@@ -1407,6 +1440,16 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
       }
     }
 
+    if (channelId === 'dinein' && actualBranch === 'Ayala Cloverleaf') {
+      const existing = await getDoc(docRef);
+      if (existing.exists() && existing.data().productImport) {
+        const old = existing.data();
+        dataToSave.hourlyNet = old.hourlyNet;
+        dataToSave.hourlyBills = old.hourlyBills;
+        dataToSave.productImport = old.productImport;
+        dataToSave.breakdown.kpi = { ...dataToSave.breakdown.kpi, ...old.breakdown?.kpi };
+      }
+    }
     return setDoc(docRef, dataToSave);
   });
 
@@ -1486,7 +1529,10 @@ function calculateGrab(rows, cfg) {
     const catUpper = cat.toUpperCase();
     const g = cleanNumber(row[map.colGross]);
     const orderId = String(row[map.colId] || '').trim();
-    const desc = String(row[map.colDesc] || '').trim();
+    const descBK = String(row[map.colDesc !== undefined ? map.colDesc : 62] || '').trim();
+    const detailBM = String(row[map.colDetail !== undefined ? map.colDetail : 64] || '').trim();
+    const desc = descBK;
+    const fullDesc = (descBK && detailBM && descBK !== detailBM) ? `${descBK} (${detailBM})` : (descBK || detailBM || '');
     const aVal = cleanNumber(row[map.colAds]); // Column BA Payout Amount
 
     // Accumulate total Net payout directly from Column BA
@@ -1496,7 +1542,7 @@ function calculateGrab(rows, cfg) {
     const { hour } = standardizeDateWithHour(dateVal, 'grabfood');
     const hrStr = String(hour).padStart(2, '0');
 
-    const descUpper = desc.toUpperCase();
+    const descUpper = fullDesc.toUpperCase();
     const isAd = catUpper.includes('ADVERTISEMENT') || catUpper.includes('ADS') || descUpper.includes('ADVERTISEMENT') || descUpper.includes('ADS');
     const isAdjustment = catUpper.includes('ADJUSTMENT') || catUpper.includes('REIMBURSEMENT') || catUpper.includes('PENALTY') || descUpper.includes('ADJUSTMENT') || descUpper.includes('REIMBURSEMENT') || descUpper.includes('PENALTY');
     
@@ -1536,7 +1582,7 @@ function calculateGrab(rows, cfg) {
       adVAT += vatPart;
       adsExVAT += exVatPart;
 
-      const campName = normalizeGrabCampaign(desc);
+      const campName = normalizeGrabCampaign(descBK || fullDesc);
       if (!campaignMap[campName]) {
         campaignMap[campName] = { campaignGroup: campName, entryCount: 0, spendExVAT: 0, vat: 0, totalCostInclVAT: 0 };
       }
@@ -1553,14 +1599,14 @@ function calculateGrab(rows, cfg) {
       }
       netAdjustment += aVal;
 
-      const reasonGroup = classifyGrabReasonGroup(cat, '', desc);
+      const reasonGroup = classifyGrabReasonGroup(cat, detailBM, descBK);
       adjustmentDetails.push({
         transactionId: String(row[map.colId] || `TX_${rowIdx}`).trim(),
         linkedOrderId: orderId,
         category: cat,
-        subcategory: '',
+        subcategory: detailBM,
         reasonGroup,
-        originalDescription: desc,
+        originalDescription: fullDesc,
         payoutImpact: aVal,
         sourceStatus: 'COMPLETED'
       });
@@ -1574,14 +1620,14 @@ function calculateGrab(rows, cfg) {
         gross += aVal;
       } else {
         totalDeductions += Math.abs(aVal);
-        const reasonGroup = classifyGrabReasonGroup(cat, '', desc);
+        const reasonGroup = classifyGrabReasonGroup(cat, detailBM, descBK);
         adjustmentDetails.push({
           transactionId: String(row[map.colId] || `TX_${rowIdx}`).trim(),
           linkedOrderId: orderId,
           category: cat || 'Other',
-          subcategory: '',
+          subcategory: detailBM,
           reasonGroup,
-          originalDescription: desc,
+          originalDescription: fullDesc,
           payoutImpact: aVal,
           sourceStatus: 'COMPLETED'
         });
@@ -1629,6 +1675,7 @@ function calculateGrab(rows, cfg) {
     net, // Actual Net Payout from Column BA
     gross,
     orders,
+    incidentCount: countIncidentOrders(adjustmentDetails),
     merchantProductDiscount: merchantProdDisc,
     merchantDeliveryDiscount: merchantDelivDisc,
     merchantPromo,
@@ -1750,7 +1797,7 @@ function calculatePanda(rows, cfg) {
       { label: 'Discount', val: disc, color: 'text-rose-500', isDed: true },
       { label: 'Commission Fee', val: comm, color: 'text-rose-500', isDed: true },
       { label: 'Tax Charge', val: tax, color: 'text-rose-500', isDed: true },
-      { label: 'Marketing Fee', val: marketing, color: 'text-rose-500', isDed: true },
+      { label: 'Wait time fee', val: marketing, color: 'text-rose-500', isDed: true },
       { label: 'Ads Fee', val: ads, color: 'text-rose-500', isDed: true },
       { label: 'Others Deductions', val: others, color: 'text-rose-500', isDed: true },
       { label: 'Other Incomes', val: refunds, color: 'text-emerald-500', isIncome: true },
@@ -1900,6 +1947,7 @@ function calculateDineIn(rows, cfg) {
   const totalDed = productDisc + invoiceDisc + bankFee + discount100;
 
   const breakdown = {
+    kpi: { drinkOrders: countDineInDrinkOrders(orderRowsMap, cfg.colQty), drinkRule: 'sku-AS-D-DR-v1' },
     deductions: {
       productDiscount: productDisc,
       invoiceDiscount: invoiceDisc,
@@ -1990,7 +2038,7 @@ function updateUI(page, dailyResults, channelId, conflictDates = []) {
     merchantDiscount: 'Merchant Discount',
     deliveryDiscount: 'Delivery Discount',
     commission: 'Commission',
-    marketingFee: 'Marketing Fee',
+    marketingFee: channelId === 'foodpanda' ? 'Wait time fee' : 'Marketing Fee',
     orderCommission: 'Order Commission',
     adsFee: 'True Ads Fee',
     dineOutPromo: 'Dine Out Promo',
@@ -2249,7 +2297,11 @@ function updateSummary(items, channelId, page) {
 
 // Render GrabFood Single Unified Analytics View
 function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
+  // Legacy zero-impact fallback rows add no reconciliation information.
+  adjDocs = adjDocs.filter(adj => !(adj.reasonGroup === 'Unclassified' && adj.payoutImpact === 0));
   if (!container) return;
+  container.grabChartCleanup?.();
+  container.classList.add('grab-analytics-view');
   const fmt = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
   const fmtNum = n => (n || 0).toLocaleString();
 
@@ -2275,6 +2327,7 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
 
   // Group by branch for Branch Performance table
   const branchMap = {};
+  const dailyPayout = new Map();
 
   salesDocs.forEach(item => {
     const b = item.branchId || 'Unknown Branch';
@@ -2306,6 +2359,12 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
 
     const g = item.financials?.gross || item.gross || 0;
     const net = item.actualNetPayout !== undefined ? item.actualNetPayout : (item.financials?.net || 0);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(item.date || '')) {
+      const daily = dailyPayout.get(item.date) || { gross: 0, payout: 0 };
+      daily.gross += g;
+      daily.payout += net;
+      dailyPayout.set(item.date, daily);
+    }
     const ord = item.orders || 0;
 
     const bD = item.breakdown?.deductions || {};
@@ -2478,6 +2537,12 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
         </div>
       </div>
 
+      <section class="grab-revenue-chart-card">
+        <div class="grab-revenue-chart-heading"><h4><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i>Revenue &amp; Payout</h4><select id="grab-chart-period" aria-label="Revenue chart date range"><option value="7">Last 7 Days</option><option value="14">Last 14 Days</option><option value="30">Last 30 Days</option><option value="month">This Month</option></select></div>
+        <p id="grab-chart-status" role="status" class="grab-chart-status"></p>
+        <div class="grab-revenue-chart-canvas"><canvas id="grab-revenue-payout-chart" role="img" aria-label="Daily Gross Sales and Actual Net Payout comparison"></canvas></div>
+      </section>
+
       <!-- Branch Performance Table -->
       <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl overflow-hidden shadow-xl border-t border-white/60 dark:border-white/10">
          <div class="px-8 py-5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
@@ -2537,7 +2602,7 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
     </div>
 
     <!-- SECTION 2: PAYOUT RECONCILIATION & ADJUSTMENTS -->
-    <div class="space-y-6 pt-6 border-t border-slate-200 dark:border-white/10">
+    <div class="grab-reconciliation space-y-6 pt-6 border-t border-slate-200 dark:border-white/10">
       <div>
          <h3 class="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">2. Payout Reconciliation & Adjustments</h3>
          <p class="text-[10px] text-slate-400 dark:text-white/50 font-bold uppercase tracking-widest mt-0.5">Waterfall calculation formula & adjustment details</p>
@@ -2545,9 +2610,9 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Waterfall Table (Left 50%) -->
-        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-6 border-t border-white/60 dark:border-white/10 space-y-3 flex flex-col justify-between">
+        <div class="grab-finance-card grab-waterfall">
            <div>
-              <h4 class="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest mb-4">Reconciliation Waterfall Step-by-Step</h4>
+              <h4 class="grab-finance-heading"><i data-lucide="list-filter" aria-hidden="true"></i>Payout Breakdown</h4>
 
               <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
                  <span class="font-bold text-slate-600 dark:text-white/80">Gross Sales (Payment Transactions)</span>
@@ -2601,10 +2666,10 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
         </div>
 
         <!-- Adjustments & Deductions (Right 50% - Replaces Source BA Comparison) -->
-        <div class="luxury-card bg-white/40 dark:bg-[#141414]/60 backdrop-blur-3xl rounded-2xl p-6 border-t border-white/60 dark:border-white/10 space-y-4 flex flex-col justify-between">
+        <div class="grab-finance-card grab-adjustments">
            <div>
               <div class="flex justify-between items-center mb-3">
-                 <h4 class="text-xs font-black text-slate-800 dark:text-white uppercase tracking-widest">Adjustments & Deductions</h4>
+                 <h4 class="grab-finance-heading"><i data-lucide="sliders-horizontal" aria-hidden="true"></i>Adjustments & Deductions</h4>
                  <span class="text-[10px] font-black ${totalNetAdjustment < 0 ? 'text-rose-500' : 'text-emerald-500'}">
                    Net: ${totalNetAdjustment >= 0 ? '+' : ''}${fmt.format(totalNetAdjustment)}
                  </span>
@@ -2635,7 +2700,7 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
               <!-- Search Bar & Detail Table -->
               <div class="space-y-2">
                  <div class="w-full">
-                    <input type="text" id="grab-adj-search" placeholder="Search Order ID or Description..." class="w-full h-8 px-3 rounded-xl text-[10px] font-bold bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:outline-none focus:border-[#96588a]">
+                    <input type="text" id="grab-adj-search" aria-label="Search adjustment order ID, description or reason" placeholder="Search order ID, description or reason…" class="w-full h-8 px-3 rounded-xl text-[10px] font-bold bg-white/50 dark:bg-white/5 border border-slate-200 dark:border-white/10 focus:outline-none focus:border-[#96588a]">
                  </div>
                  <div class="overflow-x-auto max-h-[310px] scrollbar-hide">
                    <table class="w-full text-left border-collapse">
@@ -2735,6 +2800,101 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
   `;
 
   // Attach search listener for Adjustments Table
+  const chartCanvas = container.querySelector('#grab-revenue-payout-chart');
+  if (chartCanvas) {
+    const dates = [];
+    const dark = document.documentElement.classList.contains('dark');
+    const chart = new Chart(chartCanvas, {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [
+          { label: 'Gross Sales', data: dates.map(date => dailyPayout.get(date)?.gross ?? null), borderColor: '#8599b7', backgroundColor: '#8599b7' },
+          { label: 'Actual Net Payout', data: dates.map(date => dailyPayout.get(date)?.payout ?? null), borderColor: '#39815d', backgroundColor: '#39815d' }
+        ].map(dataset => ({
+          ...dataset, borderWidth: 2.5, pointRadius: 3,
+          pointBackgroundColor: dataset.borderColor, pointBorderWidth: 0,
+          pointHoverRadius: 6, tension: .4, fill: true,
+          borderCapStyle: 'round', borderJoinStyle: 'round', spanGaps: false,
+          backgroundColor: context => {
+            const { ctx, chartArea } = context.chart;
+            if (!chartArea) return dataset.borderColor + '18';
+            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            gradient.addColorStop(0, dataset.borderColor + '33');
+            gradient.addColorStop(1, dataset.borderColor + '00');
+            return gradient;
+          }
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'top', align: 'end', labels: { padding: 28, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, color: dark ? '#cbd5e1' : '#64748b', font: { family: 'Plus Jakarta Sans', size: 10, weight: 'bold' } } },
+          tooltip: { backgroundColor: dark ? '#1e293b' : '#fff', titleColor: dark ? '#fff' : '#1e293b', bodyColor: dark ? '#cbd5e1' : '#64748b', borderColor: dark ? '#ffffff1a' : '#0000001a', borderWidth: 1, padding: 12, boxPadding: 6, cornerRadius: 10, usePointStyle: true, callbacks: { label: context => `${context.dataset.label}: ${fmt.format(context.parsed.y)}` } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 10, maxRotation: 0, color: dark ? '#aab8c8' : '#647184', font: { size: 10 }, callback: (value, index) => dates[index].slice(5) } },
+          y: { ticks: { maxTicksLimit: 5, color: dark ? '#aab8c8' : '#647184', font: { size: 10 }, callback: value => '₱' + new Intl.NumberFormat('en', { notation: 'compact' }).format(value) }, grid: { color: dark ? '#ffffff0d' : '#e9edf2' } }
+        }
+      }
+    });
+    let requestId = 0;
+    let disposed = false;
+    const periodSelect = container.querySelector('#grab-chart-period');
+    const status = container.querySelector('#grab-chart-status');
+    periodSelect.value = container.grabChartPeriod || '7';
+    const loadChartPeriod = async () => {
+      const request = ++requestId;
+      container.grabChartPeriod = periodSelect.value;
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      const end = new Date(`${today}T00:00:00Z`);
+      const start = new Date(end);
+      if (periodSelect.value === 'month') start.setUTCDate(1);
+      else start.setUTCDate(start.getUTCDate() - Number(periodSelect.value) + 1);
+      const from = start.toISOString().slice(0, 10);
+      const branch = document.getElementById('db-branch')?.value || 'All Branches';
+      status.textContent = 'Loading chart…';
+      chart.data.datasets.forEach(dataset => { dataset.data = []; });
+      chart.update('none');
+      try {
+        const constraints = [where('channelId', '==', 'grabfood'), where('date', '>=', from), where('date', '<=', today)];
+        if (branch !== 'All Branches') constraints.push(where('branchId', '==', branch));
+        const snapshot = await getDocs(query(collection(db, 'daily_sales'), ...constraints));
+        if (disposed || request !== requestId) return;
+        const daily = new Map();
+        snapshot.forEach(doc => {
+          const row = doc.data();
+          const entry = daily.get(row.date) || { gross: 0, payout: 0 };
+          entry.gross += row.financials?.gross || row.gross || 0;
+          entry.payout += row.actualNetPayout !== undefined ? row.actualNetPayout : (row.financials?.net || 0);
+          daily.set(row.date, entry);
+        });
+        dates.length = 0;
+        for (const cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) dates.push(cursor.toISOString().slice(0, 10));
+        chart.data.labels = dates;
+        chart.data.datasets[0].data = dates.map(date => daily.get(date)?.gross ?? null);
+        chart.data.datasets[1].data = dates.map(date => daily.get(date)?.payout ?? null);
+        chart.data.datasets.forEach(dataset => { dataset.pointRadius = dates.length > 15 ? 0 : 3; });
+        chart.update();
+        status.textContent = `${from} — ${today} · ${branch}${daily.size ? '' : ' · No recorded data'}`;
+      } catch (error) {
+        if (!disposed && request === requestId) status.textContent = 'Could not load chart. Select a period to retry.';
+        console.error('Revenue chart load failed:', error);
+      }
+    };
+    periodSelect.addEventListener('change', loadChartPeriod);
+    loadChartPeriod();
+    const cleanupChart = () => {
+      disposed = true;
+      periodSelect.removeEventListener('change', loadChartPeriod);
+      chart.destroy();
+      window.removeEventListener('cleanup-page', cleanupChart);
+      if (container.grabChartCleanup === cleanupChart) container.grabChartCleanup = null;
+    };
+    container.grabChartCleanup = cleanupChart;
+    window.addEventListener('cleanup-page', cleanupChart, { once: true });
+  }
   const searchInput = container.querySelector('#grab-adj-search');
   const adjTbody = container.querySelector('#grab-adj-table-body');
   if (searchInput && adjTbody) {
@@ -2747,12 +2907,10 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
         (a.reasonGroup || '').toLowerCase().includes(q)
       );
 
-      adjTbody.innerHTML = filtered.length === 0 ? `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-400 italic">No adjustments match search.</td></tr>` : filtered.slice(0, 50).map(adj => `
+      adjTbody.innerHTML = filtered.length === 0 ? `<tr><td colspan="3" class="px-6 py-8 text-center text-slate-400 italic">No adjustments match search.</td></tr>` : filtered.slice(0, 50).map(adj => `
         <tr class="hover:bg-white/10 dark:hover:bg-white/5 transition-all">
           <td class="px-4 py-3 font-bold text-slate-700 dark:text-white/80">${adj.date || ''}<br><span class="text-[9px] text-[#96588a] font-black">${adj.branch || ''}</span></td>
-          <td class="px-4 py-3 font-mono font-bold text-slate-600 dark:text-white/70">${adj.linkedOrderId || adj.transactionId || 'N/A'}</td>
-          <td class="px-4 py-3 font-bold"><span class="px-2 py-0.5 rounded-full bg-slate-200/60 dark:bg-white/10 text-slate-700 dark:text-white text-[9px] font-black">${adj.reasonGroup || 'Unclassified'}</span></td>
-          <td class="px-4 py-3 text-slate-500 dark:text-white/60 max-w-xs truncate">${adj.originalDescription || 'N/A'}</td>
+          <td class="px-3 py-2 font-bold text-slate-600 dark:text-white/70 max-w-[120px] truncate" title="${adj.originalDescription || adj.reasonGroup}">${adj.reasonGroup || 'Unclassified'}</td>
           <td class="px-4 py-3 text-right font-black ${adj.payoutImpact < 0 ? 'text-rose-500' : 'text-emerald-500'}">${adj.payoutImpact >= 0 ? '+' : ''}${fmt.format(adj.payoutImpact)}</td>
         </tr>
       `).join('');
@@ -2760,6 +2918,42 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
   }
 
   if (window.lucide) window.lucide.createIcons();
+}
+
+function renderHistoryBranchPerformance(container, items) {
+  if (!container) return;
+  const groups = new Map();
+  const total = { branch: 'Total', orders: 0, gross: 0, deductions: 0, net: 0 };
+  for (const item of items) {
+    const branch = item.branchId || 'Unknown branch';
+    if (!groups.has(branch)) groups.set(branch, { branch, orders: 0, gross: 0, deductions: 0, net: 0 });
+    const values = { orders: item.orders, gross: item.financials?.gross, deductions: item.financials?.totalDeductions, net: item.financials?.net };
+    for (const key of Object.keys(values)) {
+      const value = Number(values[key]) || 0;
+      groups.get(branch)[key] += value;
+      total[key] += value;
+    }
+  }
+  const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+  const ratio = row => row.gross > 0 ? `${(row.net / row.gross * 100).toFixed(1)}%` : '—';
+  container.innerHTML = `<header><h3>Branch Performance Table</h3><span>Net / Gross <strong>${ratio(total)}</strong></span></header><div class="history-branch-scroll"><table><thead><tr><th>Branch</th><th>Orders</th><th>Gross Sales</th><th>Deductions</th><th>Net Revenue</th><th>Avg. Order (Net)</th><th>Net / Gross</th></tr></thead><tbody></tbody><tfoot></tfoot></table></div>`;
+  const appendRow = (parent, row) => {
+    const tr = document.createElement('tr');
+    const values = [row.branch, row.orders.toLocaleString('en-PH'), money.format(row.gross), money.format(-row.deductions), money.format(row.net), row.orders > 0 ? money.format(row.net / row.orders) : '—', ratio(row)];
+    values.forEach((value, index) => {
+      const cell = document.createElement(index === 0 ? 'th' : 'td');
+      if (index === 0) cell.scope = 'row';
+      cell.textContent = value;
+      tr.append(cell);
+    });
+    parent.append(tr);
+  };
+  const body = container.querySelector('tbody');
+  if (!items.length) body.innerHTML = '<tr><td colspan="7" class="history-branch-empty">No sales data for the current filters.</td></tr>';
+  else {
+    [...groups.values()].sort((a, b) => b.net - a.net).forEach(row => appendRow(body, row));
+    appendRow(container.querySelector('tfoot'), total);
+  }
 }
 
 async function fetchChannelHistory(channelId) {
@@ -2775,6 +2969,12 @@ async function fetchChannelHistory(channelId) {
   }
 
   const tableBody = document.getElementById('history-table-body');
+  const branchPerformance = document.getElementById('history-branch-performance');
+  const requestToken = {};
+  if (branchPerformance) {
+    branchPerformance.requestToken = requestToken;
+    branchPerformance.textContent = 'Loading branch performance…';
+  }
   const kpiArea = document.getElementById('overview-kpis');
   const breakdownArea = document.getElementById('overview-breakdown-card');
   const fmt = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
@@ -2807,8 +3007,7 @@ async function fetchChannelHistory(channelId) {
           where("branchId", "==", branchId),
           where("date", ">=", fromDate),
           where("date", "<=", toDate),
-          orderBy("date", "desc"),
-          limit(100)
+          orderBy("date", "desc")
         );
       } else {
         // DEFAULT: Yesterday
@@ -2826,6 +3025,7 @@ async function fetchChannelHistory(channelId) {
     }
 
     const snapshot = await getDocs(q);
+    if (branchPerformance && (!branchPerformance.isConnected || branchPerformance.requestToken !== requestToken)) return;
     let docsList = [];
     snapshot.forEach(docSnap => {
       docsList.push({ id: docSnap.id, ...docSnap.data() });
@@ -2880,7 +3080,11 @@ async function fetchChannelHistory(channelId) {
       }
     }
 
+    if (branchPerformance && (!branchPerformance.isConnected || branchPerformance.requestToken !== requestToken)) return;
     if (snapshot.empty) {
+      historyItems = [];
+      renderHistoryBranchPerformance(branchPerformance, []);
+      updateSummary([], channelId, document.getElementById('section-history') || document.body);
       if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-xs text-slate-400 dark:text-white italic">No historical data found for <span class="font-bold text-slate-600 dark:text-white">${branchId}</span> on this channel. <br><span class="text-[10px] mt-2 block dark:text-white/80">Try importing a file in the "Import Data" tab and click "Save to Database".</span></td></tr>`;
       return;
     }
@@ -2941,6 +3145,7 @@ async function fetchChannelHistory(channelId) {
     if (window.lucide) window.lucide.createIcons();
 
     // Update Summary Cards
+    renderHistoryBranchPerformance(branchPerformance, historyItems);
     updateSummary(historyItems, channelId, document.querySelector('.page-enter') || document.body);
 
     // Attach click listeners to rows
@@ -3027,6 +3232,7 @@ async function fetchChannelHistory(channelId) {
 
   } catch (err) {
     console.error(err);
+    if (branchPerformance && branchPerformance.requestToken === requestToken) branchPerformance.textContent = 'Could not load branch performance. Please refresh to retry.';
     if (tableBody) tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-rose-500">Error: ${err.message}</td></tr>`;
   }
 }
@@ -3067,7 +3273,7 @@ function showDayDetail(item, channelLabel) {
     merchantDiscount: 'Merchant Discount',
     deliveryDiscount: 'Delivery Discount',
     commission: 'Commission',
-    marketingFee: 'Marketing Fee',
+    marketingFee: item.channelId === 'foodpanda' ? 'Wait time fee' : 'Marketing Fee',
     orderCommission: 'Order Commission',
     adsFee: 'Ads Fee',
     dineOutPromo: 'Dine Out Promo',

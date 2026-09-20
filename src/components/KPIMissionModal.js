@@ -1,3 +1,4 @@
+import { progress, missionStat, formatPercent, formatMoney } from '../utils/kpiMetrics.js';
 // src/components/KPIMissionModal.js
 
 export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forceShow = false) {
@@ -9,38 +10,29 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
   const branchName = branchData?.branchId || user?.permissions?.allowedBranches?.[0] || 'Ayala Cloverleaf';
   const managerName = user?.displayName || 'Branch Manager';
 
-  // KPI Current & Target Values (Loaded from branch data or fallback defaults)
-  const shift1Actual = branchData?.shift1Actual || 12000;
-  const shift1Target = branchData?.shift1Target || 15000;
-  const shift1Pct = Math.min(100, Math.round((shift1Actual / shift1Target) * 100));
+  // KPI values from the shared loader; missing values must remain unavailable.
+  const shift1Actual = branchData?.shift1Actual ?? null;
+  const shift1Target = branchData?.shift1Target ?? null;
+  const shift1Pct = progress(shift1Actual, shift1Target);
 
-  const shift2Actual = branchData?.shift2Actual || 15000;
-  const shift2Target = branchData?.shift2Target || 18000;
-  const shift2Pct = Math.min(100, Math.round((shift2Actual / shift2Target) * 100));
+  const shift2Actual = branchData?.shift2Actual ?? null;
+  const shift2Target = branchData?.shift2Target ?? null;
+  const shift2Pct = progress(shift2Actual, shift2Target);
 
-  const avoActual = branchData?.avoActual || 650;
-  const avoTarget = branchData?.avoTarget || 750;
-  const avoPct = Math.min(100, Math.round((avoActual / avoTarget) * 100));
+  const avoActual = branchData?.avoActual ?? null;
+  const avoTarget = branchData?.avoTarget ?? null;
+  const avoPct = progress(avoActual, avoTarget);
 
-  const drinkActual = branchData?.drinkActual || 38;
-  const drinkTarget = branchData?.drinkTarget || 45;
-  const drinkPct = Math.min(100, Math.round((drinkActual / drinkTarget) * 100));
+  const drinkActual = branchData?.drinkActual ?? null;
+  const drinkTarget = branchData?.drinkTarget ?? null;
+  const drinkPct = progress(drinkActual, drinkTarget);
 
-  const incidentActual = branchData?.incidentActual || 0.10;
-  const incidentTarget = branchData?.incidentTarget || 0.25;
-  const incidentCompleted = incidentActual <= incidentTarget;
+  const incidentActual = branchData?.incidentActual ?? null;
+  const incidentTarget = branchData?.incidentTarget ?? null;
+  const incidentCompleted = incidentActual === null || incidentTarget === null ? null : incidentActual <= incidentTarget;
 
   // Gamified Mission Status & XP Calculator
-  function getMissionStat(pct, isControl = false, controlCompleted = false) {
-    if (isControl) {
-      return controlCompleted
-        ? { status: 'Completed', xp: 50, label: 'Completed' }
-        : { status: 'NeedsPush', xp: 0, label: 'Needs Push' };
-    }
-    if (pct >= 100) return { status: 'Completed', xp: 50, label: 'Completed' };
-    if (pct >= 80) return { status: 'OnTrack', xp: 25, label: 'On Track' };
-    return { status: 'NeedsPush', xp: 0, label: 'Needs Push' };
-  }
+  const getMissionStat = missionStat;
 
   const m1 = getMissionStat(shift1Pct);
   const m2 = getMissionStat(shift2Pct);
@@ -53,18 +45,19 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
   const onTrackCount = missionsList.filter(m => m.status === 'OnTrack').length;
   const lockedCount = missionsList.filter(m => m.status === 'NeedsPush').length;
 
-  const earnedXp = missionsList.reduce((acc, m) => acc + m.xp, 0);
+  const earnedXp = missionsList.reduce((acc, m) => acc + m.xp, 0) + (completedCount === 5 ? 100 : 0);
   const overallPct = Math.round(((completedCount + onTrackCount * 0.5) / 5) * 100);
 
-  const fmtCurrency = (val) => '₱' + val.toLocaleString('en-PH');
+  const fmtCurrency = formatMoney;
 
   // Helper to render dynamic XP Badge per card
   function renderXPBadge(stat, targetHint = '') {
+    if (stat.status === 'Unavailable') return '<span class="text-xs text-slate-500">No data · No XP yet</span>';
     if (stat.status === 'Completed') {
       return `
         <div class="flex items-center justify-between text-[9px]">
           <span class="font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-500/20 flex items-center gap-1">
-            <i data-lucide="check-circle-2" class="w-2.5 h-2.5"></i> +50 XP EARNED
+            <i data-lucide="check-circle-2" class="w-2.5 h-2.5"></i> +50 PROVISIONAL XP
           </span>
           <span class="text-slate-400 font-medium">Target Achieved! 🏆</span>
         </div>`;
@@ -72,7 +65,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
       return `
         <div class="flex items-center justify-between text-[9px]">
           <span class="font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded-full border border-blue-200 dark:border-blue-500/20 flex items-center gap-1">
-            <i data-lucide="zap" class="w-2.5 h-2.5"></i> +25 XP EARNED
+            <i data-lucide="zap" class="w-2.5 h-2.5"></i> +25 PROVISIONAL XP
           </span>
           <span class="text-blue-500 font-bold">Push to 100% for full +50 XP!</span>
         </div>`;
@@ -93,29 +86,33 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
   modal.className = 'fixed inset-0 z-[30000] flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-md animate-fade-in overflow-y-auto';
 
   modal.innerHTML = `
-    <div class="luxury-card bg-white dark:bg-[#141414] w-full max-w-xl rounded-3xl p-5 sm:p-6 shadow-2xl animate-scale-up border border-slate-100 dark:border-white/10 relative my-auto">
+    <div class="kpi-missions-dialog luxury-card bg-white dark:bg-[#141414] w-full rounded-3xl shadow-2xl animate-scale-up border border-slate-100 dark:border-white/10 relative my-auto" role="dialog" aria-modal="true" aria-labelledby="kpi-missions-title">
+      <div class="kpi-missions-content">
       
+      <p role="status" class="text-xs text-amber-700 dark:text-amber-300 pr-8 mb-3">
+        ${branchData?.latestBusinessDate ? `Evaluation date: ${branchData.latestBusinessDate} · Latest recorded Dine In business date` : branchData && !branchData.loadError ? 'No Dine In data for this month' : 'Could not load KPI data'}.
+        XP is provisional; missing metrics earn no points.
+      </p>
       <!-- Close X Button -->
-      <button id="btn-close-kpi-modal" class="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-400 hover:text-slate-800 dark:hover:text-white hover:scale-110 active:scale-95 transition-all">
+      <button id="btn-close-kpi-modal" aria-label="Close KPI missions" class="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-400 hover:text-slate-800 dark:hover:text-white hover:scale-110 active:scale-95 transition-all">
         <i data-lucide="x" class="w-4 h-4"></i>
       </button>
 
       <!-- Modal Header -->
-      <div class="flex items-center gap-3 mb-5">
+      <div class="kpi-missions-heading flex items-center gap-3 mb-5">
         <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-purple-500/25 shrink-0">
           <i data-lucide="target" class="w-6 h-6"></i>
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <h2 class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Today's KPI Missions</h2>
-            <span class="text-[9px] font-black italic text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-500/20">Great Food Brighter Days! 💚</span>
+            <h2 id="kpi-missions-title" class="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Latest Recorded KPI Missions</h2>
           </div>
           <p class="text-[10px] font-bold text-slate-400 dark:text-white/60 tracking-wide uppercase">${branchName} • Branch Manager Tasks</p>
         </div>
       </div>
 
       <!-- Overall Mission Progress Card -->
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-5">
+      <div class="kpi-missions-summary grid grid-cols-1 md:grid-cols-12 gap-3 mb-5">
         <div class="md:col-span-7 bg-slate-50 dark:bg-white/5 rounded-2xl p-4 border border-slate-100 dark:border-white/10 flex items-center gap-3">
           <div class="relative w-13 h-13 shrink-0 flex items-center justify-center">
             <svg class="w-13 h-13 transform -rotate-90" viewBox="0 0 36 36">
@@ -131,7 +128,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
               <span class="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">${onTrackCount} On Track</span>
               <span class="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">${lockedCount} Locked</span>
             </div>
-            <p class="text-[10px] font-bold text-slate-500 dark:text-white/60">Keep pushing to unlock maximum rewards today! 💪</p>
+            <p class="text-[10px] font-bold text-slate-500 dark:text-white/60">Results use the evaluation date above; rewards are not finalized.</p>
           </div>
         </div>
 
@@ -142,7 +139,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
               <i data-lucide="trophy" class="w-4 h-4"></i>
             </div>
             <div>
-              <span class="text-[8.5px] font-black uppercase tracking-widest text-purple-200">Earned XP Today</span>
+              <span class="text-[8.5px] font-black uppercase tracking-widest text-purple-200">Provisional XP</span>
               <h5 class="text-lg font-black text-amber-300 tracking-tight">+${earnedXp} / 350 XP</h5>
             </div>
           </div>
@@ -151,7 +148,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
       </div>
 
       <!-- 5 Daily Mission Cards Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5">
+      <div class="kpi-missions-grid grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5">
         
         <!-- Mission 1: Shift 1 Sales -->
         <div class="bg-white dark:bg-white/5 rounded-xl p-3 border border-slate-100 dark:border-white/10 shadow-sm hover:shadow-md transition-all ${m1.status === 'Completed' ? 'border-emerald-500/30 dark:border-emerald-500/30' : ''}">
@@ -172,7 +169,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
             <span class="text-slate-400">/ ${fmtCurrency(shift1Target)}</span>
           </div>
           <div class="w-full bg-slate-100 dark:bg-white/10 rounded-full h-1.5 mb-1.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-orange-500 to-amber-400 h-full rounded-full transition-all duration-500" style="width: ${shift1Pct}%"></div>
+            <div class="bg-gradient-to-r from-orange-500 to-amber-400 h-full rounded-full transition-all duration-500" style="width: ${shift1Pct ?? 0}%"></div>
           </div>
           ${renderXPBadge(m1)}
         </div>
@@ -196,7 +193,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
             <span class="text-slate-400">/ ${fmtCurrency(shift2Target)}</span>
           </div>
           <div class="w-full bg-slate-100 dark:bg-white/10 rounded-full h-1.5 mb-1.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-amber-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: ${shift2Pct}%"></div>
+            <div class="bg-gradient-to-r from-amber-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: ${shift2Pct ?? 0}%"></div>
           </div>
           ${renderXPBadge(m2)}
         </div>
@@ -220,7 +217,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
             <span class="text-slate-400">Target: ${fmtCurrency(avoTarget)}</span>
           </div>
           <div class="w-full bg-slate-100 dark:bg-white/10 rounded-full h-1.5 mb-1.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-purple-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: ${avoPct}%"></div>
+            <div class="bg-gradient-to-r from-purple-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: ${avoPct ?? 0}%"></div>
           </div>
           ${renderXPBadge(m3)}
         </div>
@@ -240,11 +237,11 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
             ${renderStatusPill(drinkPct)}
           </div>
           <div class="flex items-center justify-between text-xs font-mono font-bold mb-1">
-            <span class="text-slate-800 dark:text-white font-black">Current: ${drinkActual}%</span>
-            <span class="text-slate-400">Target: ${drinkTarget}%</span>
+            <span class="text-slate-800 dark:text-white font-black">Current: ${formatPercent(drinkActual)}</span>
+            <span class="text-slate-400">Target: ${formatPercent(drinkTarget)}</span>
           </div>
           <div class="w-full bg-slate-100 dark:bg-white/10 rounded-full h-1.5 mb-1.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: ${drinkPct}%"></div>
+            <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: ${drinkPct ?? 0}%"></div>
           </div>
           ${renderXPBadge(m4)}
         </div>
@@ -261,17 +258,17 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
                 <span class="text-[8.5px] font-bold text-slate-400">Control Target (Grab & FoodPanda)</span>
               </div>
             </div>
-            ${incidentCompleted 
+            ${incidentCompleted === null ? '<span class="text-xs text-slate-500">No data</span>' : incidentCompleted
               ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center gap-1"><i data-lucide="check-circle" class="w-2.5 h-2.5"></i> Completed</span>'
               : '<span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 flex items-center gap-1"><i data-lucide="alert-circle" class="w-2.5 h-2.5"></i> Needs Push</span>'
             }
           </div>
           <div class="flex items-center justify-between text-xs font-mono font-bold mb-1">
-            <span class="text-slate-800 dark:text-white font-black">Current: ${incidentActual}%</span>
-            <span class="text-slate-400">Target: ≤ ${incidentTarget}%</span>
+            <span class="text-slate-800 dark:text-white font-black">Current: ${formatPercent(incidentActual)}</span>
+            <span class="text-slate-400">Target: ≤ ${formatPercent(incidentTarget)}</span>
           </div>
           <div class="w-full bg-slate-100 dark:bg-white/10 rounded-full h-1.5 mb-1.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500" style="width: ${incidentCompleted ? 100 : 50}%"></div>
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500" style="width: ${incidentCompleted === null ? 0 : incidentCompleted ? 100 : 50}%"></div>
           </div>
           ${renderXPBadge(m5)}
         </div>
@@ -279,7 +276,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
       </div>
 
       <!-- Footer Action Area -->
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-white/10">
+      <div class="kpi-missions-footer flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-white/10">
         <div class="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-white/60">
           <i data-lucide="gamepad-2" class="w-3.5 h-3.5 text-purple-500 shrink-0"></i>
           <span>Complete missions to keep your branch on target. Great operations create greater moments!</span>
@@ -295,6 +292,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
         </div>
       </div>
 
+      </div>
     </div>
   `;
 
@@ -304,8 +302,26 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
     window.lucide.createIcons();
   }
 
+  const dialog = modal.querySelector('.kpi-missions-dialog');
+  const content = modal.querySelector('.kpi-missions-content');
+  const fitModal = () => {
+    const viewport = window.visualViewport;
+    const scale = Math.min(1, ((viewport?.width || window.innerWidth) - 24) / 1200,
+      ((viewport?.height || window.innerHeight) - 24) / 640);
+    dialog.style.transform = `translate(-50%, -50%) scale(${Math.max(.1, scale)})`;
+    content.style.transform = `scale(${Math.min(1, 592 / content.scrollHeight)})`;
+  };
+  const contentObserver = new ResizeObserver(fitModal);
+  contentObserver.observe(content);
+  window.addEventListener('resize', fitModal);
+  window.visualViewport?.addEventListener('resize', fitModal);
+  fitModal();
+
   // Event Handlers
   const closeModal = () => {
+    contentObserver.disconnect();
+    window.removeEventListener('resize', fitModal);
+    window.visualViewport?.removeEventListener('resize', fitModal);
     modal.classList.add('animate-fade-out');
     setTimeout(() => modal.remove(), 200);
   };
@@ -330,6 +346,7 @@ export function showKPIMissionModal(user, branchData, onNavigateToKPIBoard, forc
 }
 
 function renderStatusPill(pct) {
+  if (pct === null) return '<span class="text-xs text-slate-500">No data</span>';
   if (pct >= 100) {
     return `<span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 flex items-center gap-1"><i data-lucide="check-circle" class="w-2.5 h-2.5"></i> Completed</span>`;
   } else if (pct >= 80) {
