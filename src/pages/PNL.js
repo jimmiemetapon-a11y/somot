@@ -1,3 +1,4 @@
+import { reconcileInstoreDeductions } from '../utils/pnlDeductions.js';
 import { db } from '../firebase.js';
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -428,7 +429,10 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
             seniorCitizenDiscount: 0,
             pwdDiscount: 0,
             otherDiscount: 0,
-            voidInvoice: 0
+            voidInvoice: 0,
+            tax: 0,
+            ayalaGrabDineOut: 0,
+            unreconciled: 0
           },
           grab: {
             commission: 0,
@@ -493,34 +497,15 @@ async function loadAndRenderPNL(page, branchFilter, fromDate, toDate, allowedBra
 
       // Deductions Breakdown
       if (ch === 'dinein') {
-        const pd = parseFloat(brk.productDiscount) || 0;
-        const id = parseFloat(brk.invoiceDiscount) || 0;
-        const d100 = parseFloat(brk.discount100) || 0;
-        const d = parseFloat(brk.discount) || 0;
-        const va = parseFloat(brk.vatAdjustment) || 0;
-        const sc = parseFloat(brk.seniorCitizenDiscount) || 0;
-        const pwd = parseFloat(brk.pwdDiscount) || 0;
-        const od = parseFloat(brk.otherDiscount) || 0;
-        const vi = parseFloat(brk.voidInvoice) || 0;
-
-        pnlMap[b].dedDetails.instore.productDiscount += pd;
-        pnlMap[b].dedDetails.instore.invoiceDiscount += id;
-        pnlMap[b].dedDetails.instore.discount100 += d100;
-        pnlMap[b].dedDetails.instore.discount += d;
-        pnlMap[b].dedDetails.instore.vatAdjustment += va;
-        pnlMap[b].dedDetails.instore.seniorCitizenDiscount += sc;
-        pnlMap[b].dedDetails.instore.pwdDiscount += pwd;
-        pnlMap[b].dedDetails.instore.otherDiscount += od;
-        pnlMap[b].dedDetails.instore.voidInvoice += vi;
-
-        pnlMap[b].ded.instore += pd + id + d100 + d + va + sc + pwd + od;
-        pnlMap[b].ded.bank += (parseFloat(brk.bankCardFee) || 0);
-
-        // Adjust Gross if there's a void (as per requirement: void is not a deduction, it's a reduction of Gross)
-        const voidAmt = parseFloat(brk.voidInvoice) || 0;
-        if (voidAmt > 0) {
-          pnlMap[b].rev.dinein -= voidAmt;
+        const reconciled = reconcileInstoreDeductions(s);
+        for (const [key, value] of Object.entries(reconciled.details)) {
+          pnlMap[b].dedDetails.instore[key] += value;
         }
+        pnlMap[b].dedDetails.instore.voidInvoice += (parseFloat(brk.voidInvoice) || 0);
+        pnlMap[b].ded.instore += reconciled.instore;
+        pnlMap[b].ded.bank += reconciled.bank;
+
+        // Imported gross/net already exclude void invoices; the breakdown is informational.
       } else if (ch === 'grabfood') {
         const comm = parseFloat(brk.commission) || 0;
         const ocomm = parseFloat(brk.orderCommission) || 0;
@@ -818,8 +803,9 @@ function renderPNLTable(page, branches, data, targetMonth) {
   html += row('Senior Citizen Discount', d => d.dedDetails.instore.seniorCitizenDiscount, false, '', '', false, { parentId: 'instore', isChild: true });
   html += row('PWD Discount', d => d.dedDetails.instore.pwdDiscount, false, '', '', false, { parentId: 'instore', isChild: true });
   html += row('Other Discount', d => d.dedDetails.instore.otherDiscount, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('Ayala Grab Dine Out adjustment', d => d.dedDetails.instore.ayalaGrabDineOut, false, '', '', false, { parentId: 'instore', isChild: true });
   html += row('VAT Adjustment', d => d.dedDetails.instore.vatAdjustment, false, '', '', false, { parentId: 'instore', isChild: true });
-  html += row('Void Invoice (Gross Reduction)', d => d.dedDetails.instore.voidInvoice, false, '', '', false, { parentId: 'instore', isChild: true });
+  html += row('Void Invoice (already excluded from Gross)', d => d.dedDetails.instore.voidInvoice, false, '', '', false, { parentId: 'instore', isChild: true });
 
   html += row('Grab food deductions', d => d.ded.grab, false, '', '', false, { rowId: 'grab', hasChildren: true });
   html += row('Commission', d => d.dedDetails.grab.commission + d.dedDetails.grab.orderCommission, false, '', '', false, { parentId: 'grab', isChild: true });

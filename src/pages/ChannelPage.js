@@ -1,3 +1,6 @@
+import { validateImportedPayments } from '../utils/paymentAmounts.js';
+import { getGrabPayoutBreakdown } from '../utils/grabPayout.js';
+import { saveWithAyalaDineOut, syncAyalaDineOut, deleteWithAyalaDineOut } from '../services/ayalaDineOut.js';
 import { showAyalaProductImport } from '../components/AyalaProductImport.js';
 import { countDineInDrinkOrders, countIncidentOrders } from '../utils/kpiMetrics.js';
 import { Chart, registerables } from 'chart.js';
@@ -429,6 +432,34 @@ export function renderChannelPage(channelId, activeTab = 'history') {
     </div>
   `;
 
+  if (channelId === 'dinein') {
+    const syncButton = document.createElement('button');
+    syncButton.type = 'button';
+    syncButton.id = 'btn-sync-ayala-dine-out';
+    syncButton.className = 'ayala-dine-out-sync';
+    syncButton.hidden = document.getElementById('db-branch')?.value !== 'Ayala Cloverleaf';
+    syncButton.textContent = 'Sync Ayala Dine Out';
+    syncButton.title = 'Reconcile Ayala records in the currently displayed history with Grab payouts for the same dates';
+    syncButton.onclick = async () => {
+      const rows = historyItems.filter(item => item.branchId === 'Ayala Cloverleaf' && item.channelId === 'dinein');
+      if (!rows.length) return window.showToast('Select Ayala and load the dates to reconcile.', 'info');
+      if (new Set(rows.map(row => row.date)).size !== rows.length) {
+        return window.showToast('Duplicate Ayala daily records found. Resolve duplicates before syncing.', 'error');
+      }
+      syncButton.disabled = true;
+      try {
+        for (const row of rows) await syncAyalaDineOut(db, row.date, row.id);
+        window.dispatchEvent(new CustomEvent('sales-updated'));
+        await fetchChannelHistory(channelId);
+        window.showToast('Ayala Dine Out adjustments synced for ' + rows.length + ' day(s).', 'success');
+      } catch (error) {
+        console.error(error);
+        window.showToast('Sync incomplete. Retry safely: ' + error.message, 'error');
+      } finally { syncButton.disabled = false; }
+    };
+    page.querySelector('.history-data-heading').append(syncButton);
+  }
+
   let currentResults = null;
 
   setTimeout(() => {
@@ -858,6 +889,7 @@ export function renderChannelPage(channelId, activeTab = 'history') {
         others: 'Others Deductions',
         vendorRefunds: 'Other Incomes',
         grabDineOut: 'Grab Dine Out (Adj)',
+    ayalaGrabDineOut: 'Grab Dine Out adjustment — already recorded in Grab (same day)',
         discount100: '100% Discount (Manager)'
       };
 
@@ -1288,6 +1320,10 @@ function groupDataByBranchAndDate(data, channelId, cfg) {
 }
 
 async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') {
+  // Validate every day before any database write starts.
+  for (const [key, result] of Object.entries(results)) {
+    validateImportedPayments(channelId, key.includes('|||') ? key.split('|||')[0] : branchId, result);
+  }
   const batchId = `BATCH_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
   let totalRows = 0;
   const { doc, getDoc, writeBatch } = await import('firebase/firestore');
@@ -1326,6 +1362,11 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
       importBatchId: batchId,
       updatedAt: serverTimestamp()
     };
+
+    // Persist tender totals for new imports and overwrites, not only merges.
+    if (res.paymentMethods) {
+      dataToSave.paymentMethods = { ...res.paymentMethods };
+    }
 
     if (res.reconciliation) {
       dataToSave.reconciliation = res.reconciliation;
@@ -1373,6 +1414,28 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
           dataToSave.breakdown.kpi = {
             ...(res.breakdown?.kpi || {}),
             drinkOrders: Number.isFinite(oldCount) && Number.isFinite(newCount) ? oldCount + newCount : null
+          };
+        }
+
+        // Preserve all income components, not only deduction components, when merging batches.
+        if (res.breakdown?.incomes) {
+          const incomes = { ...(old.breakdown?.incomes || {}) };
+          for (const [key, value] of Object.entries(res.breakdown.incomes)) {
+            incomes[key] = (Number(incomes[key]) || 0) + value;
+          }
+          dataToSave.breakdown.incomes = incomes;
+        }
+        if (channelId === 'grabfood') {
+          dataToSave.adjustments = (old.adjustments ?? ((old.breakdown?.incomes?.adjustmentCredits || 0) - (old.breakdown?.deductions?.adjustmentFee || 0))) + (res.adjustments || 0);
+          dataToSave.actualNetPayout = dataToSave.financials.net;
+        }
+
+        // Grab payout is cumulative when importing an additional batch for the day.
+        if (channelId === 'grabfood' && res.dineOutPayout !== undefined) {
+          dataToSave.dineOutPayout = (old.dineOutPayout ?? old.breakdown?.incomes?.dineOutPayout ?? 0) + res.dineOutPayout;
+          dataToSave.breakdown.incomes = {
+            ...dataToSave.breakdown.incomes,
+            dineOutPayout: Math.max(0, dataToSave.dineOutPayout)
           };
         }
 
@@ -1450,7 +1513,7 @@ async function saveToDatabase(channelId, branchId, results, mode = 'overwrite') 
         dataToSave.breakdown.kpi = { ...dataToSave.breakdown.kpi, ...old.breakdown?.kpi };
       }
     }
-    return setDoc(docRef, dataToSave);
+    return saveWithAyalaDineOut(db, docRef, dataToSave);
   });
 
   // Create log entry
@@ -2053,6 +2116,7 @@ function updateUI(page, dailyResults, channelId, conflictDates = []) {
     others: 'Others Deductions',
     vendorRefunds: 'Other Incomes',
     grabDineOut: 'Grab Dine Out (Adj)',
+    ayalaGrabDineOut: 'Grab Dine Out adjustment — already recorded in Grab (same day)',
     discount100: '100% Discount (Manager)',
     vatAdjustment: 'VAT Adjustment',
     seniorCitizenDiscount: 'Senior Citizen Discount',
@@ -2308,6 +2372,7 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
   // 1. Calculate Aggregated Sales Summary
   let totalGross = 0;
   let totalOrders = 0;
+  let totalPaymentGross = 0;
   let totalMerchantProductDisc = 0;
   let totalMerchantDeliveryDisc = 0;
   let totalMerchantPromo = 0;
@@ -2357,37 +2422,19 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
 
     const bObj = branchMap[b];
 
-    const g = item.financials?.gross || item.gross || 0;
-    const net = item.actualNetPayout !== undefined ? item.actualNetPayout : (item.financials?.net || 0);
+    const payout = getGrabPayoutBreakdown(item);
+    const { gross: g, actualNetPayout: net, product: pDisc, delivery: dDisc, promo,
+      marketing: mFee, channelCommission: cFee, orderCommission: oComm, commission: comm,
+      ads: adsVal, adsExVAT: adsExV, adVAT: vatV, adjustments: adjNet,
+      dineOut, other: otherImp, orderPayout: ordPayout } = payout;
+    const ord = Number(item.orders) || 0;
     if (/^\d{4}-\d{2}-\d{2}$/.test(item.date || '')) {
       const daily = dailyPayout.get(item.date) || { gross: 0, payout: 0 };
       daily.gross += g;
       daily.payout += net;
       dailyPayout.set(item.date, daily);
     }
-    const ord = item.orders || 0;
-
-    const bD = item.breakdown?.deductions || {};
-    const bInc = item.breakdown?.incomes || {};
-
-    const pDisc = item.merchantProductDiscount || bD.merchantProductDiscount || 0;
-    const dDisc = item.merchantDeliveryDiscount || bD.deliveryDiscount || 0;
-    const promo = item.merchantPromo || (pDisc + dDisc) || bD.merchantDiscount || 0;
-
-    const mFee = item.marketingSuccessFee || bD.marketingFee || 0;
-    const cFee = item.channelCommission || bD.commission || 0;
-    const oComm = item.orderCommission || bD.orderCommission || 0;
-    const comm = item.commissionAndSuccessFees || (mFee + cFee + oComm) || 0;
-
-    const adsVal = item.adsInclVAT || bD.adsFee || 0;
-    const adsExV = item.adsExVAT || bD.adsExVAT || (adsVal * 100 / 112);
-    const vatV = item.adVAT || bD.adVAT || (adsVal - adsExV);
-
-    const adjNet = item.adjustments !== undefined ? item.adjustments : ((bInc.adjustmentCredits || 0) - (bD.adjustmentFee || 0));
-    const dineOut = (item.dineOutPayout !== undefined && item.dineOutPayout > 0) ? item.dineOutPayout : ((bInc.dineOutPayout || 0) + (bInc.otherIncomes || 0) + (bD.dineOutPromo || 0));
-    const otherImp = item.otherPayoutImpact || (bD.otherBaFees ? -bD.otherBaFees : 0);
-
-    const ordPayout = item.orderPayout !== undefined ? item.orderPayout : (g - dineOut - promo - comm);
+    totalPaymentGross += payout.paymentGross;
 
     // Accumulate total
     totalGross += g;
@@ -2399,7 +2446,7 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
     totalChannelCommission += cFee;
     totalOrderCommission += oComm;
     totalCommissionAndSuccessFees += comm;
-    totalFeeTax += item.feeTax || 0;
+    totalFeeTax += payout.feeTax;
     totalOrderPayout += ordPayout;
     totalAdsExVAT += adsExV;
     totalAdVAT += vatV;
@@ -2419,7 +2466,7 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
     bObj.channelCommission += cFee;
     bObj.orderCommission += oComm;
     bObj.commissionAndSuccessFees += comm;
-    bObj.feeTax += item.feeTax || 0;
+    bObj.feeTax += payout.feeTax;
     bObj.orderPayout += ordPayout;
     bObj.adsExVAT += adsExV;
     bObj.adVAT += vatV;
@@ -2616,7 +2663,7 @@ function renderGrabfoodDashboard(container, salesDocs, adsDocs, adjDocs) {
 
               <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
                  <span class="font-bold text-slate-600 dark:text-white/80">Gross Sales (Payment Transactions)</span>
-                 <span class="font-bold text-slate-900 dark:text-white">${fmt.format(totalGross)}</span>
+                 <span class="font-bold text-slate-900 dark:text-white">${fmt.format(totalPaymentGross)}</span>
               </div>
               <div class="flex justify-between text-[11px] py-1.5 border-b border-slate-100 dark:border-white/5">
                  <span class="font-medium text-rose-500 pl-4">− Merchant Product Discount</span>
@@ -2958,6 +3005,8 @@ function renderHistoryBranchPerformance(container, items) {
 
 async function fetchChannelHistory(channelId) {
   const branchId = (document.getElementById('db-branch')?.value || 'Pioneer Center').trim();
+  const syncButton = document.getElementById('btn-sync-ayala-dine-out');
+  if (syncButton) syncButton.hidden = channelId !== 'dinein' || branchId !== 'Ayala Cloverleaf';
   const rangeStr = document.getElementById('db-date-range')?.value || '';
   const searchText = (document.getElementById('channel-search')?.value || '').trim().toLowerCase();
 
@@ -3169,7 +3218,7 @@ async function fetchChannelHistory(channelId) {
             const confirmed = await window.showConfirmModal('Delete Entry', `Are you sure you want to permanently delete the record for ${item.date}?`);
             if (confirmed) {
               try {
-                await deleteDoc(doc(db, "daily_sales", docId));
+                await deleteWithAyalaDineOut(db, doc(db, "daily_sales", docId), item);
                 window.showToast('Record deleted successfully', 'success');
                 fetchChannelHistory(channelId);
               } catch (err) {
@@ -3287,6 +3336,7 @@ function showDayDetail(item, channelLabel) {
     others: 'Others Deductions',
     vendorRefunds: 'Other Incomes',
     grabDineOut: 'Grab Dine Out (Adj)',
+    ayalaGrabDineOut: 'Grab Dine Out adjustment — already recorded in Grab (same day)',
     discount100: '100% Discount (Manager)',
     vatAdjustment: 'VAT Adjustment',
     seniorCitizenDiscount: 'Senior Citizen Discount',
@@ -3456,7 +3506,7 @@ async function showManualEntryModal() {
       };
 
       const docId = `sales_${branchId}_dinein_${date}`;
-      await setDoc(doc(db, "daily_sales", docId), dataToSave);
+      await saveWithAyalaDineOut(db, doc(db, "daily_sales", docId), dataToSave);
 
       btn.style.backgroundColor = '#10b981';
       btn.innerHTML = 'SUCCESS';

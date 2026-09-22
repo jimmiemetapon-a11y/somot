@@ -1,3 +1,4 @@
+import { deleteWithAyalaDineOut } from '../services/ayalaDineOut.js';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, orderBy, limit, deleteDoc, writeBatch } from 'firebase/firestore';
 
@@ -744,10 +745,15 @@ export function renderSettings() {
            
            if (!snap.empty) {
               const batch = writeBatch(db);
-              snap.docs.forEach(d => {
-                 batch.delete(d.ref);
+              for (const d of snap.docs) {
+                 const row = d.data();
+                 if (colName === 'daily_sales' && row.branchId === 'Ayala Cloverleaf' && row.channelId === 'grabfood') {
+                    await deleteWithAyalaDineOut(db, d.ref, row);
+                 } else {
+                    batch.delete(d.ref);
+                 }
                  totalDeleted++;
-              });
+              }
               await batch.commit();
            }
          

@@ -1343,7 +1343,7 @@
 .dark .history-branch-performance th, .dark .history-branch-performance td { border-color: #ffffff0d; }
 .dark .history-branch-performance thead th, .dark .history-branch-performance tfoot, .dark .history-branch-performance tbody tr:hover { background: #ffffff06; }
 .history-data-card { padding: 16px 18px; border: 1px solid #dce3df; border-radius: 16px; background: #fff; color: #334155; }
-.history-data-heading { margin-bottom: 12px; }
+.history-data-heading { margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .history-data-heading h3 { font-size: 13px; font-weight: 800; }
 .history-data-scroll { overflow-x: auto; }
 .history-data-card table { min-width: 660px; font-variant-numeric: tabular-nums; }
@@ -1376,3 +1376,11 @@
 .product-import-footer { position: sticky; bottom: -24px; padding: 12px 0 20px; margin-top: 16px; background: #fbfcfa; border-top: 1px solid #dce5de; }
 .product-import-footer [data-status] { margin: 0 0 10px; overflow-wrap: anywhere; }
 .product-import-footer button:disabled { opacity: .55; cursor: default; }
+
+.ayala-dine-out-sync { margin-left: auto; padding: 6px 10px; border: 1px solid rgba(148,163,184,.45); border-radius: 7px; background: transparent; color: #64748b; font-size: 11px; font-weight: 500; line-height: 1.4; box-shadow: none; cursor: pointer; }
+.ayala-dine-out-sync:hover { border-color: #96588a; color: #96588a; }
+.ayala-dine-out-sync:focus-visible { outline: 2px solid #96588a; outline-offset: 2px; }
+.ayala-dine-out-sync:disabled { opacity: .5; cursor: wait; }
+.ayala-dine-out-sync[hidden] { display: none; }
+.dark .ayala-dine-out-sync { color: #cbd5e1; border-color: rgba(148,163,184,.35); }
+.dark .ayala-dine-out-sync:hover { color: #d4afcd; border-color: #d4afcd; }
